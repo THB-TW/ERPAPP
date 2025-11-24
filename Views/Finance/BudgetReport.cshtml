@@ -1,0 +1,340 @@
+﻿@model ERPAPP.ViewModels.BudgetReportViewModel
+
+@{
+    ViewData["Title"] = "預算報表";
+}
+
+<div class="container-fluid">
+    <h2>📊 @ViewData["Title"]</h2>
+    <hr />
+
+    <div class="row">
+        <div class="col-lg-12">
+            <h3>預算比較</h3>
+            <p>比較總預算與 @Model.LatestMonthDisplay 的剩餘預算。</p>
+            <div class="table-responsive">
+                <table class="table table-bordered table-striped table-hover table-sm">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>項目 (Category)</th>
+                            <th>總預算</th>
+                            <th>當月預算 (@Model.LatestMonthDisplay)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>飲食 (food)</td>
+                            <td>@((Model.InitialBudget.Food ?? 0).ToString("N0"))</td>
+                            <td>@((Model.LatestBudget.Food ?? 0).ToString("N0"))</td>
+                        </tr>
+                        <tr>
+                            <td>汽車 (car)</td>
+                            <td>@((Model.InitialBudget.Car ?? 0).ToString("N0"))</td>
+                            <td>@((Model.LatestBudget.Car ?? 0).ToString("N0"))</td>
+                        </tr>
+                        <tr>
+                            <td>娛樂 (fun)</td>
+                            <td>@((Model.InitialBudget.Fun ?? 0).ToString("N0"))</td>
+                            <td>@((Model.LatestBudget.Fun ?? 0).ToString("N0"))</td>
+                        </tr>
+                        <tr>
+                            <td>學習 (study)</td>
+                            <td>@((Model.InitialBudget.Study ?? 0).ToString("N0"))</td>
+                            <td>@((Model.LatestBudget.Study ?? 0).ToString("N0"))</td>
+                        </tr>
+                        <tr>
+                            <td>服飾 (cloth)</td>
+                            <td>@((Model.InitialBudget.Cloth ?? 0).ToString("N0"))</td>
+                            <td>@((Model.LatestBudget.Cloth ?? 0).ToString("N0"))</td>
+                        </tr>
+                        <tr>
+                            <td>用品 (articles)</td>
+                            <td>@((Model.InitialBudget.Articles ?? 0).ToString("N0"))</td>
+                            <td>@((Model.LatestBudget.Articles ?? 0).ToString("N0"))</td>
+                        </tr>
+                        <tr>
+                            <td>器具 (furniture)</td>
+                            <td>@((Model.InitialBudget.Furniture ?? 0).ToString("N0"))</td>
+                            <td>@((Model.LatestBudget.Furniture ?? 0).ToString("N0"))</td>
+                        </tr>
+                        <tr>
+                            <td>美髮 (hair)</td>
+                            <td>@((Model.InitialBudget.Hair ?? 0).ToString("N0"))</td>
+                            <td>@((Model.LatestBudget.Hair ?? 0).ToString("N0"))</td>
+                        </tr>
+                        <tr>
+                            <td>醫療 (health)</td>
+                            <td>@((Model.InitialBudget.Health ?? 0).ToString("N0"))</td>
+                            <td>@((Model.LatestBudget.Health ?? 0).ToString("N0"))</td>
+                        </tr>
+                        <tr>
+                            <td>其他 (other)</td>
+                            <td>@((Model.InitialBudget.Other ?? 0).ToString("N0"))</td>
+                            <td>@((Model.LatestBudget.Other ?? 0).ToString("N0"))</td>
+                        </tr>
+                        <tr class="table-info">
+                            <td><strong>總預算 (Total)</strong></td>
+                            <td><strong>@((Model.InitialBudget.Total ?? 0).ToString("N0"))</strong></td>
+                            <td><strong>@((Model.LatestBudget.Total ?? 0).ToString("N0"))</strong></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class.="row mt-4 mb-3 p-3 bg-light rounded border">
+        <div class="col-md-4">
+            <label for="startDate" class="form-label"><strong>起始日期:</strong></label>
+            <input type="date" id="startDate" class="form-control">
+        </div>
+        <div class="col-md-4">
+            <label for="endDate" class="form-label"><strong>結束日期:</strong></label>
+            <input type="date" id="endDate" class="form-control">
+        </div>
+        <div class="col-md-4 d-flex align-items-end">
+            <button id="filterButton" class="btn btn-primary w-100">
+                <i class.="fas fa-filter"></i> 更新所有圖表
+            </button>
+        </div>
+    </div>
+
+    <div class.="row mt-4 border-bottom pb-4">
+        <div class="col-12">
+            <h4>每月預算趨勢 (Budget 圖表)</h4>
+            <div class.="dropdown mb-2">
+                <button class="btn btn-secondary btn-sm dropdown-toggle" type="button" id="budgetMenuButton" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                    選擇 Budget 類別
+                </button>
+                <ul class="dropdown-menu p-3" aria-labelledby="budgetMenuButton">
+                    <li><input class="form-check-input dataset-toggle" type="checkbox" value="total" id="toggle-total" checked> <label class="form-check-label" for="toggle-total"><strong>總儲備金 (Total)</strong></label></li>
+                    <li><input class="form-check-input dataset-toggle" type="checkbox" value="gete" id="toggle-gete"> <label class="form-check-label" for="toggle-gete"><strong>當月盈餘 (Gete)</strong></label></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><input class="form-check-input dataset-toggle" type="checkbox" value="food" id="toggle-food"> <label class="form-check-label" for="toggle-food">飲食 (food)</label></li>
+                    <li><input class="form-check-input dataset-toggle" type="checkbox" value="car" id="toggle-car"> <label class="form-check-label" for="toggle-car">汽車 (car)</label></li>
+                    <li><input class="form-check-input dataset-toggle" type="checkbox" value="fun" id="toggle-fun"> <label class="form-check-label" for="toggle-fun">娛樂 (fun)</label></li>
+                    <li><input class="form-check-input dataset-toggle" type="checkbox" value="study" id="toggle-study"> <label class="form-check-label" for="toggle-study">學習深造 (study)</label></li>
+                    <li><input class="form-check-input dataset-toggle" type="checkbox" value="cloth" id="toggle-cloth"> <label class="form-check-label" for="toggle-cloth">服飾 (cloth)</label></li>
+                    <li><input class="form-check-input dataset-toggle" type="checkbox" value="articles" id="toggle-articles"> <label class="form-check-label" for="toggle-articles">日常用品 (articles)</label></li>
+                    <li><input class="form-check-input dataset-toggle" type="checkbox" value="furniture" id="toggle-furniture"> <label class="form-check-label" for="toggle-furniture">大型器具 (furniture)</label></li>
+                    <li><input class="form-check-input dataset-toggle" type="checkbox" value="hair" id="toggle-hair"> <label class="form-check-label" for="toggle-hair">美髮 (hair)</label></li>
+                    <li><input class="form-check-input dataset-toggle" type="checkbox" value="health" id="toggle-health"> <label class="form-check-label" for="toggle-health">醫療 (health)</label></li>
+                    <li><input class="form-check-input dataset-toggle" type="checkbox" value="other" id="toggle-other"> <label class="form-check-label" for="toggle-other">其他 (other)</label></li>
+                </ul>
+            </div>
+            <div style="position: relative; height: 400px;">
+                <canvas id="monthlyTrendChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-12">
+            <h4>每月資產趨勢 (Property 圖表)</h4>
+            <div class.="dropdown mb-2">
+                <button class="btn btn-info btn-sm dropdown-toggle" type="button" id="propertyMenuButton" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                    選擇顯示項
+                </button>
+                <ul class="dropdown-menu p-3" aria-labelledby="propertyMenuButton">
+                    <li><input class="form-check-input property-dataset-toggle" type="checkbox" value="sparemoney" id="toggle-sparemoney" checked> <label class="form-check-label" for="toggle-sparemoney"><strong>可用餘額</strong></label></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><input class="form-check-input property-dataset-toggle" type="checkbox" value="own" id="toggle-own" checked> <label class="form-check-label" for="toggle-own">當月收入</label></li>
+                    <li><input class="form-check-input property-dataset-toggle" type="checkbox" value="tuitionfee" id="toggle-tuitionfee"> <label class="form-check-label" for="toggle-tuitionfee">學費(Tuitionfee)</label></li>
+                    <li><input class="form-check-input property-dataset-toggle" type="checkbox" value="budget" id="toggle-budget"> <label class="form-check-label" for="toggle-budget">預算</label></li>
+                    <li><input class="form-check-input property-dataset-toggle" type="checkbox" value="totalproperty" id="toggle-totalproperty"> <label class="form-check-label" for="toggle-totalproperty">總財產(Totalproperty)</label></li>
+                </ul>
+            </div>
+            <div style="position: relative; height: 400px;">
+                <canvas id="propertyTrendChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        var myChart = null;
+        var myPropertyChart = null;
+        var fullData = @Html.Raw(Json.Serialize(Model.AllMonthlyBudgets));
+        var fullPropertyData = @Html.Raw(Json.Serialize(Model.AllPropertyData));
+        var ctx = document.getElementById('monthlyTrendChart').getContext('2d');
+        var ctxProperty = document.getElementById('propertyTrendChart').getContext('2d');
+
+        const datasetStyles = {
+            'total': { label: '總儲備金', type: 'bar', backgroundColor: 'rgba(54, 162, 235, 0.6)' },
+            'gete': { label: '當月盈餘', type: 'bar', backgroundColor: 'rgba(75, 192, 192, 0.6)' },
+            'food': { label: '飲食', type: 'line', borderColor: 'rgba(255, 99, 132, 1)', fill: false, tension: 0.1 },
+            'car': { label: '汽車', type: 'line', borderColor: 'rgba(255, 159, 64, 1)', fill: false, tension: 0.1 },
+            'fun': { label: '娛樂', type: 'line', borderColor: 'rgba(255, 205, 86, 1)', fill: false, tension: 0.1 },
+            'study': { label: '學習', type: 'line', borderColor: 'rgba(40, 167, 69, 1)', fill: false, tension: 0.1 },
+            'cloth': { label: '服飾', type: 'line', borderColor: 'rgba(153, 102, 255, 1)', fill: false, tension: 0.1 },
+            'articles': { label: '用品', type: 'line', borderColor: 'rgba(165, 42, 42, 1)', fill: false, tension: 0.1 },
+            'furniture': { label: '器具', type: 'line', borderColor: 'rgba(255, 192, 203, 1)', fill: false, tension: 0.1 },
+            'hair': { label: '美髮', type: 'line', borderColor: 'rgba(108, 117, 125, 1)', fill: false, tension: 0.1 },
+            'health': { label: '醫療', type: 'line', borderColor: 'rgba(23, 162, 184, 1)', fill: false, tension: 0.1 },
+            'other': { label: '其他', type: 'line', borderColor: 'rgba(0, 0, 0, 1)', fill: false, tension: 0.1 }
+        };
+
+        // 🌟 新增 Property 樣式表
+        const propertyDatasetStyles = {
+            'sparemoney': { label: '可用餘額', type: 'bar', backgroundColor: 'rgba(255, 99, 132, 0.6)' },
+            'own': { label: '當月收入', type: 'line', borderColor: 'rgba(54, 162, 235, 1)', fill: false, tension: 0.1 },
+            'tuitionfee': { label: '學費', type: 'line', borderColor: 'rgba(255, 159, 64, 1)', fill: false, tension: 0.1 },
+            'budget': { label: '預算', type: 'line', borderColor: 'rgba(75, 192, 192, 1)', fill: false, tension: 0.1 },
+            'totalproperty': { label: '總財產', type: 'line', borderColor: 'rgba(153, 102, 255, 1)', fill: false, tension: 0.1 }
+        };
+
+        // 🌟 輔助函數：將日期字串格式化為 YYYY-MM-DD (保持原樣，用於解決 input type="date" 錯誤)
+        function formatDateString(dateString) {
+            if (!dateString) return null;
+            var date = new Date(dateString);
+            if (isNaN(date.getTime())) {
+                var datePart = dateString.split('T')[0];
+                if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+                     return datePart;
+                }
+                return null;
+            }
+            var year = date.getFullYear();
+            var month = ('0' + (date.getMonth() + 1)).slice(-2);
+            var day = ('0' + date.getDate()).slice(-2);
+            return `${year}-${month}-${day}`;
+        }
+
+        function getValue(item, targetKey) {
+            if (!item) return 0;
+            var searchKey = targetKey.toLowerCase();
+            var keys = Object.keys(item);
+            for (var i = 0; i < keys.length; i++) {
+                var currentKey = keys[i];
+                if (currentKey.toLowerCase() === searchKey) {
+                    return item[currentKey];
+                }
+            }
+            return 0;
+        }
+
+        // 🌟 3. 核心功能：抽離出一個「通用」的圖表繪製函式
+        function drawOrUpdateChart(chartInstance, context, data, styles, checkboxClass) {
+
+            if (!data || data.length === 0) {
+                return null;
+            }
+
+            var startDate = $('#startDate').val();
+            var endDate = $('#endDate').val();
+
+            // 3.2 根據日期過濾資料
+            var filteredData = data.filter(function(item) {
+                var dateVal = getValue(item, 'date'); // 讀取日期
+                if (!dateVal) return false;
+
+                var itemDate = new Date(dateVal);
+                if (startDate && itemDate < new Date(startDate)) return false;
+                if (endDate && itemDate > new Date(endDate)) return false;
+                return true;
+            });
+
+            // 如果過濾後資料為空，同樣顯示無資料訊息
+            if (filteredData.length === 0) {
+                 if (chartInstance) { chartInstance.destroy(); }
+                 context.font = "16px Arial";
+                 context.fillStyle = "#888";
+                 context.textAlign = "center";
+                 const canvas = context.canvas;
+                 context.fillText("指定日期範圍內沒有資料", canvas.width / 2, canvas.height / 2);
+                 return null;
+            }
+
+            // 3.3 準備資料陣列
+            var labels = [];
+            var dataStore = {};
+            for (var key in styles) {
+                dataStore[key] = []; // 初始化所有類別的資料陣列
+            }
+
+            filteredData.forEach(function(item) {
+                var dateVal = getValue(item, 'date');
+                var date = new Date(dateVal);
+                labels.push(date.getFullYear() + '-' + ('0' + (date.getMonth() + 1)).slice(-2));
+
+                for (var key in dataStore) {
+                    var val = getValue(item, key);
+                    dataStore[key].push(val ?? 0);
+                }
+            });
+
+            // 3.4 根據「勾選框」動態建立 datasets 陣列
+            var newDatasets = [];
+            $(checkboxClass).each(function() {
+                if ($(this).is(':checked')) {
+                    var key = $(this).val().toLowerCase();
+                    if (styles[key]) {
+                        var style = styles[key];
+                        var data = dataStore[key];
+                        newDatasets.push({ ...style, data: data });
+                    }
+                }
+            });
+
+            // 3.5 繪製或更新圖表
+            if (chartInstance) {
+                chartInstance.data.labels = labels;
+                chartInstance.data.datasets = newDatasets;
+                chartInstance.update();
+            } else {
+                chartInstance = new Chart(context, {
+                    type: 'bar', // 預設
+                    data: { labels: labels, datasets: newDatasets },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: { y: { beginAtZero: false, ticks: { callback: function(value) { return value.toLocaleString(); }}} },
+                        plugins: {
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        var label = context.dataset.label || '';
+                                        if (label) { label += ': '; }
+                                        if (context.parsed.y !== null) {
+                                            label += context.parsed.y.toLocaleString();
+                                        }
+                                        return label;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            return chartInstance; // 回傳更新後的實例
+        }
+
+        // 🌟 4. 頁面載入時的初始化
+        $(document).ready(function () {
+
+            var now = new Date();
+            var oneYearAgo = new Date();
+            oneYearAgo.setFullYear(now.getFullYear() - 1); // 減去一年
+
+            // 格式化日期為 YYYY-MM-DD
+            var endDateStr = formatDateString(now.toISOString());
+            var startDateStr = formatDateString(oneYearAgo.toISOString());
+
+            // 填入輸入框
+            $('#startDate').val(startDateStr);
+            $('#endDate').val(endDateStr);
+
+            // 4.2 第一次繪製「兩個」圖表
+            myChart = drawOrUpdateChart(myChart, ctx, fullData, datasetStyles, '.dataset-toggle');
+            myPropertyChart = drawOrUpdateChart(myPropertyChart, ctxProperty, fullPropertyData, propertyDatasetStyles, '.property-dataset-toggle');
+
+            // 4.3 綁定「更新圖表」按鈕的點擊事件
+            $('#filterButton').on('click', function() {
+                myChart = drawOrUpdateChart(myChart, ctx, fullData, datasetStyles, '.dataset-toggle');
+                myPropertyChart = drawOrUpdateChart(myPropertyChart, ctxProperty, fullPropertyData, propertyDatasetStyles, '.property-dataset-toggle');
+            });
+        });
+    </script>
+}
