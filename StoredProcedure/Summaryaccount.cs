@@ -48,7 +48,7 @@ public class FinanceSpExecutor
 
                         if (alreadyStatus == 2)
                         {
-                            if (reader.FieldCount > 7)
+                            if (reader.FieldCount > 6)
                             {
                                 result.Phone = reader.GetInt32("phone");
                                 result.Gogoro = reader.GetInt32("gogoro");
@@ -59,20 +59,21 @@ public class FinanceSpExecutor
                             }
                         }
                     }
-                }
-                if (alreadyStatus == -1 && reader.NextResult())
-                {
-                    while (reader.Read())
+                    if (alreadyStatus == -1 && reader.NextResult())
                     {
-                        result.Errors.Add(new UnmatchedRecord
+                        while (reader.Read())
                         {
-                            ProblemType = reader.GetString(reader.GetOrdinal("ProblemType")),
-                            Date = reader.GetDateTime(reader.GetOrdinal("Date")),
-                            Amount = reader.GetInt32(reader.GetOrdinal("Amount")),
-                            Category = reader.GetString(reader.GetOrdinal("Category"))
-                        });
+                            result.Errors.Add(new UnmatchedRecord
+                            {
+                                ProblemType = reader.GetString(reader.GetOrdinal("ProblemType")),
+                                Date = reader.GetDateTime(reader.GetOrdinal("Date")),
+                                Amount = reader.GetInt32(reader.GetOrdinal("Amount")),
+                                Category = reader.GetString(reader.GetOrdinal("Category"))
+                            });
+                        }
                     }
                 }
+                
             }
         }
         finally

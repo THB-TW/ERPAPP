@@ -117,10 +117,8 @@
                 switch (alreadyStatus) {
 
                     case 2:
-                    case -2:
-                        var statusText = alreadyStatus === 2 ? "執行成功" : "重置成功";
 
-                        var successHtml = '<h4>狀態碼: ' + alreadyStatus + ' (' + statusText + ')</h4>' +
+                        var successHtml = '<h4>狀態碼: ' + alreadyStatus + ' (' + "執行成功" + ')</h4>' +
                             '<ul class="list-group list-group-flush mt-3">' +
                             '<li class="list-group-item d-flex justify-content-between align-items-center">手機/網路結餘 (Phone): <strong>' + formatNumber(spResult.Phone) + '</strong></li>' +
                             '<li class="list-group-item d-flex justify-content-between align-items-center">Gogoro 結餘 (Gogoro): <strong>' + formatNumber(spResult.Gogoro) + '</strong></li>' +
@@ -135,6 +133,16 @@
                         successModal.show();
                         break;
 
+                    case -2:
+                        var statusText = "重置成功";
+
+                        var simpleHtml = '<h4>狀態碼: ' + alreadyStatus + ' (' + statusText + ')</h4>' +
+                                         '<p>已成功撤銷當月財務彙總記錄。請重新執行彙總。</p>';
+
+                        $('#successModal .modal-body').html(simpleHtml);
+                        var successModal = new bootstrap.Modal(document.getElementById('successModal'));
+                        successModal.show();
+                        break;
                     case -1:
                         var errorHtml = '<h4>狀態碼: -1 (信用卡不匹配)</h4>' +
                             '<p>以下是記帳紀錄與信用卡帳單不匹配的項目：</p>' +
