@@ -1,0 +1,182 @@
+﻿@model ERPAPP.Dto.SummaryInputModel
+
+@{
+    ViewData["Title"] = "執行財務彙總";
+}
+
+<div class="row">
+    <div class="col-md-6">
+        <h2>@ViewData["Title"]</h2>
+        <hr />
+
+        <form asp-action="RunSummary" asp-controller="Finance" method="post">
+
+            @Html.AntiForgeryToken()
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+            <div class="form-group">
+                <label asp-for="Year" class="control-label"></label>
+                <input asp-for="Year" class="form-control" type="number" />
+                <span asp-validation-for="Year" class="text-danger"></span>
+            </div>
+
+            <div class="form-group" style="margin-top: 15px;">
+                <label asp-for="Month" class="control-label"></label>
+                <input asp-for="Month" class="form-control" type="number" />
+                <span asp-validation-for="Month" class="text-danger"></span>
+            </div>
+
+            <div class="form-group" style="margin-top: 15px;">
+                <label asp-for="Own" class="control-label"></label>
+                <input asp-for="Own" class="form-control" type="number" />
+                <span asp-validation-for="Own" class="text-danger"></span>
+            </div>
+
+            <div class="form-group" style="margin-top: 30px;">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-play"></i> 執行帳單彙總
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal fade" id="successModal" tabindex="-1" aria-labelledby="successModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="successModalLabel">✅ 執行結果：財務彙總成功</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="errorModal" tabindex="-1" aria-labelledby="errorModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="errorModalLabel">⚠️ 執行結果：信用卡核對錯誤</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+    <script>
+        $(document).ready(function () {
+
+            var alertMessage = @Html.Raw(Json.Serialize(TempData["AlertMessage"]));
+            if (alertMessage) {
+                alert(alertMessage);
+                return;
+            }
+
+            var spResultJson = '@Html.Raw(TempData["SpResultJson"] as string)';
+            var spResult = null;
+            if (spResultJson && spResultJson !== 'null') {
+                try {
+                    spResult = JSON.parse(spResultJson);
+                } catch (e) {
+                    alert("❌ 內部錯誤：解析 SP 結果資料失敗。請檢查主控台。");
+                    console.error("解析 SP 結果 JSON 失敗:", e);
+                    return;
+                }
+            }
+
+            if (spResult) {
+
+                const formatNumber = (num) => {
+                    return num !== null && num !== undefined ? num.toLocaleString() : '0';
+                };
+                const formatDate = (date) => {
+                    if (date) {
+                        const d = new Date(date);
+                        return d.toISOString().split('T')[0];
+                    }
+                    return '';
+                }
+
+                const alreadyStatus = parseInt(spResult.Already);
+
+                switch (alreadyStatus) {
+
+                    case 2:
+
+                        var successHtml = '<h4>狀態碼: ' + alreadyStatus + ' (' + "執行成功" + ')</h4>' +
+                            '<ul class="list-group list-group-flush mt-3">' +
+                            '<li class="list-group-item d-flex justify-content-between align-items-center">手機/網路結餘 (Phone): <strong>' + formatNumber(spResult.Phone) + '</strong></li>' +
+                            '<li class="list-group-item d-flex justify-content-between align-items-center">Gogoro 結餘 (Gogoro): <strong>' + formatNumber(spResult.Gogoro) + '</strong></li>' +
+                            '<li class="list-group-item d-flex justify-content-between align-items-center">電費支出 (Electricity): <strong>' + formatNumber(spResult.Electricity) + '</strong></li>' +
+                            '<li class="list-group-item d-flex justify-content-between align-items-center">水費支出 (Water): <strong>' + formatNumber(spResult.Water) + '</strong></li>' +
+                            '<li class="list-group-item d-flex justify-content-between align-items-center">瓦斯支出 (Gas): <strong>' + formatNumber(spResult.Gas) + '</strong></li>' +
+                            '<li class="list-group-item d-flex justify-content-between align-items-center bg-light">固定支出餘額 (Negtive): <strong>' + formatNumber(spResult.Negtive) + '</strong></li>' +
+                            '</ul>';
+
+                        $('#successModal .modal-body').html(successHtml);
+                        var successModal = new bootstrap.Modal(document.getElementById('successModal'));
+                        successModal.show();
+                        break;
+
+                    case -2:
+                        var statusText = "重置成功";
+
+                        var simpleHtml = '<h4>狀態碼: ' + alreadyStatus + ' (' + statusText + ')</h4>' +
+                                         '<p>已成功撤銷當月財務彙總記錄。請重新執行彙總。</p>';
+
+                        $('#successModal .modal-body').html(simpleHtml);
+                        var successModal = new bootstrap.Modal(document.getElementById('successModal'));
+                        successModal.show();
+                        break;
+                    case -1:
+                        var errorHtml = '<h4>狀態碼: -1 (信用卡不匹配)</h4>' +
+                            '<p>以下是記帳紀錄與信用卡帳單不匹配的項目：</p>' +
+                            '<table class="table table-sm table-striped table-hover">' +
+                            '<thead class="table-danger"><tr><th>問題類型</th><th>日期</th><th>金額</th><th>類別/項目</th></tr></thead><tbody>';
+
+                        if (spResult.Errors && spResult.Errors.length > 0) { 
+                            spResult.Errors.forEach(function(err) { 
+                                errorHtml += '<tr>' +
+                                    '<td>' + err.ProblemType + '</td>' +
+                                    '<td>' + formatDate(err.Date) + '</td>' +
+                                    '<td class="text-danger">' + formatNumber(err.Amount) + '</td>' +
+                                    '<td>' + err.Category + '</td>' +
+                                    '</tr>';
+                            });
+                        } else {
+                            errorHtml += '<tr><td colspan="4">未回傳具體錯誤明細。</td></tr>';
+                        }
+                        errorHtml += '</tbody></table>';
+
+                        $('#errorModal .modal-body').html(errorHtml);
+                        var errorModal = new bootstrap.Modal(document.getElementById('errorModal'));
+                        errorModal.show();
+                        break;
+
+                    case 1:
+                        alert('⚠️ 執行失敗！狀態碼: 1 (資料已輸入過)。');
+                        break;
+
+                    default:
+                        alert('❌ 執行失敗！返回未預期狀態碼: ' + alreadyStatus + ' (原始 JSON 值: ' + spResult.Already + ')');
+                        break;
+                }
+            }
+        });
+    </script>
+}

@@ -1,0 +1,110 @@
+﻿@model IEnumerable<ERPAPP.Models.Transaction>
+
+@{
+    ViewData["Title"] = "Index";
+}
+
+<h1>Index</h1>
+@if (User.IsInRole("Edit"))
+{
+    <p>
+        <a asp-action="Create">Create New</a>
+    </p>
+}
+<form asp-action="Index" method="get" class="row g-2 mb-3">
+    <div class="col-auto">
+        <label for="startDate" class="form-label">起始日期</label>
+        <input type="date" id="startDate" name="startDate" class="form-control"
+               value="@(Context.Request.Query["startDate"])" />
+    </div>
+    <div class="col-auto">
+        <label for="endDate" class="form-label">結束日期</label>
+        <input type="date" id="endDate" name="endDate" class="form-control"
+               value="@(Context.Request.Query["endDate"])" />
+    </div>
+    <div class="col-auto">
+        <label for="searchCategory" class="form-label">類別</label>
+        <select id="searchCategory" name="searchCategory" asp-items="ViewBag.Categories" class="form-control">
+            <option value="">所有類別</option>
+        </select>
+    </div>
+
+    <div class="col-auto">
+        <label for="searchMember" class="form-label">成員</label>
+        <select id="searchMember" name="searchMember" asp-items="ViewBag.Members" class="form-control">
+            <option value="">所有成員</option>
+        </select>
+    </div>
+
+    <div class="col-auto">
+        <label for="searchAccount" class="form-label">帳戶</label>
+        <select id="searchAccount" name="searchAccount" asp-items="ViewBag.Accounts" class="form-control">
+            <option value="">所有帳戶</option>
+        </select>
+    </div>
+
+    <div class="col-auto">
+        <label for="searchType" class="form-label">收支類型</label>
+        <select id="searchType" name="searchType" asp-items="ViewBag.Types" class="form-control">
+            <option value="">所有類型</option>
+        </select>
+    </div>
+
+    <div class="col-auto">
+        <button type="submit" class="btn btn-primary">搜尋</button>
+    </div>
+</form>
+<table class="table">
+    <thead>
+        <tr>
+            <th>
+                @Html.DisplayNameFor(model => model.Date)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Category)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Amount)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Member)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Account)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.TransactionType)
+            </th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+@foreach (var item in Model) {
+        <tr>
+            <td>
+                @Html.DisplayFor(modelItem => item.Date)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.Category)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.Amount)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.Member)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.Account)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.TransactionType)
+            </td>
+            <td>
+                <a asp-action="Edit" asp-route-id="@item.Id">Edit</a> |
+                <a asp-action="Details" asp-route-id="@item.Id">Details</a> |
+                <a asp-action="Delete" asp-route-id="@item.Id">Delete</a>
+            </td>
+        </tr>
+}
+    </tbody>
+</table>
