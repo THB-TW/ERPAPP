@@ -1,0 +1,167 @@
+﻿@{
+    ViewData["Title"] = "交易明細分析";
+}
+
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-md-3 border-end">
+            <h4><i class="bi bi-filter"></i> 篩選條件</h4>
+            <hr />
+
+            <div class="mb-3">
+                <label class="form-label">時間範圍</label>
+                <input type="date" id="startDate" class="form-control mb-2" />
+                <input type="date" id="endDate" class="form-control" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">成員</label>
+                <div id="memberContainer">
+                    @foreach (var m in ViewBag.Members)
+                    {
+                        <div class="form-check">
+                            <input class="form-check-input filter-checkbox" type="checkbox" value="@m.MemberName" id="m_@m.MemberName" checked>
+                            <label class="form-check-label" for="m_@m.MemberName">@m.MemberName</label>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">帳戶 (現金/信用卡)</label>
+                <div id="accountContainer">
+                    @foreach (var a in ViewBag.Accounts)
+                    {
+                        <div class="form-check">
+                            <input class="form-check-input filter-checkbox" type="checkbox" value="@a.AccountName" id="a_@a.AccountName" checked>
+                            <label class="form-check-label" for="a_@a.AccountName">@a.AccountName</label>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">類別篩選 (選中亮起)</label>
+                <div id="categoryContainer">
+                    @foreach (var c in ViewBag.Categories)
+                    {
+                        <div class="form-check">
+                            <input class="form-check-input filter-checkbox category-check" type="checkbox" value="@c.CategoryName" id="c_@c.CategoryName" checked>
+                            <label class="form-check-label" for="c_@c.CategoryName">@c.CategoryName</label>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-9">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5 class="text-center">支出類別比例</h5>
+                    <canvas id="categoryChart" style="max-height: 400px;"></canvas>
+                </div>
+                <div class="col-md-6">
+                    <h5>類別平均開銷分析</h5>
+                    <table class="table table-hover mt-3">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>類別</th>
+                                <th>總支出</th>
+                                <th>月平均</th>
+                            </tr>
+                        </thead>
+                        <tbody id="analysisTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        let myChart;
+
+        // 1. 初始化預設日期 (一年)
+        const endDateInput = document.getElementById('endDate');
+        const startDateInput = document.getElementById('startDate');
+
+        const today = new Date();
+        const lastYear = new Date();
+        lastYear.setFullYear(today.getFullYear() - 1);
+
+        endDateInput.valueAsDate = today;
+        startDateInput.valueAsDate = lastYear;
+
+        // 2. 監聽事件：當日期或勾選框改變時立刻觸發
+        document.querySelectorAll('.filter-checkbox, #startDate, #endDate').forEach(el => {
+            el.addEventListener('change', fetchData);
+        });
+
+        async function fetchData() {
+            // 抓取所有選中的值
+            const members = Array.from(document.querySelectorAll('#memberContainer input:checked')).map(i => i.value);
+            const accounts = Array.from(document.querySelectorAll('#accountContainer input:checked')).map(i => i.value);
+            const categories = Array.from(document.querySelectorAll('#categoryContainer input:checked')).map(i => i.value);
+
+            const url = `/Transactions/GetAnalysisData?startDate=${startDateInput.value}&endDate=${endDateInput.value}&` +
+                        members.map(m => `members=${encodeURIComponent(m)}`).join('&') + '&' +
+                        accounts.map(a => `accounts=${encodeURIComponent(a)}`).join('&') + '&' +
+                        categories.map(c => `categories=${encodeURIComponent(c)}`).join('&');
+
+            const response = await fetch(url);
+            const data = await response.json();
+
+            updateChart(data);
+            updateTable(data);
+        }
+
+        function updateChart(data) {
+            const ctx = document.getElementById('categoryChart').getContext('2d');
+            const labels = data.map(d => d.category);
+            const values = data.map(d => d.totalAmount);
+
+            if (myChart) {
+                myChart.destroy();
+            }
+
+            myChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: values,
+                        backgroundColor: [
+                            '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#C9CBCF'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    }
+                }
+            });
+        }
+
+        function updateTable(data) {
+            const tbody = document.getElementById('analysisTableBody');
+            tbody.innerHTML = '';
+
+            data.forEach(item => {
+                const row = `<tr>
+                    <td>${item.category}</td>
+                    <td>$${item.totalAmount.toLocaleString()}</td>
+                    <td>$${item.averageAmount.toLocaleString()}</td>
+                </tr>`;
+                tbody.innerHTML += row;
+            });
+        }
+
+        // 初始載入
+        fetchData();
+    </script>
+}
