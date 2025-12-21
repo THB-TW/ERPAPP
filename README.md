@@ -10,6 +10,9 @@
 - 資產管理：追蹤每月資產變化。
 - 權限與員工管理（Employee、Role）。
 
+## 網站
+https://erpapp-i47n.onrender.com/
+使用Render的雲端伺服器以及資料庫
 ## 技術架構
 
 - 後端: .NET 8.0 (ASP.NET Core MVC)
