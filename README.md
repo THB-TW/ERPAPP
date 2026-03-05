@@ -12,7 +12,7 @@
 
 ## 網站
 https://erpapp-i47n.onrender.com/
-使用Render的雲端伺服器以及資料庫
+使用Render的雲端伺服器以及資料庫(目前未開啟雲端伺服器)
 ## 技術架構
 
 - 後端: .NET 8.0 (ASP.NET Core MVC)
