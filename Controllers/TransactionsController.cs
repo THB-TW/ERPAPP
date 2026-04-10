@@ -200,14 +200,14 @@ namespace ERPAPP.Controllers
             var transactionEdit = await _context.Transactions
                 .Where(t => t.Id == id)
                 .Select(a => new NewsDto
-                               {
-                                   Id = a.Id,
-                                   Date = a.Date,
-                                   Category = a.Category,
-                                   Amount = a.Amount,
-                                   Member = a.Member,
-                                   Account = a.Account,
-                               })
+                {
+                    Id = a.Id,
+                    Date = a.Date,
+                    Category = a.Category,
+                    Amount = a.Amount,
+                    Member = a.Member,
+                    Account = a.Account,
+                })
                                 .FirstOrDefaultAsync();
             //var insert = new NewsEditViewModel();
             //insert.EditSpec = await (from a in _context.Transactions
@@ -322,6 +322,64 @@ namespace ERPAPP.Controllers
         private bool TransactionExists(int id)
         {
             return _context.Transactions.Any(e => e.Id == id);
+        }
+        // Action：分析頁面
+        public async Task<IActionResult> Analysis()
+        {
+            // 取得篩選用的基礎資料
+            ViewBag.Categories = await _context.Categories.ToListAsync();
+            ViewBag.Members = await _context.Members.ToListAsync();
+            ViewBag.Accounts = await _context.Accounts.ToListAsync();
+
+            return View();
+        }
+
+        // --- 新增 Action：即時數據 API ---
+        [HttpGet]
+        public async Task<IActionResult> GetAnalysisData(
+            DateTime startDate,
+            DateTime endDate,
+            string[] categories,
+            string[] members,
+            string[] accounts)
+        {
+            // 1. 基本查詢：鎖定「支出」
+            var query = _context.Transactions.Where(t => t.TransactionType == "支" && t.Date >= startDate && t.Date <= endDate);
+
+            // 2. 動態篩選
+            if (categories != null && categories.Length > 0)
+                query = query.Where(t => categories.Contains(t.Category));
+
+            if (members != null && members.Length > 0)
+                query = query.Where(t => members.Contains(t.Member));
+
+            if (accounts != null && accounts.Length > 0)
+                query = query.Where(t => accounts.Contains(t.Account));
+
+            // 3. 聚合數據
+            var groupedData = await query
+                .GroupBy(t => t.Category)
+                .Select(g => new
+                {
+                    Category = g.Key,
+                    TotalAmount = g.Sum(t => t.Amount)
+                })
+                .ToListAsync();
+
+            // 4. 計算月數差（用於平均值）
+            // 計算邏輯：總天數 / 30
+            double totalDays = (endDate - startDate).TotalDays;
+            double months = totalDays / 30.0;
+            if (months < 1) months = 1; // 至少為一個月以免除以零
+
+            var finalData = groupedData.Select(d => new
+            {
+                d.Category,
+                d.TotalAmount,
+                AverageAmount = Math.Round(d.TotalAmount / months, 2)
+            }).OrderByDescending(d => d.TotalAmount);
+
+            return Json(finalData);
         }
     }
 }

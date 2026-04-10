@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace ERPAPP.Dto
 {
@@ -79,5 +79,26 @@ namespace ERPAPP.Dto
         [Required(ErrorMessage = "請輸入收入")]
         [Display(Name = "收入")]
         public int Own { get; set; }
+
+        // ── 財務摘要（最新月份，由 Controller GET 填入，唯讀顯示用） ──
+        public string? LatestMonthDisplay { get; set; }
+        public int? LatestOwn { get; set; }          // 收入    (property.own)
+        public int? LatestGete { get; set; }         // 盈餘    (budget.gete)
+        public int? LatestSparemoney { get; set; }   // 存款    (property.sparemoney)
+        public int? LatestTuitionfee { get; set; }   // 債務    (property.tuitionfee)
+        public int? LatestBudget { get; set; }       // 預算    (property.budget)
+        public int? LatestTotalproperty { get; set; }// 總資產  (property.totalproperty)
+
+        // ── 支出計算區塊：信用卡明細（依表單年月查詢 creditcard 表格）──
+        public List<CreditcardItem> CreditcardItems { get; set; } = new();
+        public int CreditcardTotal { get; set; }     // 信用卡當月支出加總
+    }
+
+    /// <summary>信用卡明細（顯示用）</summary>
+    public class CreditcardItem
+    {
+        public string DateDisplay { get; set; } = string.Empty;
+        public string Item { get; set; } = string.Empty;
+        public int Amount { get; set; }
     }
 }

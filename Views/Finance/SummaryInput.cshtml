@@ -1,4 +1,4 @@
-﻿@model ERPAPP.Dto.SummaryInputModel
+@model ERPAPP.Dto.SummaryInputModel
 
 @{
     ViewData["Title"] = "執行財務彙總";
@@ -16,13 +16,13 @@
 
             <div class="form-group">
                 <label asp-for="Year" class="control-label"></label>
-                <input asp-for="Year" class="form-control" type="number" />
+                <input asp-for="Year" class="form-control" type="number" max="@DateTime.Now.Year" />
                 <span asp-validation-for="Year" class="text-danger"></span>
             </div>
 
             <div class="form-group" style="margin-top: 15px;">
                 <label asp-for="Month" class="control-label"></label>
-                <input asp-for="Month" class="form-control" type="number" />
+                <input asp-for="Month" class="form-control" type="number" min="1" max="12" />
                 <span asp-validation-for="Month" class="text-danger"></span>
             </div>
 
@@ -39,7 +39,202 @@
             </div>
         </form>
     </div>
+
+    @* ── 右側：計算與信用卡明細區塊 ── *@
+    <div class="col-md-6">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-header bg-primary text-white d-flex align-items-center gap-2">
+                <i class="fas fa-calculator"></i>
+                <span class="fw-bold">財務加總計算</span>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    @* 計算輸入區 *@
+                    <div class="col-md-6">
+                        <div class="form-group mb-2">
+                            <label>已花費</label>
+                            <input type="number" id="calcSpent" class="form-control calc-input" value="0" />
+                        </div>
+                        <div class="form-group mb-2">
+                            <label>現金餘額</label>
+                            <input type="number" id="calcCash" class="form-control calc-input" value="0" />
+                        </div>
+                        <div class="form-group mb-2">
+                            <label>一卡通</label>
+                            <input type="number" id="calciPass" class="form-control calc-input" value="0" />
+                        </div>
+                        <div class="form-group mb-2">
+                            <label>銀行</label>
+                            <input type="number" id="calcBank" class="form-control calc-input" value="0" />
+                        </div>
+                        <div class="form-group mb-3">
+                            <label>信用卡扣款 <small class="text-muted">(系統帶入)</small></label>
+                            <input type="number" id="calcCreditCard" class="form-control bg-light" value="@Model.CreditcardTotal" readonly />
+                        </div>
+                        <button type="button" class="btn btn-success w-100" id="btnCalcSum">
+                            <i class="fas fa-equals"></i> 計算總和
+                        </button>
+                        <div class="mt-3 p-2 bg-light border rounded text-center">
+                            <h5 class="mb-0 text-secondary">總和結果</h5>
+                            <h3 class="mb-0 text-danger fw-bold mt-1" id="calcSumResult">0</h3>
+                        </div>
+                    </div>
+
+                    @* 信用卡明細顯示區 *@
+                    <div class="col-md-6 border-start">
+                        <h6 class="fw-bold text-muted mb-2">
+                            <i class="far fa-credit-card"></i> 
+                            信用卡明細 (當前 @DateTime.Now.ToString("MM") 月份)
+                        </h6>
+                        <div style="max-height: 380px; overflow-y: auto;">
+                            <table class="table table-sm table-striped mt-1" id="ccTable">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th>日期</th>
+                                        <th>項目</th>
+                                        <th class="text-end">金額</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @if(Model.CreditcardItems != null && Model.CreditcardItems.Any())
+                                    {
+                                        foreach(var item in Model.CreditcardItems)
+                                        {
+                                            <tr>
+                                                <td>@item.DateDisplay</td>
+                                                <td>@item.Item</td>
+                                                <td class="text-end">@item.Amount.ToString("N0")</td>
+                                            </tr>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <tr>
+                                            <td colspan="3" class="text-muted small text-center">此月份無信用卡紀錄</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="text-end mt-2">
+                            <small class="text-muted">總計：<span id="ccTotalLabel" class="fw-bold">@Model.CreditcardTotal.ToString("N0")</span> 元</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
+
+@* ══════════════════════════════════════════════
+   最新月份財務摘要
+   ══════════════════════════════════════════════ *@
+@if (Model.LatestMonthDisplay != null)
+{
+    <div class="row mt-5">
+        <div class="col-md-10 col-lg-8">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-dark text-white d-flex align-items-center gap-2">
+                    <i class="fas fa-chart-pie"></i>
+                    <span class="fw-bold">財務摘要 — 最新月份：@Model.LatestMonthDisplay</span>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-hover mb-0 align-middle">
+                        <thead class="table-secondary">
+                            <tr>
+                                <th class="ps-4" style="width:50%">項目</th>
+                                <th class="text-end pe-4">金額（元）</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @{
+                                Func<int?, string> fmtAmt = v =>
+                                    v.HasValue ? v.Value.ToString("N0") : "—";
+                                Func<int?, bool> isNeg = v =>
+                                    v.HasValue && v.Value < 0;
+                            }
+
+                            <tr>
+                                <td class="ps-4">
+                                    <i class="fas fa-wallet text-success me-2"></i>收入
+                                    <small class="text-muted ms-1">(property.own)</small>
+                                </td>
+                                <td class="text-end pe-4 @(isNeg(Model.LatestOwn) ? "text-danger" : "text-success") fw-semibold">
+                                    @fmtAmt(Model.LatestOwn)
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="ps-4">
+                                    <i class="fas fa-piggy-bank @(isNeg(Model.LatestGete) ? "text-danger" : "text-primary") me-2"></i>盈餘
+                                    <small class="text-muted ms-1">(budget.gete)</small>
+                                </td>
+                                <td class="text-end pe-4 @(isNeg(Model.LatestGete) ? "text-danger" : "text-primary") fw-semibold">
+                                    @fmtAmt(Model.LatestGete)
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="ps-4">
+                                    <i class="fas fa-university text-info me-2"></i>存款
+                                    <small class="text-muted ms-1">(property.sparemoney)</small>
+                                </td>
+                                <td class="text-end pe-4 text-info fw-semibold">
+                                    @fmtAmt(Model.LatestSparemoney)
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="ps-4">
+                                    <i class="fas fa-file-invoice-dollar text-danger me-2"></i>債務
+                                    <small class="text-muted ms-1">(property.tuitionfee)</small>
+                                </td>
+                                <td class="text-end pe-4 text-danger fw-semibold">
+                                    @fmtAmt(Model.LatestTuitionfee)
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="ps-4">
+                                    <i class="fas fa-coins text-warning me-2"></i>預算
+                                    <small class="text-muted ms-1">(property.budget)</small>
+                                </td>
+                                <td class="text-end pe-4 text-warning fw-semibold">
+                                    @fmtAmt(Model.LatestBudget)
+                                </td>
+                            </tr>
+
+                            <tr class="table-light">
+                                <td class="ps-4">
+                                    <i class="fas fa-landmark @(isNeg(Model.LatestTotalproperty) ? "text-danger" : "text-success") me-2"></i>
+                                    <strong>總資產</strong>
+                                    <small class="text-muted ms-1">(property.totalproperty)</small>
+                                </td>
+                                <td class="text-end pe-4 @(isNeg(Model.LatestTotalproperty) ? "text-danger" : "text-success") fw-bold fs-5">
+                                    @fmtAmt(Model.LatestTotalproperty)
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card-footer text-muted small text-end">
+                    資料來源：property 表格及 budget 表格最新月份
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="row mt-4">
+        <div class="col-md-8">
+            <div class="alert alert-secondary d-flex align-items-center gap-2" role="alert">
+                <i class="fas fa-info-circle"></i>
+                <span>尚無財務摘要資料，請先執行帳單彙總。</span>
+            </div>
+        </div>
+    </div>
+}
 
 <div class="modal fade" id="successModal" tabindex="-1" aria-labelledby="successModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
@@ -86,6 +281,19 @@
                 alert(alertMessage);
                 return;
             }
+
+            // ── 財務計算 (固定當月份信用卡) ──
+            const calcSum = () => {
+                const spent = parseInt($('#calcSpent').val()) || 0;
+                const cash = parseInt($('#calcCash').val()) || 0;
+                const ipass = parseInt($('#calciPass').val()) || 0;
+                const bank = parseInt($('#calcBank').val()) || 0;
+                const creditCard = parseInt($('#calcCreditCard').val()) || 0;
+                const total = spent + cash + ipass + bank + creditCard;
+                $('#calcSumResult').text(total.toLocaleString('zh-TW'));
+            };
+
+            $('#btnCalcSum').click(calcSum);
 
             var spResultJson = '@Html.Raw(TempData["SpResultJson"] as string)';
             var spResult = null;

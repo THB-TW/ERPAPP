@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 
@@ -30,6 +30,8 @@ public partial class ErpdbContext : DbContext
     public DbSet<Employee> Employee { get; set; }
 
     public DbSet<Role> Role { get; set; }
+
+    public virtual DbSet<Creditcard> Creditcards { get; set; }
 
 //    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
 //#warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
@@ -111,6 +113,17 @@ public partial class ErpdbContext : DbContext
 
             entity.Property(r => r.Name)
                 .HasMaxLength(50);
+        });
+
+        modelBuilder.Entity<Creditcard>(entity =>
+        {
+            entity
+                .HasNoKey()
+                .ToTable("creditcard");
+
+            entity.Property(e => e.Date).HasColumnName("Date");
+            entity.Property(e => e.Item).HasMaxLength(200).HasColumnName("Item");
+            entity.Property(e => e.Amount).HasColumnName("Amount");
         });
         //modelBuilder.Entity<Employee>().HasData(
         //        new Employee { EmployeeId = 1, DepartmentId = 1, Name = "翰陞", Account = "Boss", Password = "123" },
