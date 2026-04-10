@@ -31,7 +31,8 @@ namespace ERPAPP.Controllers
             if (startDate.HasValue && endDate.HasValue)
             {
                 transactions = transactions.Where(t => t.Date >= startDate && t.Date < endDate);
-            }else if (startDate.HasValue && !endDate.HasValue)
+            }
+            else if (startDate.HasValue && !endDate.HasValue)
             {
                 transactions = transactions.Where(t => t.Date >= startDate);
             }
@@ -198,7 +199,7 @@ namespace ERPAPP.Controllers
             ViewBag.Accounts = accounts;
             var transactionEdit = await _context.Transactions
                 .Where(t => t.Id == id)
-                .Select( a => new NewsDto
+                .Select(a => new NewsDto
                                {
                                    Id = a.Id,
                                    Date = a.Date,
