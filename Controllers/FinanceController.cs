@@ -18,11 +18,13 @@ namespace ERPAPP.Controllers
         public IActionResult SummaryInput()
         {
             // 可以給予預設值，例如當月日期
+            var previousMonth = DateTime.Now.AddMonths(-1);
             var model = new SummaryInputModel
             {
-                Year = DateTime.Now.Year,
-                Month = DateTime.Now.Month
+                Year = previousMonth.Year,
+                Month = previousMonth.Month
             };
+
             return View(model);
         }
 
