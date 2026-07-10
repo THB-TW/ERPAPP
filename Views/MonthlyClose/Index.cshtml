@@ -1,0 +1,372 @@
+@model ERPAPP.Dto.SummaryInputModel
+@{
+    ViewData["Title"] = "一鍵月結精靈";
+}
+
+@Html.AntiForgeryToken()
+
+<div class="container-fluid">
+    <h2>🧙 @ViewData["Title"]</h2>
+    <p class="text-muted">依序完成四步驟即可完成整月月結：匯入資料 → 信用卡核對＋計算 → 總資產核對。</p>
+
+    <!-- 步驟指示 -->
+    <ul class="nav nav-pills mb-3" id="stepPills">
+        <li class="nav-item"><span class="nav-link active" data-step="1">① 選月份</span></li>
+        <li class="nav-item"><span class="nav-link disabled" data-step="2">② 匯入 CSV</span></li>
+        <li class="nav-item"><span class="nav-link disabled" data-step="3">③ 核對＋計算</span></li>
+        <li class="nav-item"><span class="nav-link disabled" data-step="4">④ 總資產核對</span></li>
+    </ul>
+
+    <!-- ===== 步驟 1：選月份/收入 ===== -->
+    <div class="card mb-3 step-card" id="card-1">
+        <div class="card-header bg-primary text-white">① 選擇結帳月份與當月收入</div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">年份</label>
+                    <input type="number" id="inYear" class="form-control" value="@Model.Year" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">月份</label>
+                    <input type="number" id="inMonth" class="form-control" min="1" max="12" value="@Model.Month" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">當月收入 (Own)</label>
+                    <input type="number" id="inOwn" class="form-control" value="@Model.Own" />
+                </div>
+            </div>
+            <div class="mt-3">
+                <button class="btn btn-primary" id="btnStep1Next">確認月份，下一步 →</button>
+                <button class="btn btn-outline-danger ms-2" id="btnRollback">↩️ 撤銷此月彙總</button>
+            </div>
+            <div class="form-text text-muted">
+                收入輸錯或資料有誤時，選好年/月後可直接「撤銷此月彙總」——刪除該月 budget/Property、回滾總儲備金，改正後再依步驟重跑。
+                （只能撤銷「最近一次彙總」的月份；此功能與步驟④的「自動倒回次月交易」不同。）
+            </div>
+            <div id="rollbackResult" class="mt-3"></div>
+        </div>
+    </div>
+
+    <!-- ===== 步驟 2：上傳並匯入 CSV ===== -->
+    <div class="card mb-3 step-card d-none" id="card-2">
+        <div class="card-header bg-primary text-white">② 上傳並匯入 CSV（可重複執行，重複資料會自動略過）</div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 border-end">
+                    <h6>記帳 app CSV → 交易明細</h6>
+                    <div class="form-text text-muted mb-1">可直接上傳「天天記帳」原始匯出檔（含標題列），系統會自動取出所需欄位、轉換日期並依日期由舊到新排序；也接受已轉換的 6 欄檔。</div>
+                    <input type="file" id="txFile" class="form-control mb-2" accept=".csv,.txt" />
+                    <div class="input-group mb-2">
+                        <span class="input-group-text">編碼</span>
+                        <select id="txEnc" class="form-select">
+                            <option value="utf-8" selected>UTF-8（記帳 app 預設）</option>
+                            <option value="big5">Big5</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-outline-primary" id="btnImportTx">匯入記帳資料</button>
+                    <div id="txResult" class="mt-2 small"></div>
+                </div>
+                <div class="col-md-6">
+                    <h6>信用卡帳單 CSV → 信用卡核對表</h6>
+                    <div class="form-text text-muted mb-1">可直接上傳「帳單明細查詢」原始匯出檔；匯入資料庫的同時，會把新紀錄補寫進 creditcard.csv 存檔。</div>
+                    <input type="file" id="ccFile" class="form-control mb-2" accept=".csv,.txt" />
+                    <div class="input-group mb-2">
+                        <span class="input-group-text">編碼</span>
+                        <select id="ccEnc" class="form-select">
+                            <option value="big5" selected>Big5（信用卡帳單常用）</option>
+                            <option value="utf-8">UTF-8</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-outline-primary" id="btnImportCc">匯入信用卡帳單</button>
+                    <div id="ccResult" class="mt-2 small"></div>
+                </div>
+            </div>
+            <hr />
+            <button class="btn btn-secondary" id="btnStep2Back">← 上一步</button>
+            <button class="btn btn-primary" id="btnStep2Next">下一步 →</button>
+        </div>
+    </div>
+
+    <!-- ===== 步驟 3：核對＋計算 ===== -->
+    <div class="card mb-3 step-card d-none" id="card-3">
+        <div class="card-header bg-primary text-white">③ 信用卡核對 ＋ 計算彙總</div>
+        <div class="card-body">
+            <p class="text-muted">會先比對信用卡帳單與記帳（找出少記/多記）；通過後計算各類別預算並寫入資料庫。</p>
+            <button class="btn btn-success" id="btnRunSummary">執行核對＋計算</button>
+            <div class="form-text text-muted">
+                若需撤銷已完成的彙總，請回步驟①使用「撤銷此月彙總」。
+            </div>
+            <div id="summaryResult" class="mt-3"></div>
+            <hr />
+            <button class="btn btn-secondary" id="btnStep3Back">← 上一步</button>
+            <button class="btn btn-primary d-none" id="btnStep3Next">下一步 →</button>
+        </div>
+    </div>
+
+    <!-- ===== 步驟 4：總資產核對 ===== -->
+    <div class="card mb-3 step-card d-none" id="card-4">
+        <div class="card-header bg-primary text-white">④ 總資產核對</div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">現金</label>
+                    <input type="number" id="inCash" class="form-control" value="0" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">一卡通</label>
+                    <input type="number" id="inIpass" class="form-control" value="0" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">銀行</label>
+                    <input type="number" id="inBank" class="form-control" value="0" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">未出帳信用卡（選填）</label>
+                    <input type="number" id="inUnbilled" class="form-control" value="0" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">其他調整（選填）</label>
+                    <input type="number" id="inAdjust" class="form-control" value="0" />
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="inRollback" checked>
+                        <label class="form-check-label" for="inRollback">
+                            自動倒回次月交易（把現金/銀行調整回月底當下）
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <button class="btn btn-success mt-3" id="btnAssetCheck">核對總資產</button>
+            <div id="assetResult" class="mt-3"></div>
+            <hr />
+            <button class="btn btn-secondary" id="btnStep4Back">← 上一步</button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+            var state = { year: 0, month: 0, own: 0 };
+
+            function fmt(n) {
+                if (n === null || n === undefined) return '0';
+                return Number(n).toLocaleString();
+            }
+            function pint(sel) {
+                var v = parseInt(document.querySelector(sel).value, 10);
+                return isNaN(v) ? 0 : v;
+            }
+
+            function gotoStep(step) {
+                document.querySelectorAll('.step-card').forEach(function (c) { c.classList.add('d-none'); });
+                var card = document.getElementById('card-' + step);
+                if (card) card.classList.remove('d-none');
+                document.querySelectorAll('#stepPills .nav-link').forEach(function (p) {
+                    var s = parseInt(p.getAttribute('data-step'), 10);
+                    p.classList.remove('active');
+                    if (s === step) p.classList.add('active');
+                });
+            }
+            function unlockPill(step) {
+                var p = document.querySelector('#stepPills .nav-link[data-step="' + step + '"]');
+                if (p) p.classList.remove('disabled');
+            }
+
+            function postForm(url, formData) {
+                return $.ajax({
+                    url: url, method: 'POST', data: formData,
+                    processData: false, contentType: false,
+                    headers: { 'RequestVerificationToken': token }
+                });
+            }
+            function postJson(url, obj) {
+                return $.ajax({
+                    url: url, method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(obj),
+                    headers: { 'RequestVerificationToken': token }
+                });
+            }
+            function errMsg(xhr) {
+                if (xhr && xhr.responseJSON && xhr.responseJSON.message) return xhr.responseJSON.message;
+                return '發生錯誤 (' + (xhr ? xhr.status : '?') + ')';
+            }
+
+            // 步驟 1 → 2
+            document.getElementById('btnStep1Next').addEventListener('click', function () {
+                state.year = pint('#inYear');
+                state.month = pint('#inMonth');
+                state.own = pint('#inOwn');
+                if (state.month < 1 || state.month > 12) { alert('月份需為 1-12'); return; }
+                unlockPill(2);
+                gotoStep(2);
+            });
+            document.getElementById('btnStep2Back').addEventListener('click', function () { gotoStep(1); });
+            document.getElementById('btnStep2Next').addEventListener('click', function () { unlockPill(3); gotoStep(3); });
+            document.getElementById('btnStep3Back').addEventListener('click', function () { gotoStep(2); });
+            document.getElementById('btnStep3Next').addEventListener('click', function () { unlockPill(4); gotoStep(4); });
+            document.getElementById('btnStep4Back').addEventListener('click', function () { gotoStep(3); });
+
+            // 讓已解鎖的步驟 pill 可點擊跳轉（撤銷後可一鍵回步驟①改收入）
+            document.querySelectorAll('#stepPills .nav-link').forEach(function (p) {
+                p.style.cursor = 'pointer';
+                p.addEventListener('click', function () {
+                    if (p.classList.contains('disabled')) return;
+                    gotoStep(parseInt(p.getAttribute('data-step'), 10));
+                });
+            });
+
+            // 匯入記帳
+            document.getElementById('btnImportTx').addEventListener('click', function () {
+                var f = document.getElementById('txFile').files[0];
+                if (!f) { alert('請先選擇記帳 CSV'); return; }
+                var fd = new FormData();
+                fd.append('file', f);
+                fd.append('encoding', document.getElementById('txEnc').value);
+                var box = document.getElementById('txResult');
+                box.innerHTML = '匯入中…';
+                postForm('/MonthlyClose/ImportTransactions', fd)
+                    .done(function (r) {
+                        box.innerHTML = '<div class="alert alert-success py-2 mb-0">✅ 讀取 ' + r.totalRows +
+                            ' 列：新增 <strong>' + r.inserted + '</strong> 筆、略過重複 ' + r.skipped +
+                            ' 筆' + (r.errorRows ? '、無法解析 ' + r.errorRows + ' 列' : '') + '。</div>';
+                    })
+                    .fail(function (xhr) { box.innerHTML = '<div class="alert alert-danger py-2 mb-0">❌ ' + errMsg(xhr) + '</div>'; });
+            });
+
+            // 匯入信用卡
+            document.getElementById('btnImportCc').addEventListener('click', function () {
+                var f = document.getElementById('ccFile').files[0];
+                if (!f) { alert('請先選擇信用卡 CSV'); return; }
+                var fd = new FormData();
+                fd.append('file', f);
+                fd.append('encoding', document.getElementById('ccEnc').value);
+                var box = document.getElementById('ccResult');
+                box.innerHTML = '匯入中…';
+                postForm('/MonthlyClose/ImportCreditcard', fd)
+                    .done(function (r) {
+                        var html = '<div class="alert alert-success py-2 mb-0">✅ 讀取 ' + r.totalRows +
+                            ' 列：新增 <strong>' + r.inserted + '</strong> 筆、略過重複 ' + r.skipped +
+                            ' 筆' + (r.errorRows ? '、無法解析 ' + r.errorRows + ' 列' : '');
+                        if (r.archivedRows !== null && r.archivedRows !== undefined) {
+                            html += '；補寫 creditcard.csv 存檔 <strong>' + r.archivedRows + '</strong> 筆';
+                        }
+                        html += '。</div>';
+                        if (r.archiveMessage) {
+                            html += '<div class="alert alert-warning py-2 mb-0 mt-1">⚠️ ' + r.archiveMessage + '</div>';
+                        }
+                        box.innerHTML = html;
+                    })
+                    .fail(function (xhr) { box.innerHTML = '<div class="alert alert-danger py-2 mb-0">❌ ' + errMsg(xhr) + '</div>'; });
+            });
+
+            // 執行核對＋計算
+            document.getElementById('btnRunSummary').addEventListener('click', function () {
+                var box = document.getElementById('summaryResult');
+                box.innerHTML = '執行中…';
+                postJson('/MonthlyClose/RunSummary', { year: state.year, month: state.month, own: state.own })
+                    .done(function (r) { renderSummary(r, box); })
+                    .fail(function (xhr) { box.innerHTML = '<div class="alert alert-danger">❌ ' + errMsg(xhr) + '</div>'; });
+            });
+
+            // 撤銷此月彙總（觸發 SP own=-1 重置分支）——在步驟①即可操作，直接讀取輸入框的年/月
+            document.getElementById('btnRollback').addEventListener('click', function () {
+                var y = pint('#inYear'), m = pint('#inMonth');
+                if (m < 1 || m > 12) { alert('月份需為 1-12'); return; }
+                if (!confirm('確定要撤銷 ' + y + '/' + m + ' 的彙總嗎？\n這會刪除該月的 budget/Property 並回滾總儲備金。')) return;
+                var box = document.getElementById('rollbackResult');
+                box.innerHTML = '撤銷中…';
+                postJson('/MonthlyClose/RollbackSummary', { year: y, month: m, own: -1 })
+                    .done(function (r) { renderSummary(r, box); })
+                    .fail(function (xhr) { box.innerHTML = '<div class="alert alert-danger">❌ ' + errMsg(xhr) + '</div>'; });
+            });
+
+            function renderSummary(r, box) {
+                var step3Next = document.getElementById('btnStep3Next');
+                if (r.already === 2) {
+                    box.innerHTML =
+                        '<div class="alert alert-success"><h5>✅ 核對通過，已完成計算</h5></div>' +
+                        '<table class="table table-sm table-bordered w-auto">' +
+                        '<tr><th>手機/網路結餘</th><td class="text-end">' + fmt(r.phone) + '</td></tr>' +
+                        '<tr><th>Gogoro 結餘</th><td class="text-end">' + fmt(r.gogoro) + '</td></tr>' +
+                        '<tr><th>電費</th><td class="text-end">' + fmt(r.electricity) + '</td></tr>' +
+                        '<tr><th>水費</th><td class="text-end">' + fmt(r.water) + '</td></tr>' +
+                        '<tr><th>瓦斯</th><td class="text-end">' + fmt(r.gas) + '</td></tr>' +
+                        '<tr><th>固定支出餘額</th><td class="text-end">' + fmt(r.negtive) + '</td></tr>' +
+                        '</table>';
+                    unlockPill(4);
+                    step3Next.classList.remove('d-none');
+                } else if (r.already === -1) {
+                    var html = '<div class="alert alert-danger"><h5>⚠️ 信用卡不匹配，請先修正再重跑</h5></div>' +
+                        '<table class="table table-sm table-striped"><thead class="table-danger">' +
+                        '<tr><th>問題類型</th><th>日期</th><th>金額</th><th>類別/項目</th></tr></thead><tbody>';
+                    (r.errors || []).forEach(function (e) {
+                        var d = e.date ? new Date(e.date).toLocaleDateString() : '';
+                        html += '<tr><td>' + e.problemType + '</td><td>' + d + '</td><td class="text-danger text-end">' +
+                            fmt(e.amount) + '</td><td>' + (e.category || '') + '</td></tr>';
+                    });
+                    html += '</tbody></table><a class="btn btn-sm btn-outline-danger" href="/Transactions/Index" target="_blank">前往「交易」修正 ↗</a>';
+                    box.innerHTML = html;
+                    step3Next.classList.add('d-none');
+                } else if (r.already === 1) {
+                    box.innerHTML = '<div class="alert alert-warning">ℹ️ 該月已彙總過（資料已存在）。可直接前往總資產核對。</div>';
+                    unlockPill(4);
+                    step3Next.classList.remove('d-none');
+                } else if (r.already === -2) {
+                    box.innerHTML = '<div class="alert alert-info">↩️ 已撤銷該月彙總（已刪除該月 budget/Property、回滾總儲備金）。<br>改正收入後，請依步驟重新執行「核對＋計算」。</div>';
+                    step3Next.classList.add('d-none');
+                } else {
+                    box.innerHTML = '<div class="alert alert-secondary">回傳狀態碼：' + r.already + '</div>';
+                    step3Next.classList.add('d-none');
+                }
+            }
+
+            // 總資產核對
+            document.getElementById('btnAssetCheck').addEventListener('click', function () {
+                var box = document.getElementById('assetResult');
+                box.innerHTML = '計算中…';
+                var req = {
+                    year: state.year, month: state.month,
+                    cash: pint('#inCash'), ipass: pint('#inIpass'), bank: pint('#inBank'),
+                    unbilledCredit: pint('#inUnbilled'), adjust: pint('#inAdjust'),
+                    autoRollback: document.getElementById('inRollback').checked
+                };
+                postJson('/MonthlyClose/AssetCheck', req)
+                    .done(function (r) { renderAsset(r, box); })
+                    .fail(function (xhr) { box.innerHTML = '<div class="alert alert-danger">❌ ' + errMsg(xhr) + '</div>'; });
+            });
+
+            function renderAsset(r, box) {
+                var html = '<table class="table table-sm table-bordered w-auto">';
+                html += '<tr><th>實際加總（未倒回）</th><td class="text-end">' + fmt(r.actualRaw) + '</td></tr>';
+                if (r.rollbacks && r.rollbacks.length) {
+                    html += '<tr><th>次月倒回明細</th><td class="p-0"><table class="table table-sm mb-0">' +
+                        '<thead><tr><th>帳戶</th><th class="text-end">次月支</th><th class="text-end">次月收</th><th class="text-end">倒回</th></tr></thead><tbody>';
+                    r.rollbacks.forEach(function (b) {
+                        html += '<tr><td>' + b.account + '</td><td class="text-end">' + fmt(b.nextMonthExpense) +
+                            '</td><td class="text-end">' + fmt(b.nextMonthIncome) + '</td><td class="text-end">' + fmt(b.net) + '</td></tr>';
+                    });
+                    html += '</tbody></table></td></tr>';
+                    html += '<tr><th>倒回後實際</th><td class="text-end"><strong>' + fmt(r.actualAdjusted) + '</strong></td></tr>';
+                }
+                if (r.hasBook) {
+                    html += '<tr><th>帳面總資產 (Totalproperty)</th><td class="text-end">' + fmt(r.bookTotalproperty) + '</td></tr>';
+                    var cls = r.diff === 0 ? 'table-success' : 'table-warning';
+                    html += '<tr class="' + cls + '"><th>差額（實際 − 帳面）</th><td class="text-end"><strong>' + fmt(r.diff) + '</strong></td></tr>';
+                } else {
+                    html += '<tr><th>帳面總資產</th><td class="text-end text-muted">查無當月資料（請先完成步驟 ③）</td></tr>';
+                }
+                html += '</table>';
+                if (r.hasBook) {
+                    html += r.diff === 0
+                        ? '<div class="alert alert-success">✅ 核對通過，帳實相符！</div>'
+                        : '<div class="alert alert-warning">尚有差額 ' + fmt(r.diff) + '，可用「未出帳信用卡／其他調整」補齊，或檢查交易與帳單。</div>';
+                }
+                box.innerHTML = html;
+            }
+        })();
+    </script>
+}
