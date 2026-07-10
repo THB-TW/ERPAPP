@@ -2,6 +2,11 @@
 
 @{
     ViewData["Title"] = "預算報表";
+
+    // Property 取自己的最新一列；正常情況與上方 budget 的最新月相同，
+    // 若不同則各自標題會顯示各自的實際月份。
+    var latestProperty = Model.AllPropertyData.LastOrDefault();
+    var propertyMonth = latestProperty?.Date.ToString("yyyy-MM") ?? "—";
 }
 
 <div class="container-fluid">
@@ -17,8 +22,8 @@
                     <thead class="table-dark">
                         <tr>
                             <th>項目 (Category)</th>
-                            <th>總預算</th>
-                            <th>當月預算 (@Model.LatestMonthDisplay)</th>
+                            <th>總儲備金（累計至今）</th>
+                            <th>當月結餘 (@Model.LatestMonthDisplay)</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -73,7 +78,7 @@
                             <td>@((Model.LatestBudget.Other ?? 0).ToString("N0"))</td>
                         </tr>
                         <tr class="table-info">
-                            <td><strong>總預算 (Total)</strong></td>
+                            <td><strong>合計 (Total)</strong></td>
                             <td><strong>@((Model.InitialBudget.Total ?? 0).ToString("N0"))</strong></td>
                             <td><strong>@((Model.LatestBudget.Total ?? 0).ToString("N0"))</strong></td>
                         </tr>
@@ -82,7 +87,41 @@
             </div>
         </div>
     </div>
-    <div class.="row mt-4 mb-3 p-3 bg-light rounded border">
+
+    <div class="row">
+        <div class="col-lg-12">
+            <h3>當月總結</h3>
+            <p>
+                盈餘來自 budget (@Model.LatestMonthDisplay)，其餘為 Property 的當月快照 (@propertyMonth)。
+                「總儲備金」是結帳當下的快照，與上表「累計至今」那欄會在下次月結後開始不同。
+            </p>
+            <div class="table-responsive">
+                <table class="table table-bordered table-sm text-center align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>當月盈餘 (Gete)<br /><small class="fw-normal">收入−支出，不含累積</small></th>
+                            <th>當月收入 (Own)<br /><small class="fw-normal">@propertyMonth</small></th>
+                            <th>可用餘額 (Sparemoney)<br /><small class="fw-normal">含上月累積</small></th>
+                            <th>學費儲備 (Tuitionfee)<br /><small class="fw-normal">@propertyMonth</small></th>
+                            <th>總儲備金 (Budget)<br /><small class="fw-normal">@propertyMonth 快照</small></th>
+                            <th>總資產 (Totalproperty)<br /><small class="fw-normal">可用+學費+儲備</small></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>@((Model.LatestBudget.Gete ?? 0).ToString("N0"))</td>
+                            <td>@((latestProperty?.Own ?? 0).ToString("N0"))</td>
+                            <td>@((latestProperty?.Sparemoney ?? 0).ToString("N0"))</td>
+                            <td>@((latestProperty?.Tuitionfee ?? 0).ToString("N0"))</td>
+                            <td>@((latestProperty?.Budget ?? 0).ToString("N0"))</td>
+                            <td class="table-info"><strong>@((latestProperty?.Totalproperty ?? 0).ToString("N0"))</strong></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="row mt-4 mb-3 p-3 bg-light rounded border">
         <div class="col-md-4">
             <label for="startDate" class="form-label"><strong>起始日期:</strong></label>
             <input type="date" id="startDate" class="form-control">
@@ -93,15 +132,15 @@
         </div>
         <div class="col-md-4 d-flex align-items-end">
             <button id="filterButton" class="btn btn-primary w-100">
-                <i class.="fas fa-filter"></i> 更新所有圖表
+                <i class="fas fa-filter"></i> 更新所有圖表
             </button>
         </div>
     </div>
 
-    <div class.="row mt-4 border-bottom pb-4">
+    <div class="row mt-4 border-bottom pb-4">
         <div class="col-12">
             <h4>每月預算趨勢 (Budget 圖表)</h4>
-            <div class.="dropdown mb-2">
+            <div class="dropdown mb-2">
                 <button class="btn btn-secondary btn-sm dropdown-toggle" type="button" id="budgetMenuButton" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
                     選擇 Budget 類別
                 </button>
@@ -130,7 +169,7 @@
     <div class="row mt-4">
         <div class="col-12">
             <h4>每月資產趨勢 (Property 圖表)</h4>
-            <div class.="dropdown mb-2">
+            <div class="dropdown mb-2">
                 <button class="btn btn-info btn-sm dropdown-toggle" type="button" id="propertyMenuButton" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
                     選擇顯示項
                 </button>

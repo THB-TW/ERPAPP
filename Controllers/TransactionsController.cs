@@ -1,6 +1,7 @@
 ﻿
 using ERPAPP.Dto;
 using ERPAPP.Models;
+using ERPAPP.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -82,6 +83,35 @@ namespace ERPAPP.Controllers
             //                        TransactionType = a.TransactionType,
             //                   };
             return View(await transactions.OrderByDescending(t => t.Date).ToListAsync());
+        }
+
+        // GET: Transactions/Creditcard
+        // 信用卡帳單查詢（唯讀）。creditcard 表無主鍵、資料由帳單匯入產生，
+        // 因此只提供查詢，不做新增/修改/刪除。沿用類別層級的 [Authorize(Roles = "Select")]。
+        public async Task<IActionResult> Creditcard(DateTime? startDate, DateTime? endDate, string? keyword)
+        {
+            // 預設近 1 個月（信用卡帳單以月為週期）
+            var today = DateTime.Today;
+            var from = startDate ?? today.AddMonths(-1);
+            var to = endDate ?? today;
+
+            var query = _context.Creditcards.AsNoTracking()
+                .Where(c => c.Date >= from && c.Date <= to);
+
+            if (!string.IsNullOrWhiteSpace(keyword))
+                query = query.Where(c => c.Item != null && c.Item.Contains(keyword));
+
+            var rows = await query.OrderByDescending(c => c.Date).ToListAsync();
+
+            return View(new CreditcardQueryViewModel
+            {
+                Rows = rows,
+                StartDate = from,
+                EndDate = to,
+                Keyword = keyword,
+                Count = rows.Count,
+                Total = rows.Sum(c => c.Amount)
+            });
         }
 
         // GET: Transactions/Details/5

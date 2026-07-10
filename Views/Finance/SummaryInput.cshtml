@@ -105,11 +105,13 @@
                     return num !== null && num !== undefined ? num.toLocaleString() : '0';
                 };
                 const formatDate = (date) => {
-                    if (date) {
-                        const d = new Date(date);
-                        return d.toISOString().split('T')[0];
-                    }
-                    return '';
+                    if (!date) return '';
+                    const d = new Date(date);
+                    // 用本地日期組字串，避免 toISOString() 轉成 UTC 造成 UTC+8 少一天
+                    const y = d.getFullYear();
+                    const m = String(d.getMonth() + 1).padStart(2, '0');
+                    const day = String(d.getDate()).padStart(2, '0');
+                    return `${y}-${m}-${day}`;
                 }
 
                 const alreadyStatus = parseInt(spResult.Already);

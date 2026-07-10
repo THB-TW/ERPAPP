@@ -1,0 +1,67 @@
+@model ERPAPP.ViewModels.CreditcardQueryViewModel
+
+@{
+    ViewData["Title"] = "信用卡帳單";
+}
+
+<h1>信用卡帳單</h1>
+
+<ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+        <a class="nav-link" asp-action="Index">交易</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link active" asp-action="Creditcard">信用卡</a>
+    </li>
+</ul>
+
+<form asp-action="Creditcard" method="get" class="row g-2 mb-3">
+    <div class="col-auto">
+        <label for="startDate" class="form-label">起始日期</label>
+        <input type="date" id="startDate" name="startDate" class="form-control"
+               value="@Model.StartDate.ToString("yyyy-MM-dd")" />
+    </div>
+    <div class="col-auto">
+        <label for="endDate" class="form-label">結束日期</label>
+        <input type="date" id="endDate" name="endDate" class="form-control"
+               value="@Model.EndDate.ToString("yyyy-MM-dd")" />
+    </div>
+    <div class="col-auto">
+        <label for="keyword" class="form-label">項目關鍵字</label>
+        <input type="text" id="keyword" name="keyword" class="form-control"
+               placeholder="店家 / 品項" value="@Model.Keyword" />
+    </div>
+    <div class="col-auto d-flex align-items-end">
+        <button type="submit" class="btn btn-primary">搜尋</button>
+    </div>
+</form>
+
+<div class="alert alert-info py-2">
+    符合條件 <strong>@Model.Count</strong> 筆，金額合計 <strong>@Model.Total.ToString("N0")</strong>
+</div>
+
+<table class="table table-sm table-striped">
+    <thead>
+        <tr>
+            <th>日期</th>
+            <th>項目</th>
+            <th class="text-end">金額</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model.Rows)
+        {
+            <tr>
+                <td>@item.Date.ToString("yyyy/M/d")</td>
+                <td>@item.Item</td>
+                <td class="text-end">@item.Amount.ToString("N0")</td>
+            </tr>
+        }
+        @if (Model.Count == 0)
+        {
+            <tr>
+                <td colspan="3" class="text-center text-muted">此區間沒有信用卡紀錄。</td>
+            </tr>
+        }
+    </tbody>
+</table>
