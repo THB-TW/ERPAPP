@@ -119,7 +119,8 @@ public sealed class BudgetWorkspace(ErpdbContext db)
         foreach(var old in before.Months.Where(m=>!after.Months.Any(n=>n.Month==m.Month)))
         {
             var property=properties[old.Month];
-            using var delete=Sql("DELETE dbo.budget WHERE date=@date",("@date",property.Date));
+            var start=BudgetEngine.MonthDate(old.Month);
+            using var delete=Sql("DELETE dbo.budget WHERE date>=@date AND date<@end",("@date",start),("@end",start.AddMonths(1)));
             delete.ExecuteNonQuery();db.Properties.Remove(property);
         }
         foreach(var month in after.Months)

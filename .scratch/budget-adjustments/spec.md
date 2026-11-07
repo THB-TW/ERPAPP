@@ -1,6 +1,8 @@
 # 支出類別、預算挪用與前期月結更正原型
 
-Status: ready-for-agent
+Implementation: completed (2026-11-07)
+
+正式功能已依 `design-interview.md` 的十項決策完成；驗證與啟用結果見 `docs/budget-workspace.md`，審查見 `review.md`。以下保留原型階段的規則、數字例子與決策來源；階段性描述不代表目前正式網站狀態。
 
 ## 原型要回答的問題
 
@@ -44,7 +46,7 @@ AI 的 -6,802 與其他的 4,488 是為展示獨立 AI 儲備而拆分原本 Oth
 - 原型分頁 10／10／6，瀏覽器無 JavaScript 錯誤；桌面版與窄螢幕視覺檢查。
 - 正式分頁讀取實際資料 10／10／8，確認無遺漏、重複及跨頁比較遺失，並檢查非法頁碼。
 
-## 實作前仍需處理的範圍
+## 原型階段辨識的實作範圍（已完成）
 
 目前 `BudgetCap`、`budget` 與 `sp_FinanceSummary` 都把類別寫成固定欄位；正式動態類別需要改為依類別識別儲存的上限／結餘及其歷史快照，並保留既有資產與累計儲備基準，不能只在畫面增加一個 AI 輸入框。
 
@@ -54,4 +56,4 @@ AI 的 -6,802 與其他的 4,488 是為展示獨立 AI 儲備而拆分原本 Oth
 
 ## Verdict
 
-2026-11-07 使用者確認原型，並完成 grill-with-docs 兩輪十項決策，業務規則已定案。完整規則與驗收條件見 `design-interview.md`，原始月結與調整分離的決定見 `docs/adr/0003-close-calculations-and-adjustments.md`。新財務功能尚未接入正式頁面或資料庫。
+2026-11-07 使用者確認原型，並完成 grill-with-docs 兩輪十項決策，業務規則已定案。完整規則與驗收條件見 `design-interview.md`，原始月結與調整分離的決定見 `docs/adr/0003-close-calculations-and-adjustments.md`。同日完成正式功能與副本驗證，正式移轉保留原金額、不建立任何 -700 更正。

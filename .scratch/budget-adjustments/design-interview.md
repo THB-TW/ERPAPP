@@ -1,6 +1,8 @@
 # 預算與月結調整：設計訪談
 
-Status: ready-for-agent
+Decision: accepted (2026-11-07)
+
+Implementation: completed (2026-11-07)。執行紀錄見 `docs/budget-workspace.md`；本文件的舊系統現況保留為設計依據。
 
 ## 已接受的方向
 
@@ -86,7 +88,7 @@ Status: ready-for-agent
 
 本次設計中的 -700 是更正流程的驗收案例，不代表已證實本次發票獎金在 9 月重複計入，也不自動對正式帳目套用該調整。
 
-## 已查明的現況與限制
+## 訪談當時的舊系統現況與限制
 
 - `Transactions.Category` 是文字；交易下拉選單讀 `Categories`。
 - 目前預算與上限固定欄位未包含 AI，未知分類的支出會落入 Other。
@@ -97,4 +99,4 @@ Status: ready-for-agent
 
 ## 工作界線
 
-grill-with-docs 訪談已完成，兩輪決策均獲使用者確認。本輪完成文件定案，尚未修改新財務功能的正式計算或正式帳目。
+grill-with-docs 訪談已完成，兩輪決策均獲使用者確認。後續 implement 已依此規格完成正式計算、畫面、移轉與驗證；未對正式帳目自動套用示範用的 -700。

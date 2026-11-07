@@ -43,7 +43,7 @@ public static class BudgetSeeder
             var storedTuition=Required(property.Tuitionfee);var storedTotal=Required(property.Totalproperty);
             var anchor=checked(storedReserve-balances.Values.Sum());
             balances["other"]=checked(balances["other"]+anchor);
-            var budget=budgets.SingleOrDefault(b=>b.Date==property.Date);
+            var budget=budgets.SingleOrDefault(b=>b.Date.Year==property.Date.Year&&b.Date.Month==property.Date.Month);
             var changes=Reserves.ToDictionary(r=>r.Id,r=>budget==null?0:r.Balance(budget)??0);
             var close=new MonthClose {Id="legacy-close-"+month,Month=month,Income=property.Own??0,
                 Surplus=budget?.Gete??0,RawSpare=storedSpare,Tuition=storedTuition,

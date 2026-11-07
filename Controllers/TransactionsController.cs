@@ -191,12 +191,15 @@ namespace ERPAPP.Controllers
                 if (category != null)
                 {
                     insert.TransactionType = category.Type;
+                    _context.Transactions.Add(insert);
+                    await _context.SaveChangesAsync();
+                    return RedirectToAction(nameof(Index));
                 }
-                _context.Transactions.Add(insert);
-                await _context.SaveChangesAsync();
-                return RedirectToAction(nameof(Index));
+                ModelState.AddModelError(nameof(transaction.Category),"請先選擇有效的交易分類。");
             }
-            return View(transaction);
+            PopulateTransactionLists(transaction.Category,transaction.Member,transaction.Account);
+            return View(new Transaction {Date=transaction.Date,Category=transaction.Category,Amount=transaction.Amount,
+                Member=transaction.Member,Account=transaction.Account,TransactionType=transaction.TransactionType});
         }
 
         // GET: Transactions/Edit/5
@@ -293,16 +296,19 @@ namespace ERPAPP.Controllers
                     {
                         return NotFound();
                     }
+                    var category = await _context.Categories.FirstOrDefaultAsync(c => c.CategoryName == transactionDto.Category);
+                    if(category==null)
+                    {
+                        ModelState.AddModelError(nameof(transactionDto.Category),"請先選擇有效的交易分類。");
+                        PopulateTransactionLists(transactionDto.Category,transactionDto.Member,transactionDto.Account);
+                        return View(transactionDto);
+                    }
                     transactionUpdate.Date = transactionDto.Date;
                     transactionUpdate.Category = transactionDto.Category;
                     transactionUpdate.Amount = transactionDto.Amount;
                     transactionUpdate.Member = transactionDto.Member;
                     transactionUpdate.Account = transactionDto.Account;
-                    var category = await _context.Categories.FirstOrDefaultAsync(c => c.CategoryName == transactionDto.Category);
-                    if (category != null)
-                    {
-                        transactionUpdate.TransactionType = category.Type;
-                    }
+                    transactionUpdate.TransactionType = category.Type;
                     _context.Update(transactionUpdate);
                     await _context.SaveChangesAsync();
                 }
@@ -319,6 +325,7 @@ namespace ERPAPP.Controllers
                 }
                 return RedirectToAction(nameof(Index));
             }
+            PopulateTransactionLists(transactionDto.Category,transactionDto.Member,transactionDto.Account);
             return View(transactionDto);
         }
 
@@ -364,6 +371,13 @@ namespace ERPAPP.Controllers
             var revision=ERPAPP.Services.Budgeting.BudgetEngine.Effective(state,ERPAPP.Services.Budgeting.BudgetEngine.OpenMonth(state));
             var allowed=revision?.Mapping.Where(m=>revision.Limits.Any(l=>l.CategoryId==m.Value)).Select(m=>m.Key).ToArray()??[];
             return _context.Categories.Where(c=>c.Type!="支"||allowed.Contains(c.CategoryName));
+        }
+
+        private void PopulateTransactionLists(string? category,string? member,string? account)
+        {
+            ViewBag.Categories=new SelectList(WritableCategories().ToList(),"CategoryName","CategoryName",category);
+            ViewBag.Members=new SelectList(_context.Members.ToList(),"MemberName","MemberName",member);
+            ViewBag.Accounts=new SelectList(_context.Accounts.ToList(),"AccountName","AccountName",account);
         }
 
         private bool TransactionExists(int id)

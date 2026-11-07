@@ -4,7 +4,7 @@
 
 舊頁讓使用者填年、月、當月收入，呼叫 `FinanceSpExecutor.ExecuteSummary` 執行 `sp_FinanceSummary`，再透過 TempData 顯示結果。此流程已集中於月結精靈，因此不再保留兩個執行入口。
 
-仍在使用的共用程式包括 `SummaryInputModel`、`FinanceSummaryResult`、`FinanceSpExecutor.ExecuteSummary`、`sp_FinanceSummary` 與預算報表讀取；這些由月結精靈與預算表繼續使用。
+移除獨立頁面當時，月結精靈仍使用 `SummaryInputModel`、`FinanceSummaryResult` 與共用 SP 執行器；同日後續實作又替換了 SP 寫入，最終狀態如下。
 
 舊版原始碼可從既有 Git 提交 `2eb88ee` 的 `Controllers/FinanceController.cs`、`Views/Finance/SummaryInput.cshtml` 讀取；本文記錄用途與移除範圍，不保留失效的執行程式。
 

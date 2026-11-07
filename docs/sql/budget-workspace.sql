@@ -11,7 +11,9 @@ BEGIN
         Document nvarchar(max) NOT NULL,
         CONSTRAINT CK_FinanceWorkspace_Singleton CHECK (Id=1),
         CONSTRAINT CK_FinanceWorkspace_Json CHECK (ISJSON(Document)=1),
-        CONSTRAINT CK_FinanceWorkspace_Version CHECK (Version=CONVERT(bigint,JSON_VALUE(Document,'$.Version')))
+        CONSTRAINT CK_FinanceWorkspace_Version CHECK (Version>=0 AND JSON_VALUE(Document,'$.Version') IS NOT NULL
+            AND TRY_CONVERT(bigint,JSON_VALUE(Document,'$.Version')) IS NOT NULL
+            AND Version=TRY_CONVERT(bigint,JSON_VALUE(Document,'$.Version')))
     );
 END;
 COMMIT;

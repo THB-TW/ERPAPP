@@ -100,6 +100,10 @@ if(args.Contains("--integration"))
     using var db=new ErpdbContext(new DbContextOptionsBuilder<ErpdbContext>().UseSqlServer(@"Server=.\SQLEXPRESS;Database=ERPDB_BudgetVerify_20261107;Integrated Security=true;TrustServerCertificate=true").Options);
     var before=db.Properties.AsNoTracking().OrderBy(p=>p.Date).ToArray();
     var workspace=new BudgetWorkspace(db);
+    var baseline=workspace.Read();
+    if(baseline.Version!=0 || baseline.Adjustments.Count!=0 || baseline.Receipts.Count!=0 || baseline.Checks.Count!=0)
+        throw new Exception("Verification copy is not a pristine test fixture; restore its backup before running tests.");
+    db.Database.ExecuteSqlRaw("DELETE dbo.FinanceWorkspace WHERE Id=1 AND Version=0");
     var imported=workspace.Read();
     foreach(var p in before)
     {
@@ -118,7 +122,11 @@ if(args.Contains("--integration"))
     Equal(persisted.Version,workspace.Execute(command,"integration").Version);
     var rolled=workspace.Execute(new() {Action="rollback",Month=latest,Version=persisted.Version,OperationId=Guid.NewGuid(),Reason="副本驗證撤銷"},"integration");
     var recapped=workspace.Execute(new() {Action="map",Month=latest,SourceCategory="AI",To="other",Version=rolled.Version,OperationId=Guid.NewGuid(),Reason="副本明確沿用既有 AI 歸屬"},"integration");
-    var reclosed=workspace.Execute(new() {Action="close",Month=latest,Amount=imported.Months.Single(m=>m.Month==latest).Income,Version=recapped.Version,OperationId=Guid.NewGuid(),Reason="副本驗證重結"},"integration");
+    var recloseCommand=new BudgetCommand {Action="close",Month=latest,Amount=imported.Months.Single(m=>m.Month==latest).Income,Version=recapped.Version,OperationId=Guid.NewGuid(),Reason="副本驗證重結"};
+    db.Database.ExecuteSqlRaw("INSERT dbo.creditcard(Date,Item,Amount) VALUES('20261003',N'budget-verification-duplicate',700)");
+    Reject<CreditcardMismatchException>(()=>workspace.Execute(recloseCommand,"integration"));
+    db.Database.ExecuteSqlRaw("DELETE dbo.creditcard WHERE Item=N'budget-verification-duplicate'");
+    var reclosed=workspace.Execute(recloseCommand,"integration");
     Equal(BudgetEngine.Position(imported,latest).Spare-700,BudgetEngine.Position(reclosed,latest).Spare);
     Equal(BudgetEngine.Position(imported,latest).Reserve,BudgetEngine.Position(reclosed,latest).Reserve);
     Equal(BudgetEngine.Position(imported,latest).Total-700,BudgetEngine.Position(reclosed,latest).Total);

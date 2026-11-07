@@ -33,3 +33,11 @@ dotnet run --project tests/ERPAPP.Tests.csproj -- --integration
 58 個舊月份的 Sparemoney、Tuitionfee、Budget、Totalproperty 均保留。發現 17 個月份有原有總資產加總差異，歷史頁明列，涉及的撤銷／更正先停止查核。新月結的 Totalproperty 由組成重新計算；舊異常不在這次升級中自動修補。
 
 原因、版本與調整都追加保留。核對的餘額日期限制為結算月底至今天，倒回只計到該日；原核對結果不隨後續交易改寫。
+
+## 本次啟用紀錄
+
+2026-11-07 已對本機正式 ERPDB 執行結構腳本，並以網站實際連線初始化財務文件。初始化前後逐筆比較 Property 與 budget 相同，58 個月份保留；文件版本 0、調整 0 筆。10 月收入 50,358、可用餘額 61,406、學費 75,000、預算儲備 149,561、總資產 285,967。沒有套用任何示範更正。
+
+啟用前的 COPY_ONLY 備份為 `C:\Program Files\Microsoft SQL Server\MSSQL16.SQLEXPRESS\MSSQL\Backup\ERPDB_before_budget_activation_20261107_final.bak`，已用 RESTORE VERIFYONLY / CHECKSUM 驗證。網站以既有 http profile 啟動於 `http://localhost:5015`，登入頁及樣式均回應成功。
+
+建置成功（保留其他區域原有的 10 項 nullable 警告）；純計算、SQL 副本整合與瀏覽器案例通過，審查後的無效新增／編輯表單亦已重測。審查內容及獨立性限制見 `.scratch/budget-adjustments/review.md`。含模擬更正、交易與測試帳號的 UI 副本已刪除，整合驗證副本保留供測試重跑。
