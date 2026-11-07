@@ -1,81 +1,34 @@
 # ERPAPP
 
-ERPAPP 是一套以 ASP.NET Core (.NET 8) 與 Razor Pages 架構開發的企業資源規劃（ERP）系統範例，支援多種財務、預算、成員與權限管理功能。專案結構清晰，適合中小型企業或個人財務管理學習與擴充。
+個人記帳與預算網站，使用 ASP.NET Core 8 MVC、EF Core、SQL Server Express、Bootstrap 與 jQuery。
 
-## 主要功能
+## 本機啟動
 
-- 交易管理：新增、編輯、刪除、查詢交易資料，支援多條件搜尋（日期、類別、成員、帳戶、收支類型）。
-- 預算管理：記錄各類預算與實際開銷，並可產生預算報表與趨勢圖。
-- 資產管理：追蹤每月資產變化。
-- 類別、帳戶、成員管理：支援資料表下拉選單選擇。
-- 權限與員工管理（Employee、Role）。
-- 支援 SQL Server LocalDB，資料結構可彈性擴充。
+設定 appsettings.json 的 ConnectionStrings:ErpdbDatabase（參考 appsettings.example.json，連線設定不進版控）。
 
-## 技術架構
+```powershell
+dotnet run --launch-profile http
+```
 
-- ASP.NET Core (.NET 8)
-- Razor Pages
-- Entity Framework Core
-- SQL Server LocalDB
-- C# 12.0
-- Bootstrap 5
-- Chart.js（前端圖表）
+看到 Now listening on: http://localhost:5015 後開啟該網址；終端機保留執行紀錄，Ctrl+C 停止。網站由使用者自行啟動。
 
-## 資料表結構（Models）
+## 功能與程式位置
 
-- `Transaction`：交易資料（含日期、類別、金額、成員、帳戶、收支類型）。
-- `Budget`：各類預算與開銷（飲食、汽車、娛樂、學習、服飾、日常用品、大型器具、美容美髮、醫療保健、其他、總預算、總開銷、盈餘、輸入日期）。
-- `Account`、`Category`、`Member`、`Property`：基本資料表。
-- `Employee`、`Role`：員工與權限管理。
+- 月結與總資產核對：Controllers/MonthlyCloseController.cs。
+- 動態預算分類、上限版本與歷史快照：Controllers/BudgetCapController.cs。
+- 儲備挪用、可用餘額補預備金、前期更正與沖銷：Controllers/BudgetAdjustmentsController.cs。
+- 純財務規則：Services/Budgeting/BudgetEngine.cs；SQL 一致性與報表投影：BudgetWorkspace.cs。
+- 交易與 CSV：Controllers/TransactionsController.cs、Services/Import/。
+- 投資記錄與估值：Controllers/InvestmentController.cs。
 
-## 專案結構
-flowchart TD direction TB
-subgraph Client["使用者端 / Browser"] A[使用者 (Browser)] end
-subgraph UI["表示層 (Views / Razor)"] direction LR V1[Views/Transactions/.cshtml] V2[Views/Finance/.cshtml] V3[Shared/_Layout.cshtml] end
-subgraph App["應用層 (Controllers / PageModels)"] direction LR C1[TransactionsController] C2[FinanceController] PM[若有 Razor Pages: PageModel] end
-subgraph VM["DTO / ViewModel"] direction LR Dto[Dto / NewsDto] VM1[BudgetReportViewModel / 其他 ViewModels] end
-subgraph BIZ["商業邏輯 / Service"] Svc[Services / Business Logic] end
-subgraph Data["資料層 (EF Core)"] DBCTX[ErpdbContext (DbContext)] StoredProc[Stored Procedures (Summaryaccount...)] DB[SQL Server (ERPDB)] end
-subgraph FrontendJS["前端互動 (JS)"] Chart[Chart.js / custom JS] JQuery[jQuery] end
-subgraph Infra["啟動與遷移"] Program[Program.cs / DI] Migrations[EF Migrations] end
-%% 連線 A -->|瀏覽頁面| V1 A --> V2
-V1 -->|POST/GET| C1 V2 --> C2 V1 --> PM V2 --> PM
-C1 --> VM1 C2 --> VM1 C1 --> Dto C2 --> Dto
-C1 -->|呼叫服務| Svc C2 --> Svc Svc --> DBCTX C2 -->|直接或 via Svc 呼叫 SP| StoredProc DBCTX --> DB StoredProc --> DB
-V2 -->|傳入 JSON| Chart Chart --> V2 Chart -->|使用| JQuery
-Program --> DBCTX Program --> C1 Program --> C2 Migrations --> DB
-%% 樣式 classDef layer fill:#f8f9fa,stroke:#333,stroke-width:1px; class Client,UI,App,VM,BIZ,Data,FrontendJS,Infra layer;
+## 資料庫與驗證
 
+使用既有 ERPDB；結構依 docs/sql/ 腳本升級，先備份並在副本驗證。不執行 EF migration。完整說明見 [動態預算與月結調整](docs/budget-workspace.md)。舊程式以 Git 回查，不在執行專案保留重複版本。
 
-## 快速開始
+```powershell
+dotnet build ERPAPP.sln
+dotnet run --project tests/ERPAPP.Tests.csproj
+dotnet run --project tests/ERPAPP.Tests.csproj -- --integration
+```
 
-1. **安裝依賴**
-   - .NET 8 SDK
-   - SQL Server LocalDB
-
-2. **資料庫設定**
-   - 將 `appsettings.example.json` 複製為 `appsettings.json`，設定既有 SQL Server ERPDB 連線；設定檔不進版控。
-
-3. **升級既有資料庫**
-   - 備份並先用副本驗證，再套用 `docs/sql/budget-workspace.sql`。完整流程見 [動態預算與月結調整](docs/budget-workspace.md)。
-   - 本專案使用直接 SQL 腳本；舊 EF migration 與現行資料結構不相容。
-
-4. **啟動專案**
-dotnet run
-或在 Visual Studio 2022 直接 F5 執行。
-
-5. **執行測試**
-   - `dotnet run --project tests/ERPAPP.Tests.csproj`
-   - SQL 副本整合測試與啟用規則見 [驗證流程](docs/budget-workspace.md)。
-
-## 其他說明
-
-- 預設無種子資料，請自行新增員工、角色等基本資料。
-- Razor Pages 介面支援下拉選單選擇資料表內容。
-- 前端圖表功能需網路連線載入 Chart.js。
-- 如需擴充功能，請參考各 Model、ViewModel 與 Controller 實作。
-
-## 聯絡與授權
-
-本專案僅供學習與交流，無商業授權。  
-如有問題請於 GitHub Issues 留言。
+整合測試固定使用獨立驗證副本，詳見上述啟用文件。

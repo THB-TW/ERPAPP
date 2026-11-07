@@ -20,7 +20,7 @@
     }
 }
 </tbody></table></div>
-@if(Model.Command.Action=="transfer" || Model.Command.Action=="reverse")
+@if(Model.Command.Action is "transfer" or "fund" or "reverse")
 {
 <p>最近月份總儲備金：@BudgetEngine.Position(Model.After,BudgetEngine.Latest(Model.After)).Reserve.ToString("N0") 元。</p>
 }

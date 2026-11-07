@@ -19,7 +19,7 @@ public sealed class BudgetAdjustmentsController(BudgetWorkspace workspace,ILogge
     [HttpPost,ValidateAntiForgeryToken,Authorize(Roles="Edit")]
     public IActionResult Preview(BudgetCommand command)
     {
-        if(!ModelState.IsValid || command.Action is not ("transfer" or "correct" or "reverse")) return BadRequest("調整資料不正確。");
+        if(!ModelState.IsValid || command.Action is not ("transfer" or "fund" or "correct" or "reverse")) return BadRequest("調整資料不正確。");
         try
         {
             var before=workspace.Read();
@@ -36,7 +36,7 @@ public sealed class BudgetAdjustmentsController(BudgetWorkspace workspace,ILogge
     [HttpPost,ValidateAntiForgeryToken,Authorize(Roles="Edit")]
     public IActionResult Apply(BudgetCommand command)
     {
-        if(!ModelState.IsValid || command.Action is not ("transfer" or "correct" or "reverse")) return BadRequest("調整資料不正確。");
+        if(!ModelState.IsValid || command.Action is not ("transfer" or "fund" or "correct" or "reverse")) return BadRequest("調整資料不正確。");
         try {workspace.Execute(command,User.Identity!.Name!);TempData["BudgetSuccess"]=true;TempData["BudgetMessage"]="調整已儲存，可在調整紀錄查看原因及影響。";}
         catch(Exception ex) when(ex is ArgumentException or InvalidOperationException or FormatException or OverflowException) {TempData["BudgetMessage"]=ex.Message;}
         catch(Exception ex) {logger.LogError(ex,"儲存財務調整失敗。");TempData["BudgetMessage"]="儲存失敗，請重新載入後再試。";}

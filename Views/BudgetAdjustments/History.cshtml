@@ -38,6 +38,7 @@ else if(Model.Kind=="adjustments")
         var reversed=Model.State.Adjustments.Any(a=>a.Reverses==adjustment.Id);
         <tr><td>@adjustment.Month<br />@adjustment.Time.ToString("yyyy-MM-dd HH:mm:ss zzz")</td><td>
             @if(adjustment.Kind=="correct"){<p>可用餘額更正：@adjustment.Amount.ToString("+0;-0;0") 元，向後延續。</p>}
+            else if(adjustment.Kind=="fund"){<p>可用餘額 → @Model.Name(adjustment.To) 儲備：@adjustment.Amount.ToString("N0") 元</p>}
             else{<p>@Model.Name(adjustment.From) → @Model.Name(adjustment.To)：@adjustment.Amount.ToString("N0") 元</p>}
             <p>@(pending?"待重結原月份":reversed?"已被反向沖銷":"已生效")</p>
             @if(adjustment.Reverses!=null){<small>沖銷原紀錄：@adjustment.Reverses</small>}

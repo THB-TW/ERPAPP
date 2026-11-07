@@ -1,4 +1,4 @@
-﻿
+
 using ERPAPP.Dto;
 using ERPAPP.Models;
 using ERPAPP.ViewModels;
@@ -75,17 +75,6 @@ namespace ERPAPP.Controllers
             var latest=await _context.Properties.MaxAsync(p=>(DateTime?)p.Date);
             ViewBag.ClosedBefore=latest.HasValue?new DateTime(latest.Value.Year,latest.Value.Month,1).AddMonths(1):(DateTime?)null;
 
-            //var transactions = from a in _context.Transactions
-            //                   select new Transaction
-            //                    {
-            //                       Id = a.Id,
-            //                       Date = a.Date,
-            //                        Category = a.Category,
-            //                        Amount = a.Amount,
-            //                        Member = a.Member,
-            //                        Account = a.Account,
-            //                        TransactionType = a.TransactionType,
-            //                   };
             return View(await transactions.OrderByDescending(t => t.Date).ToListAsync());
         }
 
@@ -248,25 +237,6 @@ namespace ERPAPP.Controllers
                     Account = a.Account,
                 })
                                 .FirstOrDefaultAsync();
-            //var insert = new NewsEditViewModel();
-            //insert.EditSpec = await (from a in _context.Transactions
-            //                         where a.Id == id
-            //                         select new NewsDto
-            //                         {
-            //                             Id = a.Id,
-            //                             Date = a.Date,
-            //                             Category = a.Category,
-            //                             Amount = a.Amount,
-            //                             Member = a.Member,
-            //                             Account = a.Account,
-            //                             TransactionType = a.TransactionType,
-            //                         }
-            //                        ).SingleOrDefaultAsync();
-            //insert.CategoryName = await _context.Categories
-            //                            .Select(c => c.CategoryName)
-            //                            .FirstOrDefaultAsync() ?? string.Empty;
-
-            //await _context.Transactions.FindAsync(id);
             if (transactionEdit == null)
             {
                 return NotFound();

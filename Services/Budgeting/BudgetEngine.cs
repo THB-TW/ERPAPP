@@ -66,6 +66,11 @@ public static class BudgetEngine
                     Transfer(next,reverseCommand,actor,time);
                     next.Adjustments[^1]=next.Adjustments[^1] with {Reverses=original.Id};
                 }
+                else if(original.Kind=="fund")
+                {
+                    FundReserve(next,new() {OperationId=command.OperationId,Month=Latest(next),To=original.To,Amount=checked(-original.Amount),Reason=command.Reason},actor,time);
+                    next.Adjustments[^1]=next.Adjustments[^1] with {Reverses=original.Id};
+                }
                 else next.Adjustments.Add(new(command.OperationId.ToString(),original.Month,"correct",checked(-original.Amount),null,null,command.Reason.Trim(),actor,time,original.Id));
                 break;
             case "caps":
@@ -98,6 +103,10 @@ public static class BudgetEngine
                 break;
             case "transfer":
                 Transfer(next,command,actor,time);
+                break;
+            case "fund":
+                if(command.Amount<=0) throw new ArgumentException("補入金額須為正整數。");
+                FundReserve(next,command,actor,time);
                 break;
             case "correct":
                 if (command.Month != OpenMonth(next) && !next.Months.Any(m=>m.Month==command.Month))
@@ -192,6 +201,11 @@ public static class BudgetEngine
         foreach (var adjustment in state.Adjustments.Where(a => string.CompareOrdinal(a.Month,month)<=0 && state.Months.Any(m=>m.Month==a.Month)))
         {
             if (adjustment.Kind == "correct") spare = checked(spare+adjustment.Amount);
+            else if(adjustment.Kind=="fund")
+            {
+                spare=checked(spare-adjustment.Amount);
+                balances[adjustment.To!]=checked(balances.GetValueOrDefault(adjustment.To!)+adjustment.Amount);
+            }
             else
             {
                 balances[adjustment.From!] = checked(balances.GetValueOrDefault(adjustment.From!)-adjustment.Amount);
@@ -212,6 +226,19 @@ public static class BudgetEngine
         if (Position(state,command.Month).Balances.GetValueOrDefault(command.From!) < command.Amount)
             throw new InvalidOperationException("轉出類別的可用儲備不足。");
         state.Adjustments.Add(new(command.OperationId.ToString(),command.Month,"transfer",command.Amount,command.From,command.To,command.Reason.Trim(),actor,time));
+    }
+
+    private static void FundReserve(BudgetState state,BudgetCommand command,string actor,DateTimeOffset time)
+    {
+        if(command.Month!=Latest(state)) throw new InvalidOperationException("只能調整最近已結月份的目前餘額。");
+        var active=Effective(state,OpenMonth(state))?.Limits??[];
+        if(!state.Categories.Any(c=>c.Id==command.To&&c.Kind=="reserve")||!active.Any(l=>l.CategoryId==command.To))
+            throw new InvalidOperationException("請選擇使用中的儲備類別。");
+        var current=Position(state,command.Month);
+        if(command.Amount>0 && current.Spare<command.Amount) throw new InvalidOperationException("可用餘額不足，無法補入預備金。");
+        if(command.Amount<0 && current.Balances.GetValueOrDefault(command.To!)<-(long)command.Amount)
+            throw new InvalidOperationException("該類別儲備不足，無法沖銷補入金額。");
+        state.Adjustments.Add(new(command.OperationId.ToString(),command.Month,"fund",command.Amount,null,command.To,command.Reason.Trim(),actor,time));
     }
 
     private static void Cap(int amount)

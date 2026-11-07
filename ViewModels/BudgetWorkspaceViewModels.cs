@@ -19,7 +19,7 @@ public sealed class BudgetWorkspacePage
     public string Name(string? id)=>State.Categories.SingleOrDefault(c=>c.Id==id)?.Name??id??"—";
     public static string KindName(string kind)=>kind switch {"reserve"=>"儲備類別","fixed"=>"固定支出","actual"=>"照實支",_=>kind};
     public static string ActionName(string action)=>action switch {"caps"=>"修改上限","add"=>"新增類別","retire"=>"停用類別","map"=>"修改分類歸屬",
-        "transfer"=>"預算挪用","correct"=>"前期更正","reverse"=>"沖銷調整","close"=>"月結","rollback"=>"撤銷月結",_=>action};
+        "transfer"=>"預算挪用","fund"=>"可用餘額補預備金","correct"=>"前期更正","reverse"=>"沖銷調整","close"=>"月結","rollback"=>"撤銷月結",_=>action};
 }
 
 public sealed record BudgetPreview(BudgetCommand Command,BudgetState Before,BudgetState After);

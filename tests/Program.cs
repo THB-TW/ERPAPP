@@ -95,6 +95,26 @@ var unknown=Run(Example(),"rollback","2026-10");
 Reject<InvalidOperationException>(()=>BudgetEngine.Apply(unknown,new() {Action="close",Month="2026-10",Amount=51058,Reason="未知分類必須先指定",Version=unknown.Version,OperationId=Guid.NewGuid()},"test",DateTimeOffset.UtcNow,[new("未指定支出",100)]));
 Console.WriteLine("PASS: stale writes, overdrafts, zero corrections and unmapped expenses are refused.");
 
+var fundBase=Example();
+var funding=new BudgetCommand {Action="fund",Month="2026-10",To="ai",Amount=2000,Reason="以可用餘額補預備金",Version=0,OperationId=Guid.NewGuid()};
+var funded=BudgetEngine.Apply(fundBase,funding,"test",DateTimeOffset.UtcNow);
+Equal(BudgetEngine.Position(fundBase,"2026-10").Spare-2000,BudgetEngine.Position(funded,"2026-10").Spare);
+Equal(2000,BudgetEngine.Position(funded,"2026-10").Balances["ai"]);
+Equal(BudgetEngine.Position(fundBase,"2026-10").Total,BudgetEngine.Position(funded,"2026-10").Total);
+Equal(BudgetEngine.Position(fundBase,"2026-10").Tuition,BudgetEngine.Position(funded,"2026-10").Tuition);
+Equal(1,BudgetEngine.Apply(funded,funding,"test",DateTimeOffset.UtcNow).Adjustments.Count);
+var unfunded=BudgetEngine.Apply(funded,new() {Action="reverse",Month="2026-10",Reverses=funding.OperationId.ToString(),Version=funded.Version,OperationId=Guid.NewGuid(),Reason="取消補入"},"test",DateTimeOffset.UtcNow);
+Equal(BudgetEngine.Position(fundBase,"2026-10").Spare,BudgetEngine.Position(unfunded,"2026-10").Spare);
+var waiting=Run(funded,"rollback","2026-10");
+Equal(BudgetEngine.Position(fundBase,"2026-09").Spare,BudgetEngine.Position(waiting,"2026-09").Spare);
+waiting=Run(waiting,"close","2026-10",51058);
+Equal(BudgetEngine.Position(funded,"2026-10").Spare,BudgetEngine.Position(waiting,"2026-10").Spare);
+var unadjustedReclose=Run(Run(fundBase,"rollback","2026-10"),"close","2026-10",51058);
+Equal(BudgetEngine.Position(unadjustedReclose,"2026-10").Balances["ai"]+2000,BudgetEngine.Position(waiting,"2026-10").Balances["ai"]);
+Reject<InvalidOperationException>(()=>BudgetEngine.Apply(fundBase,new() {Action="fund",Month="2026-10",To="ai",Amount=1000000,Reason="不足",Version=0,OperationId=Guid.NewGuid()},"test",DateTimeOffset.UtcNow));
+Reject<ArgumentException>(()=>BudgetEngine.Apply(fundBase,new() {Action="fund",Month="2026-10",To="ai",Amount=-1,Reason="負額",Version=0,OperationId=Guid.NewGuid()},"test",DateTimeOffset.UtcNow));
+Console.WriteLine("PASS: spare funds reserve without changing assets; reversal, retry and reclose preserve one effect.");
+
 if(args.Contains("--integration"))
 {
     using var db=new ErpdbContext(new DbContextOptionsBuilder<ErpdbContext>().UseSqlServer(@"Server=.\SQLEXPRESS;Database=ERPDB_BudgetVerify_20261107;Integrated Security=true;TrustServerCertificate=true").Options);
@@ -132,6 +152,12 @@ if(args.Contains("--integration"))
     Equal(BudgetEngine.Position(imported,latest).Total-700,BudgetEngine.Position(reclosed,latest).Total);
     Equal(before.Single(p=>p.Date==new DateTime(2026,10,1)).Totalproperty-700,db.Properties.AsNoTracking().Single(p=>p.Date==new DateTime(2026,10,1)).Totalproperty);
     Console.WriteLine("PASS: actual SQL close path preserves -700 and reserve through rollback/map/reclose.");
+    var fundedSql=workspace.Execute(new() {Action="fund",Month=latest,To="study",Amount=100,Version=reclosed.Version,OperationId=Guid.NewGuid(),Reason="副本驗證餘額補入"},"integration");
+    var fundedPosition=BudgetEngine.Position(fundedSql,latest);
+    Equal(BudgetEngine.Position(reclosed,latest).Spare-100,fundedPosition.Spare);
+    Equal(BudgetEngine.Position(reclosed,latest).Total,fundedPosition.Total);
+    Equal(fundedPosition.Spare,db.Properties.AsNoTracking().Single(p=>p.Date==new DateTime(2026,10,1)).Sparemoney);
+    workspace.Execute(new() {Action="reverse",Month=latest,Reverses=fundedSql.Adjustments.Last().Id,Version=fundedSql.Version,OperationId=Guid.NewGuid(),Reason="副本驗證補入沖銷"},"integration");
     db.Transactions.Add(new() {Date=BudgetEngine.MonthDate(latest).AddDays(1),Category="其他",Amount=99997,Member="自己",Account="現金",TransactionType="支"});
     Reject<ClosedPeriodException>(()=>db.SaveChanges());
     db.ChangeTracker.Clear();

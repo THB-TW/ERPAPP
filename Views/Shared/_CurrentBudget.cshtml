@@ -13,6 +13,14 @@
 </tbody></table></div>
 @if(User.IsInRole("Edit"))
 {
+<details class="mb-3"><summary>用可用餘額補入預備金</summary><p class="text-muted">可用餘額減少、指定類別儲備增加；總資產、學費與其他類別不變。</p>
+<form asp-controller="BudgetAdjustments" asp-action="Preview" method="post" class="row g-2">
+    @await Html.PartialAsync("_BudgetCommandFields",new BudgetCommand {Action="fund",Month=Model.LatestMonth,Version=Model.State.Version,OperationId=Guid.NewGuid()})
+    <div class="col-md-6"><label for="fund-to">補入類別</label><select id="fund-to" class="form-select" name="To">@foreach(var category in Model.Active.Where(c=>c.Kind=="reserve")){<option value="@category.Id">@category.Name（@current.Balances.GetValueOrDefault(category.Id).ToString("N0")）</option>}</select></div>
+    <div class="col-md-6"><label for="fund-amount">補入金額（可用 @current.Spare.ToString("N0") 元）</label><input id="fund-amount" class="form-control" type="number" name="Amount" min="1" max="@Math.Max(0,current.Spare)" step="1" required /></div>
+    <div class="col-12"><label for="fund-reason">原因</label><input id="fund-reason" class="form-control" name="Reason" maxlength="300" required /></div>
+    <div><button class="btn btn-primary">預覽補入</button></div>
+</form></details>
 <details><summary>挪用預算補足缺口</summary><p class="text-muted">只在儲備類別間移轉，總儲備金與帳面總資產維持不變，不動可用餘額或學費。</p>
 <form asp-controller="BudgetAdjustments" asp-action="Preview" method="post" class="row g-2">
     @await Html.PartialAsync("_BudgetCommandFields",command)

@@ -20,8 +20,8 @@ CSV 匯入的流程與數量式去重只在 `Services/Import/ImportRun.cs` 寫�
 投資組合（台股個股＋虛擬貨幣桶）在 `Controllers/InvestmentController.cs`；
 成本／市值／累計投入淨額的計算集中在 `Services/InvestmentCalculator.cs`（純函式）與
 `Services/InvestmentService.cs`。資料表用 `docs/sql/investment.sql` 直接建——
-**本專案不跑 EF migration**（`Migrations/20251116121313_FixPropertyName.cs` 從未套用且與
-現行 schema 衝突，執行 `dotnet ef database update` 會破壞資料庫）。
+**本專案不跑 EF migration**；舊 migration 與現行 schema 衝突，已移除，可由 Git 回查。
+資料結構依 `docs/sql/` 的腳本升級，先備份並在副本驗證。
 「為什麼投資要記兩個成本數字」見 `docs/adr/0001`。
 
 ## Agent skills
