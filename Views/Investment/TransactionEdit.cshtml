@@ -1,0 +1,82 @@
+@using ERPAPP.Services
+@model ERPAPP.ViewModels.InvestmentTransactionInput
+@{
+    ViewData["Title"] = "編輯投資交易";
+    var holdings = (List<ERPAPP.Models.InvestmentHolding>)ViewBag.Holdings;
+    var isOpening = (bool)ViewBag.IsOpening;
+}
+
+<div class="container">
+    <h2>✏️ @ViewData["Title"]</h2>
+
+    @if (TempData["AlertMessage"] != null)
+    {
+        <div class="alert alert-info">@TempData["AlertMessage"]</div>
+    }
+    @if (isOpening)
+    {
+        <div class="alert alert-warning">
+            這是<strong>期初建置</strong>列：標的與類型鎖定，只能修改股數／金額／備註。
+            它不計入累計投入淨額（見 docs/adr/0001）。
+        </div>
+    }
+
+    <form asp-action="EditTransaction" method="post" class="col-md-6">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="Id" value="@Model.Id" />
+        <div class="mb-2">
+            <label class="form-label">標的</label>
+            <select name="HoldingId" class="form-select" disabled="@isOpening">
+                @foreach (var h in holdings)
+                {
+                    <option value="@h.Id" selected="@(h.Id == Model.HoldingId)">@(h.Symbol == null ? h.Name : $"{h.Symbol} {h.Name}")</option>
+                }
+            </select>
+            @if (isOpening)
+            {
+                <input type="hidden" name="HoldingId" value="@Model.HoldingId" />
+            }
+        </div>
+        <div class="mb-2">
+            <label class="form-label">日期</label>
+            <input type="date" name="Date" class="form-control" value="@Model.Date.ToString("yyyy-MM-dd")" />
+        </div>
+        <div class="mb-2">
+            <label class="form-label">類型</label>
+            @if (isOpening)
+            {
+                <input type="text" class="form-control" value="期初" disabled />
+                <input type="hidden" name="TxType" value="@InvestmentTerms.TxOpening" />
+            }
+            else
+            {
+                <select name="TxType" class="form-select">
+                    <option value="@InvestmentTerms.TxBuy" selected="@(Model.TxType == InvestmentTerms.TxBuy)">買</option>
+                    <option value="@InvestmentTerms.TxSell" selected="@(Model.TxType == InvestmentTerms.TxSell)">賣</option>
+                    <option value="@InvestmentTerms.TxDividend" selected="@(Model.TxType == InvestmentTerms.TxDividend)">配息</option>
+                </select>
+            }
+        </div>
+        <div class="mb-2">
+            <label class="form-label">股數（台股必填；虛擬貨幣留空）</label>
+            <input type="number" name="Quantity" step="0.0001" class="form-control" value="@(Model.Quantity?.ToString("0.####"))" />
+        </div>
+        <div class="mb-2">
+            <label class="form-label">金額（實際扣款/入帳，含手續費稅金）</label>
+            <input type="number" name="Amount" class="form-control" value="@Model.Amount" />
+        </div>
+        <div class="mb-2">
+            <label class="form-label">資金來源</label>
+            <select name="FundSource" class="form-select">
+                <option value="@InvestmentTerms.SourceInternal" selected="@(Model.FundSource == InvestmentTerms.SourceInternal)">帳內</option>
+                <option value="@InvestmentTerms.SourceExternal" selected="@(Model.FundSource == InvestmentTerms.SourceExternal)">帳外</option>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">備註</label>
+            <input type="text" name="Note" class="form-control" maxlength="200" value="@Model.Note" />
+        </div>
+        <button type="submit" class="btn btn-primary">儲存</button>
+        <a class="btn btn-secondary" asp-action="Transactions">取消</a>
+    </form>
+</div>

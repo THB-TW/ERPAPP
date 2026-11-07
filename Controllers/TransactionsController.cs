@@ -13,10 +13,12 @@ namespace ERPAPP.Controllers
     public class TransactionsController : Controller
     {
         private readonly ErpdbContext _context;
+        private readonly ERPAPP.Services.Budgeting.BudgetWorkspace _workspace;
 
-        public TransactionsController(ErpdbContext context)
+        public TransactionsController(ErpdbContext context, ERPAPP.Services.Budgeting.BudgetWorkspace workspace)
         {
             _context = context;
+            _workspace = workspace;
         }
 
         // GET: Transactions
@@ -70,6 +72,8 @@ namespace ERPAPP.Controllers
 
             var types = new List<string> { "支", "收" };
             ViewBag.Types = new SelectList(types, searchType);
+            var latest=await _context.Properties.MaxAsync(p=>(DateTime?)p.Date);
+            ViewBag.ClosedBefore=latest.HasValue?new DateTime(latest.Value.Year,latest.Value.Month,1).AddMonths(1):(DateTime?)null;
 
             //var transactions = from a in _context.Transactions
             //                   select new Transaction
@@ -136,7 +140,7 @@ namespace ERPAPP.Controllers
         public IActionResult Create()
         {
             // 取得所有類別
-            var categories = _context.Categories
+            var categories = WritableCategories()
                 .Select(c => new SelectListItem
                 {
                     Value = c.CategoryName,
@@ -170,6 +174,7 @@ namespace ERPAPP.Controllers
         // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [Authorize(Roles = "Edit")]
         public async Task<IActionResult> Create(NewsDto transaction)
         {
             if (ModelState.IsValid)
@@ -195,6 +200,7 @@ namespace ERPAPP.Controllers
         }
 
         // GET: Transactions/Edit/5
+        [Authorize(Roles = "Edit")]
         public async Task<IActionResult> Edit(int? id)
         {
             if (id == null)
@@ -202,7 +208,7 @@ namespace ERPAPP.Controllers
                 return NotFound();
             }
             // 取得所有類別
-            var categories = _context.Categories
+            var categories = WritableCategories()
                 .Select(c => new SelectListItem
                 {
                     Value = c.CategoryName,
@@ -270,6 +276,7 @@ namespace ERPAPP.Controllers
         // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [Authorize(Roles = "Edit")]
         public async Task<IActionResult> Edit(int id, NewsDto transactionDto)
         {
             if (id != transactionDto.Id)
@@ -317,6 +324,7 @@ namespace ERPAPP.Controllers
 
 
         // GET: Transactions/Delete/5
+        [Authorize(Roles = "Edit")]
         public async Task<IActionResult> Delete(int? id)
         {
             if (id == null)
@@ -337,6 +345,7 @@ namespace ERPAPP.Controllers
         // POST: Transactions/Delete/5
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
+        [Authorize(Roles = "Edit")]
         public async Task<IActionResult> DeleteConfirmed(int id)
         {
             var transaction = await _context.Transactions.FindAsync(id);
@@ -347,6 +356,14 @@ namespace ERPAPP.Controllers
 
             await _context.SaveChangesAsync();
             return RedirectToAction(nameof(Index));
+        }
+
+        private IQueryable<Category> WritableCategories()
+        {
+            var state=_workspace.Read();
+            var revision=ERPAPP.Services.Budgeting.BudgetEngine.Effective(state,ERPAPP.Services.Budgeting.BudgetEngine.OpenMonth(state));
+            var allowed=revision?.Mapping.Where(m=>revision.Limits.Any(l=>l.CategoryId==m.Value)).Select(m=>m.Key).ToArray()??[];
+            return _context.Categories.Where(c=>c.Type!="支"||allowed.Contains(c.CategoryName));
         }
 
         private bool TransactionExists(int id)

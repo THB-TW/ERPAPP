@@ -7,6 +7,7 @@
 
 <div class="container-fluid">
     <h2>🧙 @ViewData["Title"]</h2>
+    @await Html.PartialAsync("_BudgetMessage")
     <p class="text-muted">依序完成四步驟即可完成整月月結：匯入資料 → 信用卡核對＋計算 → 總資產核對。</p>
 
     <!-- 步驟指示 -->
@@ -31,16 +32,17 @@
                     <input type="number" id="inMonth" class="form-control" min="1" max="12" value="@Model.Month" />
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">當月收入 (Own)</label>
+                    <label class="form-label">當月收入</label>
                     <input type="number" id="inOwn" class="form-control" value="@Model.Own" />
                 </div>
             </div>
             <div class="mt-3">
                 <button class="btn btn-primary" id="btnStep1Next">確認月份，下一步 →</button>
                 <button class="btn btn-outline-danger ms-2" id="btnRollback">↩️ 撤銷此月彙總</button>
+                <label class="ms-2" for="inRollbackReason">撤銷原因</label><input class="form-control mt-2" id="inRollbackReason" maxlength="300" placeholder="撤銷前請填原因" />
             </div>
             <div class="form-text text-muted">
-                收入輸錯或資料有誤時，選好年/月後可直接「撤銷此月彙總」——刪除該月 budget/Property、回滾總儲備金，改正後再依步驟重跑。
+                收入輸錯或資料有誤時，選好年/月並填原因後可「撤銷此月彙總」。原始計算回沖，調整紀錄保留；改正後再重新月結。
                 （只能撤銷「最近一次彙總」的月份；此功能與步驟④的「自動倒回次月交易」不同。）
             </div>
             <div id="rollbackResult" class="mt-3"></div>
@@ -68,7 +70,7 @@
                 </div>
                 <div class="col-md-6">
                     <h6>信用卡帳單 CSV → 信用卡核對表</h6>
-                    <div class="form-text text-muted mb-1">可直接上傳「帳單明細查詢」原始匯出檔；匯入資料庫的同時，會把新紀錄補寫進 creditcard.csv 存檔。</div>
+                    <div class="form-text text-muted mb-1">可直接上傳「帳單明細查詢」原始匯出檔，也接受已轉換的「日期,店家,金額」三欄檔；負數的繳款列不會寫入。匯入資料庫的同時，會把新紀錄補寫進 creditcard.csv 存檔。</div>
                     <input type="file" id="ccFile" class="form-control mb-2" accept=".csv,.txt" />
                     <div class="input-group mb-2">
                         <span class="input-group-text">編碼</span>
@@ -91,7 +93,8 @@
     <div class="card mb-3 step-card d-none" id="card-3">
         <div class="card-header bg-primary text-white">③ 信用卡核對 ＋ 計算彙總</div>
         <div class="card-body">
-            <p class="text-muted">會先比對信用卡帳單與記帳（找出少記/多記）；通過後計算各類別預算並寫入資料庫。</p>
+            <p class="text-muted">先核對信用卡帳單與交易筆數，通過後計算預算並保存當月快照。</p>
+            <div id="capInfo" class="small mb-2"></div>
             <button class="btn btn-success" id="btnRunSummary">執行核對＋計算</button>
             <div class="form-text text-muted">
                 若需撤銷已完成的彙總，請回步驟①使用「撤銷此月彙總」。
@@ -121,8 +124,14 @@
                     <input type="number" id="inBank" class="form-control" value="0" />
                 </div>
                 <div class="col-md-4">
+                    <label class="form-label" for="inUnbilled">未出帳信用卡（自動帶入，可修改）</label>
                     <input type="number" id="inUnbilled" class="form-control" value="0" />
                     <div id="unbilledHint" class="form-text text-muted"></div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">已投入投資（自動帶入，可修改）</label>
+                    <input type="number" id="inNetDeployed" class="form-control" value="0" />
+                    <div id="netDeployedHint" class="form-text text-muted"></div>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">其他調整（選填）</label>
@@ -137,7 +146,9 @@
                     </div>
                 </div>
             </div>
-            <button class="btn btn-success mt-3" id="btnAssetCheck">核對總資產</button>
+            <div class="row g-3 mt-1"><div class="col-md-4"><label for="inAsOfDate">餘額日期</label><input id="inAsOfDate" class="form-control" type="date" value="@DateTime.Today.ToString("yyyy-MM-dd")" /></div>
+            <div class="col-md-8"><label for="inCheckReason">核對備註／其他調整原因</label><input id="inCheckReason" class="form-control" maxlength="300" placeholder="其他調整不為 0 時必填原因" /></div></div>
+            <button class="btn btn-success mt-3" id="btnAssetCheck" disabled="@(!User.IsInRole("Edit"))">核對並保存紀錄</button>
             <div id="assetResult" class="mt-3"></div>
             <hr />
             <button class="btn btn-secondary" id="btnStep4Back">← 上一步</button>
@@ -145,22 +156,36 @@
     </div>
 </div>
 
+@await Html.PartialAsync("_PeriodCorrection",(ERPAPP.ViewModels.BudgetWorkspacePage)ViewData["BudgetWorkspace"]!)
+
 @section Scripts {
     <script>
         (function () {
             var token = document.querySelector('input[name="__RequestVerificationToken"]').value;
             var state = { year: 0, month: 0, own: 0 };
+            var workspaceVersion=@Model.Version;
+            var operationCache={};
+            function readSelection(){state={year:pint('#inYear'),month:pint('#inMonth'),own:pint('#inOwn')};}
+            function operation(action,data){
+                var signature=JSON.stringify(data);
+                if(!operationCache[action]||operationCache[action].signature!==signature)operationCache[action]={signature:signature,id:crypto.randomUUID()};
+                return Object.assign(data,{operationId:operationCache[action].id,version:workspaceVersion});
+            }
+            function acceptVersion(r){if(typeof r.version==='number'){workspaceVersion=Math.max(workspaceVersion,r.version);document.querySelectorAll('input[name="Version"]').forEach(e=>e.value=workspaceVersion);}}
+            function syncCorrectionMonth(){var y=Number(document.getElementById('inYear').value),m=Number(document.getElementById('inMonth').value);if(y<1900||y>9998||m<1||m>12)return;var form=document.getElementById('period-correction-form');if(!form)return;form.querySelector('input[name="Month"]').value=String(y).padStart(4,'0')+'-'+String(m).padStart(2,'0');document.getElementById('correction-target-month').textContent=String(m===1?y-1:y).padStart(4,'0')+'-'+String(m===1?12:m-1).padStart(2,'0');}
+            document.getElementById('inYear').addEventListener('input',syncCorrectionMonth);document.getElementById('inMonth').addEventListener('input',syncCorrectionMonth);syncCorrectionMonth();
 
             function fmt(n) {
                 if (n === null || n === undefined) return '0';
                 return Number(n).toLocaleString();
             }
             function pint(sel) {
-                var v = parseInt(document.querySelector(sel).value, 10);
-                return isNaN(v) ? 0 : v;
+                var v = Number(document.querySelector(sel).value);
+                return Number.isSafeInteger(v) ? v : NaN;
             }
 
             function gotoStep(step) {
+                readSelection();
                 document.querySelectorAll('.step-card').forEach(function (c) { c.classList.add('d-none'); });
                 var card = document.getElementById('card-' + step);
                 if (card) card.classList.remove('d-none');
@@ -170,7 +195,41 @@
                     if (s === step) p.classList.add('active');
                 });
                 // 進到步驟④才帶入未出帳信用卡：此時步驟②剛匯入的帳單已經進資料庫
-                if (step === 4) fillUnbilled();
+                if (step === 4) { fillUnbilled(); fillNetDeployed(); }
+                // 進到步驟③顯示本月採用的預算上限（資訊用，失敗不影響執行按鈕）
+                if (step === 3) { loadCapInfo(); }
+            }
+
+            // 本月採用的預算上限與來源快照月份。只是提示，失敗不擋執行。
+            var capReq = 0;
+            function escHtml(s) {
+                return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            }
+            function loadCapInfo() {
+                var box = document.getElementById('capInfo');
+                var seq = ++capReq;
+                box.textContent = '讀取本月預算上限…';
+                $.ajax({ url: '/BudgetCap/Effective', method: 'GET', data: { year: state.year, month: state.month } })
+                    .done(function (c) {
+                        acceptVersion(c);
+                        if (seq !== capReq) return;
+                        var src = c.isOwnSnapshot
+                            ? '來源：' + c.sourceMonth + ' 快照'
+                            : '來源：' + c.sourceMonth + ' 快照｜沿用';
+                        var html = '本月上限（' + src + '）：儲備類別 ' + fmt(c.reserveCapSum) +
+                            '、固定支出 ' + fmt(c.fixedCapSum) +
+                            '、學費儲備 ' + fmt(c.tuition) + ' → 預估總開銷 <strong>' + fmt(c.expenditure) + '</strong>（結算時依固定及照實支調整）' +
+                            '　<a href="/BudgetCap" target="_blank">調整上限 ↗</a>';
+                        if (c.isClosed) html += '<span class="text-muted ms-2">（已結月份，數字為快照）</span>';
+                        box.className = 'small mb-2';
+                        box.innerHTML = html;
+                    })
+                    .fail(function (xhr) {
+                        if (seq !== capReq) return;
+                        box.className = 'small mb-2 alert alert-warning py-1 px-2';
+                        box.innerHTML = '⚠️ ' + escHtml(errMsg(xhr)) +
+                            '　<a href="/BudgetCap" target="_blank">前往設定 ↗</a>';
+                    });
             }
             function unlockPill(step) {
                 var p = document.querySelector('#stepPills .nav-link[data-step="' + step + '"]');
@@ -213,6 +272,28 @@
                     })
                     .fail(function () {
                         hint.textContent = '自動帶入失敗，請手動輸入未出帳金額。';
+                    });
+            }
+
+            // 已投入投資＝累計投入淨額（投資頁維護；上界為結算月月底）。
+            // 同樣採「使用者手改過就永不覆寫」。
+            var netDeployedTouched = false;
+            document.getElementById('inNetDeployed').addEventListener('input', function () {
+                netDeployedTouched = true;
+            });
+
+            function fillNetDeployed() {
+                if (netDeployedTouched) return;
+                var hint = document.getElementById('netDeployedHint');
+                hint.textContent = '';
+                postJson('/MonthlyClose/NetDeployed', { year: state.year, month: state.month, own: 0 })
+                    .done(function (r) {
+                        if (netDeployedTouched) return; // 請求期間使用者已手改，放棄覆寫
+                        document.getElementById('inNetDeployed').value = r.amount;
+                        hint.textContent = '截至 ' + r.asOfMonth + ' 月底的累計投入淨額。';
+                    })
+                    .fail(function () {
+                        hint.textContent = '自動帶入失敗，請至投資頁查累計投入淨額後手動輸入。';
                     });
             }
 
@@ -259,8 +340,9 @@
                         box.innerHTML = '<div class="alert alert-success py-2 mb-0">✅ 讀取 ' + r.totalRows +
                             ' 列：新增 <strong>' + r.inserted + '</strong> 筆、略過重複 ' + r.skipped +
                             ' 筆' + (r.errorRows ? '、無法解析 ' + r.errorRows + ' 列' : '') + '。</div>';
+                        if(r.rejectedRows){box.innerHTML+='<div class="alert alert-warning">已結月份拒收 '+r.rejectedRows+' 筆，未寫入：<ul>'+r.rejections.map(e=>'<li>'+escHtml(e.date.slice(0,10))+' '+escHtml(e.category)+' '+fmt(e.amount)+'：'+escHtml(e.reason)+'</li>').join('')+'</ul></div>';}
                     })
-                    .fail(function (xhr) { box.innerHTML = '<div class="alert alert-danger py-2 mb-0">❌ ' + errMsg(xhr) + '</div>'; });
+                    .fail(function (xhr) { box.innerHTML = '<div class="alert alert-danger py-2 mb-0">❌ ' + escHtml(errMsg(xhr)) + '</div>'; });
             });
 
             // 匯入信用卡
@@ -282,32 +364,34 @@
                         }
                         html += '。</div>';
                         if (r.archiveMessage) {
-                            html += '<div class="alert alert-warning py-2 mb-0 mt-1">⚠️ ' + r.archiveMessage + '</div>';
+                            html += '<div class="alert alert-warning py-2 mb-0 mt-1">⚠️ ' + escHtml(r.archiveMessage) + '</div>';
                         }
                         box.innerHTML = html;
                     })
-                    .fail(function (xhr) { box.innerHTML = '<div class="alert alert-danger py-2 mb-0">❌ ' + errMsg(xhr) + '</div>'; });
+                    .fail(function (xhr) { box.innerHTML = '<div class="alert alert-danger py-2 mb-0">❌ ' + escHtml(errMsg(xhr)) + '</div>'; });
             });
 
             // 執行核對＋計算
             document.getElementById('btnRunSummary').addEventListener('click', function () {
+                readSelection();
                 var box = document.getElementById('summaryResult');
                 box.innerHTML = '執行中…';
-                postJson('/MonthlyClose/RunSummary', { year: state.year, month: state.month, own: state.own })
-                    .done(function (r) { renderSummary(r, box); })
-                    .fail(function (xhr) { box.innerHTML = '<div class="alert alert-danger">❌ ' + errMsg(xhr) + '</div>'; });
+                postJson('/MonthlyClose/RunSummary', operation('close',{ year: state.year, month: state.month, own: state.own }))
+                    .done(function (r) { acceptVersion(r);if(r.already===2||r.already===1)delete operationCache.close;renderSummary(r, box); })
+                    .fail(function (xhr) { box.innerHTML = '<div class="alert alert-danger">❌ ' + escHtml(errMsg(xhr)) + '</div>'; });
             });
 
             // 撤銷此月彙總（觸發 SP own=-1 重置分支）——在步驟①即可操作，直接讀取輸入框的年/月
             document.getElementById('btnRollback').addEventListener('click', function () {
                 var y = pint('#inYear'), m = pint('#inMonth');
+                var reason=document.getElementById('inRollbackReason').value.trim();if(!reason){alert('請先填寫撤銷原因');return;}
                 if (m < 1 || m > 12) { alert('月份需為 1-12'); return; }
-                if (!confirm('確定要撤銷 ' + y + '/' + m + ' 的彙總嗎？\n這會刪除該月的 budget/Property 並回滾總儲備金。')) return;
+                if (!confirm('確定要撤銷 ' + y + '/' + m + ' 的彙總嗎？\n原始計算會回沖，既有調整保留；所屬月份撤銷的調整會等待重結。')) return;
                 var box = document.getElementById('rollbackResult');
                 box.innerHTML = '撤銷中…';
-                postJson('/MonthlyClose/RollbackSummary', { year: y, month: m, own: -1 })
-                    .done(function (r) { renderSummary(r, box); })
-                    .fail(function (xhr) { box.innerHTML = '<div class="alert alert-danger">❌ ' + errMsg(xhr) + '</div>'; });
+                postJson('/MonthlyClose/RollbackSummary', operation('rollback',{ year: y, month: m, own: -1, reason:reason }))
+                    .done(function (r) { acceptVersion(r);if(r.already===-2)delete operationCache.rollback;renderSummary(r, box); })
+                    .fail(function (xhr) { box.innerHTML = '<div class="alert alert-danger">❌ ' + escHtml(errMsg(xhr)) + '</div>'; });
             });
 
             function renderSummary(r, box) {
@@ -316,12 +400,8 @@
                     box.innerHTML =
                         '<div class="alert alert-success"><h5>✅ 核對通過，已完成計算</h5></div>' +
                         '<table class="table table-sm table-bordered w-auto">' +
-                        '<tr><th>手機/網路結餘</th><td class="text-end">' + fmt(r.phone) + '</td></tr>' +
-                        '<tr><th>Gogoro 結餘</th><td class="text-end">' + fmt(r.gogoro) + '</td></tr>' +
-                        '<tr><th>電費</th><td class="text-end">' + fmt(r.electricity) + '</td></tr>' +
-                        '<tr><th>水費</th><td class="text-end">' + fmt(r.water) + '</td></tr>' +
-                        '<tr><th>瓦斯</th><td class="text-end">' + fmt(r.gas) + '</td></tr>' +
-                        '<tr><th>固定支出餘額</th><td class="text-end">' + fmt(r.negtive) + '</td></tr>' +
+                        '<tr><th>可用餘額</th><td class="text-end">' + fmt(r.spare) + '</td></tr>' +
+                        '<tr><th>帳面總資產</th><td class="text-end">' + fmt(r.totalproperty) + '</td></tr>' +
                         '</table>';
                     unlockPill(4);
                     step3Next.classList.remove('d-none');
@@ -342,7 +422,7 @@
                     unlockPill(4);
                     step3Next.classList.remove('d-none');
                 } else if (r.already === -2) {
-                    box.innerHTML = '<div class="alert alert-info">↩️ 已撤銷該月彙總（已刪除該月 budget/Property、回滾總儲備金）。<br>改正收入後，請依步驟重新執行「核對＋計算」。</div>';
+                    box.innerHTML = '<div class="alert alert-info">↩️ 已撤銷原始月結，既有調整紀錄保留。<br>確認交易、收入與上限後，請重新執行「核對＋計算」。</div>';
                     step3Next.classList.add('d-none');
                 } else {
                     box.innerHTML = '<div class="alert alert-secondary">回傳狀態碼：' + r.already + '</div>';
@@ -352,17 +432,20 @@
 
             // 總資產核對
             document.getElementById('btnAssetCheck').addEventListener('click', function () {
+                readSelection();
                 var box = document.getElementById('assetResult');
                 box.innerHTML = '計算中…';
                 var req = {
                     year: state.year, month: state.month,
                     cash: pint('#inCash'), ipass: pint('#inIpass'), bank: pint('#inBank'),
-                    unbilledCredit: pint('#inUnbilled'), adjust: pint('#inAdjust'),
-                    autoRollback: document.getElementById('inRollback').checked
+                    unbilledCredit: pint('#inUnbilled'), netDeployed: pint('#inNetDeployed'),
+                    adjust: pint('#inAdjust'),
+                    autoRollback: document.getElementById('inRollback').checked,
+                    asOfDate:document.getElementById('inAsOfDate').value,reason:document.getElementById('inCheckReason').value
                 };
-                postJson('/MonthlyClose/AssetCheck', req)
-                    .done(function (r) { renderAsset(r, box); })
-                    .fail(function (xhr) { box.innerHTML = '<div class="alert alert-danger">❌ ' + errMsg(xhr) + '</div>'; });
+                postJson('/MonthlyClose/AssetCheck', operation('check',req))
+                    .done(function (r) { acceptVersion(r);delete operationCache.check;renderAsset(r, box); })
+                    .fail(function (xhr) { box.innerHTML = '<div class="alert alert-danger">❌ ' + escHtml(errMsg(xhr)) + '</div>'; });
             });
 
             function renderAsset(r, box) {
@@ -386,10 +469,11 @@
                     html += '<tr><th>帳面總資產</th><td class="text-end text-muted">查無當月資料（請先完成步驟 ③）</td></tr>';
                 }
                 html += '</table>';
+                if(r.recordId)html+='<p><a href="/BudgetAdjustments/History">已保存核對紀錄，查看歷史</a></p>';
                 if (r.hasBook) {
                     html += r.diff === 0
                         ? '<div class="alert alert-success">✅ 核對通過，帳實相符！</div>'
-                        : '<div class="alert alert-warning">尚有差額 ' + fmt(r.diff) + '，可用「未出帳信用卡／其他調整」補齊，或檢查交易與帳單。</div>';
+                        : '<div class="alert alert-warning">尚有差額 ' + fmt(r.diff) + '，請核對交易、實際餘額與既有調整紀錄；確認需要更正時，請填寫原因並預覽影響。</div>';
                 }
                 box.innerHTML = html;
             }

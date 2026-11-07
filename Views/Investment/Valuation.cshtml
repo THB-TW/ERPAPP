@@ -1,0 +1,74 @@
+@using ERPAPP.Services
+@model ERPAPP.ViewModels.ValuationInputModel
+@{
+    ViewData["Title"] = "填市值";
+}
+
+<div class="container">
+    <h2>💹 @ViewData["Title"]</h2>
+    <div class="mb-3">
+        <a class="btn btn-outline-secondary btn-sm" asp-action="Index">← 回投資總覽</a>
+    </div>
+
+    @if (TempData["AlertMessage"] != null)
+    {
+        <div class="alert alert-info">@TempData["AlertMessage"]</div>
+    }
+
+    <p class="text-muted">
+        台股填<strong>每股股價</strong>（市值＝股數×股價，系統自動算）；虛擬貨幣填<strong>市值總額</strong>（台幣）。
+        沒填的標的沿用上一次快照。每次送出都是一筆新的帶時間戳快照，歷史會保留。
+    </p>
+
+    <form asp-action="Valuation" method="post">
+        @Html.AntiForgeryToken()
+        <table class="table table-bordered align-middle w-auto">
+            <thead class="table-dark">
+                <tr>
+                    <th>標的</th>
+                    <th class="text-end">股數</th>
+                    <th>上次快照</th>
+                    <th style="min-width:180px">本次輸入</th>
+                </tr>
+            </thead>
+            <tbody>
+                @for (var i = 0; i < Model.Rows.Count; i++)
+                {
+                    var r = Model.Rows[i];
+                    <tr>
+                        <td>
+                            @r.Name <span class="badge bg-secondary">@r.AssetClass</span>
+                            <input type="hidden" name="Rows[@i].HoldingId" value="@r.HoldingId" />
+                        </td>
+                        <td class="text-end">@(r.AssetClass == InvestmentTerms.StockClass ? r.Quantity.ToString("0.####") : "—")</td>
+                        <td class="small text-muted">@r.LastInfo</td>
+                        <td>
+                            @if (r.AssetClass == InvestmentTerms.StockClass)
+                            {
+                                <div class="input-group input-group-sm">
+                                    <input type="number" name="Rows[@i].UnitPrice" step="0.0001" class="form-control" placeholder="每股股價" />
+                                    <span class="input-group-text">元/股</span>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="input-group input-group-sm">
+                                    <input type="number" name="Rows[@i].MarketValue" class="form-control" placeholder="市值總額" />
+                                    <span class="input-group-text">元</span>
+                                </div>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        @if (User.IsInRole("Edit"))
+        {
+            <button type="submit" class="btn btn-primary">儲存快照</button>
+        }
+        else
+        {
+            <div class="alert alert-warning">需要 Edit 權限才能儲存。</div>
+        }
+    </form>
+</div>

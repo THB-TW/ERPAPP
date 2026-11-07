@@ -1,0 +1,21 @@
+@model ERPAPP.ViewModels.BudgetWorkspacePage
+@using ERPAPP.Services.Budgeting
+@{
+    var selected=ViewData["SelectedCloseMonth"] as string??Model.LatestMonth;
+    var target=BudgetEngine.MonthDate(selected).AddMonths(-1).ToString("yyyy-MM");
+    var command=new BudgetCommand {Action="correct",Month=selected,Version=Model.State.Version,OperationId=Guid.NewGuid()};
+}
+<section class="card mt-4 mb-4"><div class="card-header">前期更正與核對紀錄</div><div class="card-body">
+<p><a asp-controller="BudgetAdjustments" asp-action="History">查閱歷次總資產核對</a> · <a asp-controller="BudgetAdjustments" asp-action="History" asp-route-kind="adjustments">調整紀錄與沖銷</a></p>
+@if(User.IsInRole("Edit"))
+{
+<form asp-controller="BudgetAdjustments" asp-action="Preview" method="post" id="period-correction-form">
+    @await Html.PartialAsync("_BudgetCommandFields",command)
+    <p>更正結算月份的前一個月：<strong id="correction-target-month">@target</strong>。後續已結月份同步更新帳面總資產。</p>
+    <label for="correction-amount">可用餘額調整數（增加填正數，減少填負數）</label><input id="correction-amount" class="form-control" name="Amount" type="number" min="-1000000000" max="1000000000" step="1" required />
+    <label for="correction-reason">原因與核對依據</label><textarea id="correction-reason" class="form-control" name="Reason" maxlength="300" required></textarea>
+    <p class="text-muted small">這項更正不改當月收入。請核實原因，避免已減列收入後又重複減列可用餘額。</p>
+    <button class="btn btn-outline-primary">預覽影響月份與金額</button>
+</form>
+}
+</div></section>

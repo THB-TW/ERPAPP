@@ -361,3 +361,10 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# 應用程式設定檔：含資料庫連線字串（帳號/密碼），不進版控。
+# 格式請參考 appsettings.example.json；取得專案後複製一份改名為 appsettings.json 並填入自己的連線字串。
+appsettings.json
+appsettings.Development.json
+appsettings.*.json
+!appsettings.example.json

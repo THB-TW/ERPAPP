@@ -54,14 +54,19 @@ Program --> DBCTX Program --> C1 Program --> C2 Migrations --> DB
    - SQL Server LocalDB
 
 2. **資料庫設定**
-   - 連線字串已預設於 `ErpdbContext.cs`，可依需求修改。
+   - 將 `appsettings.example.json` 複製為 `appsettings.json`，設定既有 SQL Server ERPDB 連線；設定檔不進版控。
 
-3. **建立資料庫**
-dotnet ef database update
+3. **升級既有資料庫**
+   - 備份並先用副本驗證，再套用 `docs/sql/budget-workspace.sql`。完整流程見 [動態預算與月結調整](docs/budget-workspace.md)。
+   - 本專案使用直接 SQL 腳本；舊 EF migration 與現行資料結構不相容。
 
 4. **啟動專案**
 dotnet run
 或在 Visual Studio 2022 直接 F5 執行。
+
+5. **執行測試**
+   - `dotnet run --project tests/ERPAPP.Tests.csproj`
+   - SQL 副本整合測試與啟用規則見 [驗證流程](docs/budget-workspace.md)。
 
 ## 其他說明
 

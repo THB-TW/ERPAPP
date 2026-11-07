@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 
@@ -33,9 +33,15 @@ public partial class ErpdbContext : DbContext
 
     public virtual DbSet<Creditcard> Creditcards { get; set; }
 
-//    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-//#warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
-//        => optionsBuilder.UseSqlServer("Server=(localdb)\\MSSQLLocalDB;Database=ERPDB;User ID=handsome;Password=123;TrustServerCertificate=true");
+    public virtual DbSet<InvestmentHolding> InvestmentHoldings { get; set; }
+
+    public virtual DbSet<InvestmentTransaction> InvestmentTransactions { get; set; }
+
+    public virtual DbSet<InvestmentValuation> InvestmentValuations { get; set; }
+
+    public virtual DbSet<InvestmentOpening> InvestmentOpenings { get; set; }
+
+    public virtual DbSet<BudgetCap> BudgetCaps { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -67,7 +73,8 @@ public partial class ErpdbContext : DbContext
         modelBuilder.Entity<Property>(entity =>
         {
             entity
-                .HasNoKey()
+                .HasKey(p=>p.Date);
+            entity
                 .ToTable("Property");
 
             entity.Property(e => e.Date).HasColumnName("date");
@@ -118,6 +125,53 @@ public partial class ErpdbContext : DbContext
         modelBuilder.Entity<Creditcard>(entity =>
         {
             entity.HasNoKey().ToTable("creditcard");
+        });
+
+        // 投資組合四張表：DbSet 名為複數，資料表為單數，必須明寫 ToTable
+        //（EF 用 DbSet 名找表）。欄位型別對齊 docs/sql/investment.sql；
+        // decimal 一定要指定 (18,4)，否則 EF 預設 (18,2) 會無聲截斷小數。
+        modelBuilder.Entity<InvestmentHolding>(entity =>
+        {
+            entity.ToTable("InvestmentHolding");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.AssetClass).HasMaxLength(20);
+            entity.Property(e => e.Symbol).HasMaxLength(20);
+            entity.Property(e => e.Name).HasMaxLength(50);
+        });
+
+        modelBuilder.Entity<InvestmentTransaction>(entity =>
+        {
+            entity.ToTable("InvestmentTransaction");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Date).HasColumnType("date");
+            entity.Property(e => e.TxType).HasMaxLength(10);
+            entity.Property(e => e.Quantity).HasColumnType("decimal(18,4)");
+            entity.Property(e => e.FundSource).HasMaxLength(10);
+            entity.Property(e => e.Note).HasMaxLength(200);
+        });
+
+        modelBuilder.Entity<InvestmentValuation>(entity =>
+        {
+            entity.ToTable("InvestmentValuation");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.UnitPrice).HasColumnType("decimal(18,4)");
+        });
+
+        modelBuilder.Entity<InvestmentOpening>(entity =>
+        {
+            entity.ToTable("InvestmentOpening");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.AsOfMonth).HasColumnType("date");
+            entity.Property(e => e.Note).HasMaxLength(200);
+        });
+
+        // 每月預算上限快照（docs/sql/budget-cap.sql）；欄位名與屬性名只差大小寫，資料庫定序不分大小寫
+        modelBuilder.Entity<BudgetCap>(entity =>
+        {
+            entity.ToTable("BudgetCap");
+            entity.HasKey(e => e.Month);
+            entity.Property(e => e.Month).HasColumnName("month").HasColumnType("date");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updatedAt");
         });
         //modelBuilder.Entity<Employee>().HasData(
         //        new Employee { EmployeeId = 1, DepartmentId = 1, Name = "翰陞", Account = "Boss", Password = "123" },

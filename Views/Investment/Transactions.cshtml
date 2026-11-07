@@ -1,0 +1,132 @@
+@using ERPAPP.Services
+@model ERPAPP.ViewModels.InvestmentTransactionsViewModel
+@{
+    ViewData["Title"] = "投資交易";
+}
+
+<div class="container-fluid">
+    <h2>📈 @ViewData["Title"]</h2>
+    <div class="mb-3">
+        <a class="btn btn-outline-secondary btn-sm" asp-action="Index">← 回投資總覽</a>
+    </div>
+
+    @if (TempData["AlertMessage"] != null)
+    {
+        <div class="alert alert-info">@TempData["AlertMessage"]</div>
+    }
+
+    @if (User.IsInRole("Edit"))
+    {
+        <div class="card mb-3">
+            <div class="card-header">新增交易</div>
+            <div class="card-body">
+                <form asp-action="CreateTransaction" method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="row g-2">
+                        <div class="col-md-3">
+                            <label class="form-label">標的</label>
+                            <select name="HoldingId" class="form-select">
+                                @foreach (var h in Model.Holdings)
+                                {
+                                    <option value="@h.Id">@(h.Symbol == null ? h.Name : $"{h.Symbol} {h.Name}")</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">日期</label>
+                            <input type="date" name="Date" class="form-control" value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                        </div>
+                        <div class="col-md-1">
+                            <label class="form-label">類型</label>
+                            <select name="TxType" class="form-select">
+                                <option value="@InvestmentTerms.TxBuy">買</option>
+                                <option value="@InvestmentTerms.TxSell">賣</option>
+                                <option value="@InvestmentTerms.TxDividend">配息</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">股數（台股必填）</label>
+                            <input type="number" name="Quantity" step="0.0001" class="form-control" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">金額（實際扣款/入帳）</label>
+                            <input type="number" name="Amount" class="form-control" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">資金來源</label>
+                            <select name="FundSource" class="form-select">
+                                <option value="@InvestmentTerms.SourceInternal">帳內</option>
+                                <option value="@InvestmentTerms.SourceExternal">帳外</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">備註（選填）</label>
+                            <input type="text" name="Note" class="form-control" maxlength="200" />
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary">新增</button>
+                        </div>
+                    </div>
+                    <div class="form-text text-muted">
+                        金額一律填「實際扣款／入帳」的正數（含手續費、證交稅），方向由類型決定。
+                        帳外＝這筆錢沒有經過現金/銀行（例如賣幣的錢直接轉去券商）。
+                    </div>
+                </form>
+            </div>
+        </div>
+    }
+
+    <table class="table table-bordered table-hover table-sm align-middle">
+        <thead class="table-dark">
+            <tr>
+                <th>日期</th>
+                <th>標的</th>
+                <th>類型</th>
+                <th class="text-end">股數</th>
+                <th class="text-end">金額</th>
+                <th>資金來源</th>
+                <th>備註</th>
+                @if (User.IsInRole("Edit"))
+                {
+                    <th></th>
+                }
+            </tr>
+        </thead>
+        <tbody>
+            @if (!Model.Rows.Any())
+            {
+                <tr><td colspan="8" class="text-center text-muted">尚無交易</td></tr>
+            }
+            @foreach (var t in Model.Rows)
+            {
+                <tr>
+                    <td>@t.Date.ToString("yyyy-MM-dd")</td>
+                    <td>@(Model.HoldingNames.TryGetValue(t.HoldingId, out var n) ? n : t.HoldingId.ToString())</td>
+                    <td>
+                        @t.TxType
+                        @if (t.TxType == InvestmentTerms.TxOpening)
+                        {
+                            <span class="badge bg-secondary" title="期初建置，不計入累計投入淨額">期初</span>
+                        }
+                    </td>
+                    <td class="text-end">@(t.Quantity?.ToString("0.####") ?? "—")</td>
+                    <td class="text-end">@t.Amount.ToString("N0")</td>
+                    <td>@t.FundSource</td>
+                    <td class="small">@t.Note</td>
+                    @if (User.IsInRole("Edit"))
+                    {
+                        <td class="text-nowrap">
+                            <a class="btn btn-sm btn-outline-primary" asp-action="EditTransaction" asp-route-id="@t.Id">編輯</a>
+                            <form asp-action="DeleteTransaction" method="post" class="d-inline"
+                                  onsubmit="return confirm('確定刪除這筆 @t.Date.ToString("yyyy-MM-dd") @t.TxType @t.Amount.ToString("N0") 嗎？');">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="id" value="@t.Id" />
+                                <button type="submit" class="btn btn-sm btn-outline-danger">刪除</button>
+                            </form>
+                        </td>
+                    }
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

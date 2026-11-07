@@ -1,0 +1,34 @@
+@model ERPAPP.ViewModels.BudgetPreview
+@using ERPAPP.Services.Budgeting
+@{ViewData["Title"]="預覽財務調整";}
+<h2>預覽財務調整</h2>
+<p>原因：<strong>@Model.Command.Reason</strong></p>
+<p>確認下列變化後才會儲存。若其他操作已修改資料，本次會停止，請重新預覽。</p>
+<div class="table-responsive"><table class="table table-bordered"><thead><tr><th>月份</th><th>項目</th><th class="text-end">調整前</th><th class="text-end">調整後</th></tr></thead><tbody>
+@foreach(var month in Model.Before.Months)
+{
+    var before=BudgetEngine.Position(Model.Before,month.Month);var after=BudgetEngine.Position(Model.After,month.Month);
+    if(before.Spare!=after.Spare || before.Total!=after.Total)
+    {
+        <tr><td>@month.Month</td><td>可用餘額</td><td class="text-end">@before.Spare.ToString("N0")</td><td class="text-end">@after.Spare.ToString("N0")</td></tr>
+        <tr><td>@month.Month</td><td>帳面總資產</td><td class="text-end">@before.Total.ToString("N0")</td><td class="text-end">@after.Total.ToString("N0")</td></tr>
+    }
+    foreach(var id in before.Balances.Keys.Union(after.Balances.Keys))
+    {
+        var old=before.Balances.GetValueOrDefault(id);var updated=after.Balances.GetValueOrDefault(id);
+        if(old!=updated){<tr><td>@month.Month</td><td>@Model.Before.Categories.Single(c=>c.Id==id).Name 儲備</td><td class="text-end">@old.ToString("N0")</td><td class="text-end">@updated.ToString("N0")</td></tr>}
+    }
+}
+</tbody></table></div>
+@if(Model.Command.Action=="transfer" || Model.Command.Action=="reverse")
+{
+<p>最近月份總儲備金：@BudgetEngine.Position(Model.After,BudgetEngine.Latest(Model.After)).Reserve.ToString("N0") 元。</p>
+}
+<form asp-action="Apply" method="post">
+    @await Html.PartialAsync("_BudgetCommandFields",Model.Command)
+    <input type="hidden" name="From" value="@Model.Command.From" /><input type="hidden" name="To" value="@Model.Command.To" />
+    <input type="hidden" name="Amount" value="@Model.Command.Amount" /><input type="hidden" name="Reverses" value="@Model.Command.Reverses" />
+    <input type="hidden" name="Reason" value="@Model.Command.Reason" />
+    <button class="btn btn-success">確認儲存調整</button>
+    <a asp-controller="Finance" asp-action="BudgetReport" class="btn btn-outline-secondary">取消，返回預算表</a>
+</form>

@@ -110,9 +110,11 @@
                 @Html.DisplayFor(modelItem => item.TransactionType)
             </td>
             <td>
-                <a asp-action="Edit" asp-route-id="@item.Id">Edit</a> |
                 <a asp-action="Details" asp-route-id="@item.Id">Details</a> |
-                <a asp-action="Delete" asp-route-id="@item.Id">Delete</a>
+                @if(ViewBag.ClosedBefore is DateTime closedBefore && item.Date<closedBefore)
+                { <span class="text-muted">已結月份，修改前須先撤銷月結</span> }
+                else if(User.IsInRole("Edit"))
+                { <a asp-action="Edit" asp-route-id="@item.Id">Edit</a><text> | </text><a asp-action="Delete" asp-route-id="@item.Id">Delete</a> }
             </td>
         </tr>
 }

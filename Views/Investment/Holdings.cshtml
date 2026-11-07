@@ -1,0 +1,84 @@
+@model ERPAPP.ViewModels.HoldingsViewModel
+@{
+    ViewData["Title"] = "標的維護";
+}
+
+<div class="container">
+    <h2>🗂️ @ViewData["Title"]</h2>
+    <div class="mb-3">
+        <a class="btn btn-outline-secondary btn-sm" asp-action="Index">← 回投資總覽</a>
+    </div>
+
+    @if (TempData["AlertMessage"] != null)
+    {
+        <div class="alert alert-info">@TempData["AlertMessage"]</div>
+    }
+
+    <table class="table table-bordered table-sm align-middle w-auto">
+        <thead class="table-dark">
+            <tr>
+                <th>類別</th>
+                <th>代號</th>
+                <th>名稱</th>
+                <th>狀態</th>
+                @if (User.IsInRole("Edit"))
+                {
+                    <th></th>
+                }
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var h in Model.Holdings)
+            {
+                <tr>
+                    <td>@h.AssetClass</td>
+                    <td>@(h.Symbol ?? "—")</td>
+                    <td>@h.Name</td>
+                    <td>
+                        @if (h.IsActive)
+                        {
+                            <span class="badge bg-success">使用中</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">已停用</span>
+                        }
+                    </td>
+                    @if (User.IsInRole("Edit"))
+                    {
+                        <td>
+                            <form asp-action="ToggleHolding" method="post" class="d-inline">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="id" value="@h.Id" />
+                                <button type="submit" class="btn btn-sm btn-outline-secondary">@(h.IsActive ? "停用" : "啟用")</button>
+                            </form>
+                        </td>
+                    }
+                </tr>
+            }
+        </tbody>
+    </table>
+    <p class="form-text text-muted">停用的標的不出現在總覽與填市值頁（例如已全數賣出），交易紀錄仍保留。</p>
+
+    @if (User.IsInRole("Edit"))
+    {
+        <div class="card col-md-5">
+            <div class="card-header">新增台股標的</div>
+            <div class="card-body">
+                <form asp-action="CreateHolding" method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="mb-2">
+                        <label class="form-label">代號</label>
+                        <input type="text" name="newSymbol" class="form-control" maxlength="20" placeholder="例：2330" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">名稱</label>
+                        <input type="text" name="newName" class="form-control" maxlength="50" placeholder="例：台積電" />
+                    </div>
+                    <button type="submit" class="btn btn-primary">新增</button>
+                </form>
+                <div class="form-text text-muted">虛擬貨幣整體是單一標的（已存在），不需要也不能新增第二個。</div>
+            </div>
+        </div>
+    }
+</div>
