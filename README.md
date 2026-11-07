@@ -32,3 +32,5 @@ dotnet run --project tests/ERPAPP.Tests.csproj -- --integration
 ```
 
 整合測試固定使用獨立驗證副本，詳見上述啟用文件。
+
+全站介面採分步引導與明細表格，設計與驗證見 [共用介面](docs/ui.md)。

@@ -1,7 +1,6 @@
 @model ERPAPP.ViewModels.BudgetActivityPage
 @using ERPAPP.Services.Budgeting
 @{ViewData["Title"]="財務紀錄";}
-<h2>財務紀錄</h2>
 @await Html.PartialAsync("_BudgetMessage")
 <form method="get" class="row g-2 mb-3">
     <div class="col-md-3"><label for="history-month">月份（留空查全部）</label><input id="history-month" class="form-control" name="month" type="month" value="@Model.Month" /></div>

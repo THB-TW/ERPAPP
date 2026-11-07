@@ -1,10 +1,8 @@
-﻿@model IEnumerable<ERPAPP.Models.Transaction>
+@model IEnumerable<ERPAPP.Models.Transaction>
 
 @{
-    ViewData["Title"] = "Index";
+    ViewData["Title"] = "交易明細";
 }
-
-<h1>交易明細</h1>
 
 <ul class="nav nav-tabs mb-3">
     <li class="nav-item">
@@ -18,7 +16,7 @@
 @if (User.IsInRole("Edit"))
 {
     <p>
-        <a asp-action="Create">Create New</a>
+        <a asp-action="Create">新增交易</a>
     </p>
 }
 <form asp-action="Index" method="get" class="row g-2 mb-3">
@@ -110,11 +108,11 @@
                 @Html.DisplayFor(modelItem => item.TransactionType)
             </td>
             <td>
-                <a asp-action="Details" asp-route-id="@item.Id">Details</a> |
+                <a asp-action="Details" asp-route-id="@item.Id">詳細</a> |
                 @if(ViewBag.ClosedBefore is DateTime closedBefore && item.Date<closedBefore)
                 { <span class="text-muted">已結月份，修改前須先撤銷月結</span> }
                 else if(User.IsInRole("Edit"))
-                { <a asp-action="Edit" asp-route-id="@item.Id">Edit</a><text> | </text><a asp-action="Delete" asp-route-id="@item.Id">Delete</a> }
+                { <a asp-action="Edit" asp-route-id="@item.Id">編輯</a><text> | </text><a asp-action="Delete" asp-route-id="@item.Id">刪除</a> }
             </td>
         </tr>
 }

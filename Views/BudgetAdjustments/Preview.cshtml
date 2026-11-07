@@ -1,9 +1,10 @@
 @model ERPAPP.ViewModels.BudgetPreview
 @using ERPAPP.Services.Budgeting
 @{ViewData["Title"]="預覽財務調整";}
-<h2>預覽財務調整</h2>
-<p>原因：<strong>@Model.Command.Reason</strong></p>
+<div class="settings-step"><span class="flow-step" aria-hidden="true">1</span><h2>確認調整原因</h2></div>
+<p class="preview-reason">@Model.Command.Reason</p>
 <p>確認下列變化後才會儲存。若其他操作已修改資料，本次會停止，請重新預覽。</p>
+<div class="settings-step"><span class="flow-step" aria-hidden="true">2</span><h2>核對金額變化</h2></div>
 <div class="table-responsive"><table class="table table-bordered"><thead><tr><th>月份</th><th>項目</th><th class="text-end">調整前</th><th class="text-end">調整後</th></tr></thead><tbody>
 @foreach(var month in Model.Before.Months)
 {
@@ -24,6 +25,7 @@
 {
 <p>最近月份總儲備金：@BudgetEngine.Position(Model.After,BudgetEngine.Latest(Model.After)).Reserve.ToString("N0") 元。</p>
 }
+<div class="settings-step"><span class="flow-step" aria-hidden="true">3</span><h2>確認後保存紀錄</h2></div>
 <form asp-action="Apply" method="post">
     @await Html.PartialAsync("_BudgetCommandFields",Model.Command)
     <input type="hidden" name="From" value="@Model.Command.From" /><input type="hidden" name="To" value="@Model.Command.To" />

@@ -6,7 +6,6 @@
 @Html.AntiForgeryToken()
 
 <div class="container-fluid">
-    <h2>🧙 @ViewData["Title"]</h2>
     @await Html.PartialAsync("_BudgetMessage")
     <p class="text-muted">依序完成四步驟即可完成整月月結：匯入資料 → 信用卡核對＋計算 → 總資產核對。</p>
 

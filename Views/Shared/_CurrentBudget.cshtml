@@ -1,35 +1,77 @@
 @model ERPAPP.ViewModels.BudgetWorkspacePage
 @using ERPAPP.Services.Budgeting
-@{ var current=Model.Current;var command=new BudgetCommand {Action="transfer",Month=Model.LatestMonth,Version=Model.State.Version,OperationId=Guid.NewGuid()}; }
+@{
+    var current=Model.Current;
+    var reserves=Model.Active.Where(c=>c.Kind=="reserve").OrderBy(c=>current.Balances.GetValueOrDefault(c.Id)).ToList();
+    var target=reserves.FirstOrDefault()?.Id;
+    var source=reserves.FirstOrDefault(c=>current.Balances.GetValueOrDefault(c.Id)>0)?.Id;
+    var canEdit=User.IsInRole("Edit");
+    BudgetCommand Command(string action)=>new() {Action=action,Month=Model.LatestMonth,Version=Model.State.Version,OperationId=Guid.NewGuid()};
+}
 @await Html.PartialAsync("_BudgetMessage")
-<section class="card mb-4"><div class="card-header"><h3 class="h5 mb-0">目前分類儲備 · @Model.LatestMonth</h3></div><div class="card-body">
-<p>總儲備金 <strong>@current.Reserve.ToString("N0")</strong> 元；可用餘額 @current.Spare.ToString("N0") 元；帳面總資產 @current.Total.ToString("N0") 元。</p>
-<div class="table-responsive"><table class="table table-sm"><thead><tr><th>儲備類別</th><th class="text-end">累計可用</th><th>下期狀態</th></tr></thead><tbody>
-@foreach(var category in Model.State.Categories.Where(c=>c.Kind=="reserve"))
-{
-    var balance=current.Balances.GetValueOrDefault(category.Id);
-    <tr><td>@category.Name</td><td class="text-end @(balance<0?"text-danger":"")">@balance.ToString("N0")</td><td>@(Model.Active.Any(c=>c.Id==category.Id)?"使用中":"已停用，歷史保留")</td></tr>
-}
-</tbody></table></div>
-@if(User.IsInRole("Edit"))
-{
-<details class="mb-3"><summary>用可用餘額補入預備金</summary><p class="text-muted">可用餘額減少、指定類別儲備增加；總資產、學費與其他類別不變。</p>
-<form asp-controller="BudgetAdjustments" asp-action="Preview" method="post" class="row g-2">
-    @await Html.PartialAsync("_BudgetCommandFields",new BudgetCommand {Action="fund",Month=Model.LatestMonth,Version=Model.State.Version,OperationId=Guid.NewGuid()})
-    <div class="col-md-6"><label for="fund-to">補入類別</label><select id="fund-to" class="form-select" name="To">@foreach(var category in Model.Active.Where(c=>c.Kind=="reserve")){<option value="@category.Id">@category.Name（@current.Balances.GetValueOrDefault(category.Id).ToString("N0")）</option>}</select></div>
-    <div class="col-md-6"><label for="fund-amount">補入金額（可用 @current.Spare.ToString("N0") 元）</label><input id="fund-amount" class="form-control" type="number" name="Amount" min="1" max="@Math.Max(0,current.Spare)" step="1" required /></div>
-    <div class="col-12"><label for="fund-reason">原因</label><input id="fund-reason" class="form-control" name="Reason" maxlength="300" required /></div>
-    <div><button class="btn btn-primary">預覽補入</button></div>
-</form></details>
-<details><summary>挪用預算補足缺口</summary><p class="text-muted">只在儲備類別間移轉，總儲備金與帳面總資產維持不變，不動可用餘額或學費。</p>
-<form asp-controller="BudgetAdjustments" asp-action="Preview" method="post" class="row g-2">
-    @await Html.PartialAsync("_BudgetCommandFields",command)
-    <div class="col-md-4"><label for="transfer-from">轉出類別</label><select id="transfer-from" class="form-select" name="From">@foreach(var category in Model.Active.Where(c=>c.Kind=="reserve")){<option value="@category.Id">@category.Name（@current.Balances.GetValueOrDefault(category.Id).ToString("N0")）</option>}</select></div>
-    <div class="col-md-4"><label for="transfer-to">轉入類別</label><select id="transfer-to" class="form-select" name="To">@foreach(var category in Model.Active.Where(c=>c.Kind=="reserve")){<option value="@category.Id">@category.Name</option>}</select></div>
-    <div class="col-md-4"><label for="transfer-amount">挪用金額</label><input id="transfer-amount" class="form-control" type="number" name="Amount" min="1" step="1" required /></div>
-    <div class="col-12"><label for="transfer-reason">原因</label><input id="transfer-reason" class="form-control" name="Reason" maxlength="300" required /></div>
-    <div><button class="btn btn-primary">預覽挪用</button></div>
-</form></details>
-}
-<p class="mt-3 mb-0"><a asp-controller="BudgetAdjustments" asp-action="History" asp-route-kind="adjustments">查看調整紀錄與沖銷</a> · <a asp-controller="BudgetCap" asp-action="Index">設定下期上限與分類</a></p>
-</div></section>
+<section class="budget-flow" aria-labelledby="funding-title">
+    <header class="flow-intro"><p class="eyebrow">@Model.LatestMonth · 已結算</p><h2 id="funding-title">為需要的類別，補一點餘裕。</h2><p>先看資金來源，再確認金額與原因。每次分配都留下紀錄。</p></header>
+    <div class="flow-grid">
+        <section class="flow-summary" aria-labelledby="source-title">
+            <span class="flow-step" aria-hidden="true">1</span><h3 id="source-title">確認手邊餘裕</h3>
+            <div class="money-block"><span>可用餘額</span><strong>@current.Spare.ToString("N0")</strong><span>元，可用於補入預備金</span></div>
+            <dl><dt>類別預備金</dt><dd>@current.Reserve.ToString("N0") 元</dd><dt>學費專款</dt><dd>@current.Tuition.ToString("N0") 元</dd><dt>帳面總資產</dt><dd>@current.Total.ToString("N0") 元</dd></dl>
+            <p class="flow-note">補入是重新分配資金。<br />帳面總資產與學費維持不變。</p>
+        </section>
+        <section class="flow-panel" aria-labelledby="arrange-title">
+            <span class="flow-step" aria-hidden="true">2</span><h3 id="arrange-title">安排這次補入</h3>
+            @if(canEdit)
+            {
+                <ul class="nav" role="tablist" aria-label="補入資金來源">
+                    <li role="presentation"><button class="nav-link active w-100" id="fund-tab" data-bs-toggle="tab" data-bs-target="#fund-pane" type="button" role="tab" aria-controls="fund-pane" aria-selected="true">用可用餘額</button></li>
+                    <li role="presentation"><button class="nav-link w-100" id="transfer-tab" data-bs-toggle="tab" data-bs-target="#transfer-pane" type="button" role="tab" aria-controls="transfer-pane" aria-selected="false">從其他類別挪用</button></li>
+                </ul>
+                <div class="tab-content">
+                    <div class="tab-pane show active" id="fund-pane" role="tabpanel" aria-labelledby="fund-tab" tabindex="0">
+                        <form asp-controller="BudgetAdjustments" asp-action="Preview" method="post">
+                            @await Html.PartialAsync("_BudgetCommandFields",Command("fund"))
+                            <label for="fund-to">補入類別</label><select id="fund-to" class="form-select" name="To" required>@foreach(var category in reserves){<option value="@category.Id">@category.Name（@current.Balances.GetValueOrDefault(category.Id).ToString("N0")）</option>}</select>
+                            <label for="fund-amount">補入金額（元）</label><input id="fund-amount" class="form-control" type="number" name="Amount" min="1" max="@Math.Max(0,current.Spare)" step="1" placeholder="輸入金額" required />
+                            <p class="form-text">可用餘額 @current.Spare.ToString("N0") 元。其他類別儲備不受影響。</p>
+                            <label for="fund-reason">調整原因</label><textarea id="fund-reason" class="form-control" name="Reason" maxlength="300" rows="2" placeholder="例如：本月訂閱增加，以可用餘額支應" required></textarea>
+                            @if(current.Spare<=0){<p class="text-danger small mt-2">目前沒有足夠的可用餘額，可改從其他類別挪用。</p>}
+                            <button class="btn btn-primary" disabled="@(reserves.Count==0||current.Spare<=0)">預覽金額變化 →</button>
+                        </form>
+                    </div>
+                    <div class="tab-pane" id="transfer-pane" role="tabpanel" aria-labelledby="transfer-tab" tabindex="0">
+                        <form asp-controller="BudgetAdjustments" asp-action="Preview" method="post">
+                            @await Html.PartialAsync("_BudgetCommandFields",Command("transfer"))
+                            <label for="transfer-from">轉出類別</label><select id="transfer-from" class="form-select" name="From" required>@foreach(var category in reserves){<option value="@category.Id" selected="@(category.Id==source)">@category.Name（@current.Balances.GetValueOrDefault(category.Id).ToString("N0")）</option>}</select>
+                            <label for="transfer-to">補入類別</label><select id="transfer-to" class="form-select" name="To" required>@foreach(var category in reserves){<option value="@category.Id" selected="@(category.Id==target)">@category.Name</option>}</select>
+                            <label for="transfer-amount">挪用金額（元）</label><input id="transfer-amount" class="form-control" type="number" name="Amount" min="1" step="1" required />
+                            <p class="form-text">轉出類別需有足夠儲備；可用餘額與學費不變。</p>
+                            <label for="transfer-reason">調整原因</label><textarea id="transfer-reason" class="form-control" name="Reason" maxlength="300" rows="2" required></textarea>
+                            <button class="btn btn-primary" disabled="@(reserves.Count<2)">預覽挪用變化 →</button>
+                        </form>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <p class="text-muted">目前為查閱模式。調整資金需要編輯權限。</p>
+                <a asp-controller="BudgetAdjustments" asp-action="History" asp-route-kind="adjustments">查看調整紀錄 →</a>
+            }
+        </section>
+        <section class="flow-panel flow-ledger" aria-labelledby="ledger-title">
+            <span class="flow-step" aria-hidden="true">3</span><h3 id="ledger-title">查看類別明細</h3>
+            <div class="table-responsive"><table class="table table-sm table-hover"><caption class="visually-hidden">截至 @Model.LatestMonth 的目前儲備，含已生效的調整</caption><thead class="table-dark"><tr><th scope="col">類別</th><th scope="col" class="text-end">可用儲備</th><th scope="col">狀態</th></tr></thead><tbody>
+            @foreach(var category in Model.State.Categories.Where(c=>c.Kind=="reserve").OrderBy(c=>current.Balances.GetValueOrDefault(c.Id)))
+            {
+                var balance=current.Balances.GetValueOrDefault(category.Id);var active=reserves.Any(c=>c.Id==category.Id);
+                <tr><th scope="row">@category.Name</th><td class="text-end @(balance<0?"text-danger":"")">@balance.ToString("N0")</td><td>
+                @if(!active){<span class="text-muted">已停用</span>}
+                else if(canEdit){<button type="button" class="btn btn-sm btn-outline-primary js-budget-target" data-category="@category.Id" data-gap="@Math.Max(0,-(long)balance)">@(balance<0?"補足":"補入")</button>}
+                else{<span>@(balance<0?"待補足":"使用中")</span>}
+                </td></tr>
+            }
+            </tbody></table></div>
+            <p class="flow-ledger-note">紅色數字表示缺口。確認儲存後才會更新正式餘額；歷史紀錄可查原因與沖銷。</p>
+        </section>
+    </div>
+    <nav class="flow-links" aria-label="預算相關功能"><a asp-controller="BudgetAdjustments" asp-action="History" asp-route-kind="adjustments">調整紀錄與沖銷 ↗</a><a asp-controller="BudgetCap" asp-action="Index">下期上限與分類 ↗</a></nav>
+</section>
