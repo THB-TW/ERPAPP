@@ -368,3 +368,11 @@ appsettings.json
 appsettings.Development.json
 appsettings.*.json
 !appsettings.example.json
+
+# Cloudflare migration: private financial snapshots never enter Git or deployments.
+.private/
+cloudflare/.wrangler/
+cloudflare/dist/
+cloudflare/.dev.vars
+cloudflare/.env*
+!cloudflare/.env.example
