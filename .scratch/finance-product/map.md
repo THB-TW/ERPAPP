@@ -27,6 +27,13 @@ Created: 2026-11-08
 
 <!-- 每張結案票一行 -->
 
+- [查明 App Store 訂閱與上架規則](issues/01-apple-subscription-rules.md)：訂閱必須用 IAP；台灣 App 內不能導向網頁付款；必須能在 App 內刪帳號；有 Google 登入就要提供 Apple 登入；財務類 App 可能被要求以法人提交。
+- [比較訂閱權益驗證與網頁收款方案的成本](issues/02-entitlement-platforms.md)：iOS 用 RevenueCat（US$2,500 MTR 內免費）；Stripe 不支援台灣，第一版建議只在 iOS 收款、網頁以同帳號取得權益。
+- [查明 iOS＋網頁共用程式與離線同步的技術選項](issues/03-stack-and-sync.md)：Expo 58＋Router 共用 iOS／網頁；自建操作佇列＋expo-sqlite；Workers＋共用 D1、以 owner_id 隔離；CPU 待實測。
+- [查明登入方案與 NT$200／月可支撐的使用者規模](issues/04-auth-and-cost.md)：Better Auth 自架（Apple／Google／magic link）；Workers Paid 約 900 人在 NT$200 內，每多 100 人約 NT$36。
+- [調查台灣記帳 App 的功能與訂閱定價](issues/05-competitors-pricing.md)：在地年費 NT$600–1,500；競品未見累積儲備、月結核對、台股成本追蹤與網頁版。
+- [查明多人通知：LINE 配額與 iOS 原生推播](issues/06-notification-channel.md)：公開產品預設用原生推播／Email，LINE 改為可選；本人的 LINE 仍在免費額度內。
+
 ## Not yet specified
 
 - 產品名稱、品牌、App Store 文案與截圖；等定位與競品研究後再談。
@@ -35,7 +42,8 @@ Created: 2026-11-08
 - 投資模組對一般使用者的範圍（台股個股、虛擬貨幣桶以外是否要支援、報價來源與授權成本）。
 - 客服、營運、隱私權政策、服務條款、資料外洩應變；等帳號與付款模型定了再拆。
 - Android 是否、何時推出（使用者未提，第一版目的地不含，但未明確排除）。
-- 雲端成本監控與超過 NT$200 時的處理規則；等成本研究回來再定門檻。
+- 雲端成本監控與超過 NT$200 時的處理規則；等 Worker 實測量出每人用量後再定門檻（約 900 人是估算）。
+- 網頁版日後是否也直接收款（在地金流＋電子發票）；第一版建議只在 iOS 收款。
 - 舊系統退役的最後切換步驟（58 個月驗收通過之後）。
 
 ## Out of scope

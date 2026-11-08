@@ -2,7 +2,7 @@
 
 Type: research
 Labels: wayfinder:research
-Status: open
+Status: resolved
 
 ## Question
 
@@ -11,3 +11,9 @@ Status: open
 - 是否有「分類預算累積儲備（類似 YNAB 信封）」、月結、投資追蹤、銀行／信用卡 CSV 匯入或自動同步、資料匯出。
 - 使用者常見抱怨（App Store 評論）中與「預算儲備、月結、投資」相關者。
 目的：找差異化與定價區間。優先官方網站、App Store 頁面；評論引用需附連結。
+
+## Answer
+
+台灣在地 App 年費約 NT$600–1,500（Moze 600、CWMoney 690、麻布 1,499），YNAB 約 US$109／年。讀到的頁面都沒有信封式累積儲備、月結核對流程，也沒有台股個股成本與市值追蹤，三家在地 App 也沒提網頁版，這些是可能的差異化。天天記帳與記帳城市未能查證。
+
+詳見[研究文件](../research/05-competitors-pricing.md)（查證日期 2026-11-08）。

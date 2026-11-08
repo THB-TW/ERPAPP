@@ -2,7 +2,7 @@
 
 Type: research
 Labels: wayfinder:research
-Status: open
+Status: resolved
 
 ## Question
 
@@ -12,3 +12,9 @@ Status: open
 - 雲端端：Workers + D1 多租戶（每人一庫 vs 共用庫 owner_id 隔離）、D1 單庫與帳號容量限制、Durable Objects 價格；Workers Paid US$5 是否必要。
 - 金額精度：新台幣整數與投資十進位在 JS/SQLite 的安全做法。
 只用官方文件與原始碼，附連結；說明哪些需實測才能確認。
+
+## Answer
+
+建議用 Expo SDK 58＋Expo Router，iOS 與網頁共用 TS；同步自建操作佇列＋操作 ID，本機用 expo-sqlite（網頁需 wasm 與 COOP/COEP），雲端 Workers＋單一共用 D1、以 owner_id 隔離。PowerSync、Electric、Zero 都需要 Postgres，第一版不採用。備案是網頁改用獨立 Vite＋React，共用 TS 核心。尚未知道 Workers Free 每次 10ms CPU 夠不夠，需要實測。
+
+詳見[研究文件](../research/03-stack-and-sync.md)（查證日期 2026-11-08）。

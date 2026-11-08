@@ -3,7 +3,7 @@
 Type: grilling
 Labels: wayfinder:grilling
 Status: open
-Blocked by: 01-apple-subscription-rules, 02-entitlement-platforms, 05-competitors-pricing
+Blocked by: 17-seller-identity
 
 ## Question
 
