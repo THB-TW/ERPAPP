@@ -12,6 +12,8 @@
     <None Remove="tests/**" />
     <Content Remove=".scratch/**" />
     <None Remove=".scratch/**" />
+    <Content Remove=".private/**;cloudflare/**;tools/**" />
+    <None Remove=".private/**;cloudflare/**;tools/**" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.8" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="8.0.0" />
   </ItemGroup>

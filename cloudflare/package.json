@@ -1,0 +1,12 @@
+{
+  "name": "personal-finance-mobile",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "check": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs",
+    "dev": "node tools/preview.mjs"
+  },
+  "devDependencies": { "typescript": "^5.9.3" }
+}
