@@ -22,6 +22,7 @@ Created: 2026-11-08
 - 領域語言以 `CONTEXT.md` 為準；不要混用「預算／儲備／帳面總資產」。舊計算核心在 `Services/Budgeting/BudgetEngine.cs`，ADR 0001–0004 仍有效。
 - 技能：每張 grilling 票用 grilling＋domain-modeling；research 票用 research（背景 subagent）；prototype 票用 prototype。
 - **所有 subagent 一律 Sonnet。**
+- 2026-11-08 08:18 使用者確認單機方向四題：不另做電腦版（Apple 晶片 Mac 能跑 iPhone App 當附帶）；只支援一台 iPhone，換機用備份還原、不做即時同步；不需註冊或登入，訂閱綁 Apple ID；提醒不用 LINE，改用 App 本身的本機通知。
 - 改成單機後，Cloudflare Workers/D1、自建登入與 LINE 推播都不再是第一版的必要元件；`cloudflare/` 雛形保留不刪，僅作為帳務規則移植的參考。
 - 研究成果放在 `research/`（本 repo 只允許推指定分支，因此不另開 `research/<name>` 分支）。
 - 雲端作業：不在使用者 Windows 電腦上執行；成果推 GitHub。`.private/` 私人備份不在 Git，需要時請使用者提供，絕不提交。
@@ -37,6 +38,7 @@ Created: 2026-11-08
 - [調查台灣記帳 App 的功能與訂閱定價](issues/05-competitors-pricing.md)：在地年費 NT$600–1,500；競品未見累積儲備、月結核對、台股成本追蹤與網頁版。
 - [查明多人通知：LINE 配額與 iOS 原生推播](issues/06-notification-channel.md)：（改單機後：LINE 需要伺服器才能發，待重新決定）公開產品預設用原生推播／Email，LINE 改為可選；本人的 LINE 仍在免費額度內。
 - [查明純本機 iOS 財務 App 的技術選項、備份與訂閱驗證](issues/18-local-first-stack.md)：Expo 58＋expo-sqlite、規則移植 TS；備份用 iCloud 裝置備份＋手動匯出檔；StoreKit 2 手機驗證即可；Apple 晶片 Mac 可直接跑 iPhone App。
+- [決定公開產品的提醒管道](issues/11-reminder-channel.md)：不用 LINE，所有提醒都用 App 本身的 iPhone 本機通知。
 
 ## Not yet specified
 
