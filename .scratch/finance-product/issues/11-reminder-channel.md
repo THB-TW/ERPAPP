@@ -3,8 +3,8 @@
 Type: grilling
 Labels: wayfinder:grilling
 Status: open
-Blocked by: 06-notification-channel
+Blocked by: 18-local-first-stack
 
 ## Question
 
-翰陞已選 LINE。公開產品的提醒（記帳、月結、CSV 缺檔、預算超支）預設走 LINE、iOS 推播還是 Email？LINE 改成可選時，翰陞本人的設定是否維持 LINE？依成本研究決定則數上限與 opt-in。
+改成資料只存在手機後，沒有伺服器就無法主動發 LINE。提醒（記帳、7 號月結、CSV 缺檔、預算超支）是否全部改用 iOS 本機排程通知？翰陞本人原本選的 LINE 要不要保留成選配（需要額外的小型雲端服務）？

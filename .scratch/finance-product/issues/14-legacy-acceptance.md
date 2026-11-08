@@ -3,7 +3,7 @@
 Type: grilling
 Labels: wayfinder:grilling
 Status: open
-Blocked by: 03-stack-and-sync
+Blocked by: 18-local-first-stack
 
 ## Question
 
