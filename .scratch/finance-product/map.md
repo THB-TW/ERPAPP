@@ -36,6 +36,7 @@ Created: 2026-11-08
 - [查明登入方案與 NT$200／月可支撐的使用者規模](issues/04-auth-and-cost.md)：（改單機後大多失效：沒有伺服器就不需自建登入與雲端費用）Better Auth 自架（Apple／Google／magic link）；Workers Paid 約 900 人在 NT$200 內，每多 100 人約 NT$36。
 - [調查台灣記帳 App 的功能與訂閱定價](issues/05-competitors-pricing.md)：在地年費 NT$600–1,500；競品未見累積儲備、月結核對、台股成本追蹤與網頁版。
 - [查明多人通知：LINE 配額與 iOS 原生推播](issues/06-notification-channel.md)：（改單機後：LINE 需要伺服器才能發，待重新決定）公開產品預設用原生推播／Email，LINE 改為可選；本人的 LINE 仍在免費額度內。
+- [查明純本機 iOS 財務 App 的技術選項、備份與訂閱驗證](issues/18-local-first-stack.md)：Expo 58＋expo-sqlite、規則移植 TS；備份用 iCloud 裝置備份＋手動匯出檔；StoreKit 2 手機驗證即可；Apple 晶片 Mac 可直接跑 iPhone App。
 
 ## Not yet specified
 

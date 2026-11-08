@@ -2,7 +2,7 @@
 
 Type: research
 Labels: wayfinder:research
-Status: open
+Status: resolved
 
 ## Question
 
@@ -13,3 +13,9 @@ Status: open
 - 訂閱：StoreKit 2 在手機上直接驗證交易與權益（不經伺服器）是否足夠安全可靠；Expo 下可用的套件；RevenueCat 是否仍值得。
 - 本機排程通知（7 號月結提醒、每日記帳提醒）在兩種技術棧的做法與限制。
 只用 Apple、Expo 官方文件與套件原始碼，附連結與查證日期；區分「官方已確認」與「需實測」。
+
+## Answer
+
+建議 Expo SDK 58＋expo-sqlite，把 C# 帳務規則移植成 TS，用 EAS 雲端建置；`BudgetEngine.cs` 只有 256 行且金額都是整數，移植容易，`InvestmentCalculator.cs` 的十進位要另外處理。備案是 SwiftUI＋GRDB，條件是 iPhone 實測大表格、備份還原或內購不合格。備份分三層：iCloud 裝置備份（資料庫不放在 Caches）、手動匯出 SQLite 檔、CSV/JSON 匯出；第一版不用 CloudKit。訂閱用 StoreKit 2 在手機上驗證（expo-iap）就夠，RevenueCat 可不用。Apple 晶片的 Mac 可直接跑未修改的 iPhone App（固定大小視窗）。提醒用本機排程通知。需實測：iCloud 還原後 SQLite＋WAL 是否完整、大表格速度、Mac 版資料是否和 iPhone 分開。
+
+詳見[研究文件](../research/18-local-first-stack.md)（查證日期 2026-11-08）。
