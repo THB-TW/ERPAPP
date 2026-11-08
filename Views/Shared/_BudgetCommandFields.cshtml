@@ -1,0 +1,6 @@
+@model ERPAPP.Services.Budgeting.BudgetCommand
+@Html.AntiForgeryToken()
+<input type="hidden" name="Action" value="@Model.Action" />
+<input type="hidden" name="OperationId" value="@Model.OperationId" />
+<input type="hidden" name="Version" value="@Model.Version" />
+<input type="hidden" name="Month" value="@Model.Month" />

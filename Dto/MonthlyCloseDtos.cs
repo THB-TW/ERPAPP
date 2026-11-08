@@ -7,12 +7,16 @@ namespace ERPAPP.Dto
         public int Inserted { get; set; }     // 實際新增筆數
         public int Skipped { get; set; }      // 因重複而略過的筆數
         public int ErrorRows { get; set; }    // 無法解析的列數
+        public int RejectedRows { get; set; }
+        public List<ImportRejection> Rejections { get; set; } = new();
 
         // 信用卡專用：同步補寫 creditcard.csv 存檔的結果
         public int? ArchivedRows { get; set; }      // 補寫進存檔的筆數
         public string? ArchivePath { get; set; }    // 存檔路徑
         public string? ArchiveMessage { get; set; } // 存檔寫入失敗時的訊息
     }
+
+    public sealed record ImportRejection(DateTime Date, string Category, int Amount, string Reason);
 
     // 未出帳信用卡自動帶入結果
     // ＝ creditcard 中「結帳月的次月整月」合計（已刷、但這一期帳單尚未涵蓋的部分）
@@ -23,15 +27,27 @@ namespace ERPAPP.Dto
         public int Amount { get; set; }                   // 次月金額合計
     }
 
+    // 已投入投資自動帶入結果
+    // ＝ 累計投入淨額（期初宣告值 + 期初次月起的帳內買賣淨額，上界為結算月月底）
+    public class NetDeployedResult
+    {
+        public int Amount { get; set; }
+        public string AsOfMonth { get; set; } = string.Empty; // 結算月，yyyy-MM
+    }
+
     // 總資產核對請求
     public class AssetCheckRequest
     {
+        public Guid OperationId { get; set; } = Guid.NewGuid();
+        public string? Reason { get; set; }
+        public DateTime? AsOfDate { get; set; }
         public int Year { get; set; }
         public int Month { get; set; }
         public int Cash { get; set; }           // 現金
         public int Ipass { get; set; }          // 一卡通
         public int Bank { get; set; }           // 銀行
         public int UnbilledCredit { get; set; } // 未出帳信用卡
+        public int NetDeployed { get; set; }    // 已投入投資（累計投入淨額）
         public int Adjust { get; set; }         // 其他調整
         public bool AutoRollback { get; set; }  // 是否自動倒回次月交易
     }
@@ -48,6 +64,9 @@ namespace ERPAPP.Dto
     // 總資產核對結果
     public class AssetCheckResult
     {
+        public long Version { get; set; }
+        public string? RecordId { get; set; }
+        public DateTime? AsOfDate { get; set; }
         public int ActualRaw { get; set; }          // 現金+一卡通+銀行+未出帳+調整（未倒回）
         public int RollbackTotal { get; set; }      // 次月倒回總調整
         public int ActualAdjusted { get; set; }     // 倒回後實際總資產

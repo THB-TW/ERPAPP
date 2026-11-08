@@ -1,0 +1,4 @@
+@if(TempData["BudgetMessage"] is string message)
+{
+    <div class="alert @(TempData["BudgetSuccess"] is true ? "alert-success" : "alert-warning")" role="status">@message</div>
+}

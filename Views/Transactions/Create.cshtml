@@ -1,15 +1,13 @@
-﻿@model ERPAPP.Models.Transaction
+@model ERPAPP.Models.Transaction
 
 @{
-    ViewData["Title"] = "Create";
+    ViewData["Title"] = "新增交易";
 }
 
-<h1>Create</h1>
 
-<h4>Transaction</h4>
 <hr />
 <div class="row">
-    <div class="col-md-4">
+    <div class="col-lg-7 form-surface">
         <form asp-action="Create">
             <div asp-validation-summary="ModelOnly" class="text-danger"></div>
             <div class="form-group">
@@ -17,11 +15,7 @@
                 <input asp-for="Date" class="form-control" />
                 <span asp-validation-for="Date" class="text-danger"></span>
             </div>
-            @* <div class="form-group">
-                <label asp-for="Category" class="control-label"></label>
-                <input asp-for="Category" class="form-control" />
-                <span asp-validation-for="Category" class="text-danger"></span>
-            </div> *@
+
             <div class="form-group">
                 <label asp-for="Category"></label>
                 <select asp-for="Category" class="form-control" asp-items="ViewBag.Categories">
@@ -34,11 +28,7 @@
                 <input asp-for="Amount" class="form-control" />
                 <span asp-validation-for="Amount" class="text-danger"></span>
             </div>
-            @* <div class="form-group">
-                <label asp-for="Member" class="control-label"></label>
-                <input asp-for="Member" class="form-control" />
-                <span asp-validation-for="Member" class="text-danger"></span>
-            </div> *@
+
             <div class="form-group">
                 <label asp-for="Member"></label>
                 <select asp-for="Member" class="form-control" asp-items="ViewBag.Members">
@@ -53,25 +43,17 @@
                 </select>
                 <span asp-validation-for="Account" class="text-danger"></span>
             </div>
-            @* <div class="form-group">
-                <label asp-for="Account" class="control-label"></label>
-                <input asp-for="Account" class="form-control" />
-                <span asp-validation-for="Account" class="text-danger"></span>
-            </div> *@
-            @* <div class="form-group">
-                <label asp-for="TransactionType" class="control-label"></label>
-                <input asp-for="TransactionType" class="form-control" />
-                <span asp-validation-for="TransactionType" class="text-danger"></span>
-            </div> *@
+
+
             <div class="form-group">
-                <input type="submit" value="Create" class="btn btn-primary" />
+                <input type="submit" value="新增交易" class="btn btn-primary" />
             </div>
         </form>
     </div>
 </div>
 
 <div>
-    <a asp-action="Index">Back to List</a>
+    <a asp-action="Index">返回交易明細</a>
 </div>
 
 @section Scripts {

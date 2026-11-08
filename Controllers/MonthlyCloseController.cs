@@ -2,7 +2,8 @@ using System.Text;
 using ERPAPP.Dto;
 using ERPAPP.Models;
 using ERPAPP.Services;
-using ERPAPP.StoredProcedure;
+using ERPAPP.Services.Budgeting;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,13 +14,15 @@ namespace ERPAPP.Controllers
     {
         private readonly ErpdbContext _context;
         private readonly CsvImportService _importer;
-        private readonly FinanceSpExecutor _spExecutor;
+        private readonly BudgetWorkspace _workspace;
+        private readonly InvestmentService _investment;
 
-        public MonthlyCloseController(ErpdbContext context, CsvImportService importer, FinanceSpExecutor spExecutor)
+        public MonthlyCloseController(ErpdbContext context, CsvImportService importer, BudgetWorkspace workspace, InvestmentService investment)
         {
             _context = context;
             _importer = importer;
-            _spExecutor = spExecutor;
+            _workspace = workspace;
+            _investment = investment;
         }
 
         [HttpGet]
@@ -27,7 +30,11 @@ namespace ERPAPP.Controllers
         {
             // 預設帶入上個月（月結多在下個月初進行）
             var prev = DateTime.Now.AddMonths(-1);
-            return View(new SummaryInputModel { Year = prev.Year, Month = prev.Month });
+            var state=_workspace.Read();
+            ViewData["BudgetWorkspace"]=new ERPAPP.ViewModels.BudgetWorkspacePage {State=state};
+            ViewData["SelectedCloseMonth"]=prev.ToString("yyyy-MM");
+            return View(new SummaryInputModel { Year = prev.Year, Month = prev.Month, Version=state.Version,
+                Own=state.Months.SingleOrDefault(m=>m.Month==prev.ToString("yyyy-MM"))?.Income??0 });
         }
 
         private static Encoding ResolveEncoding(string? name) =>
@@ -40,6 +47,7 @@ namespace ERPAPP.Controllers
         // 步驟 2a：匯入記帳 CSV → Transactions
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [Authorize(Roles="Edit")]
         public IActionResult ImportTransactions(IFormFile? file, string? encoding)
         {
             if (file == null || file.Length == 0)
@@ -59,6 +67,7 @@ namespace ERPAPP.Controllers
         // 步驟 2b：匯入信用卡 CSV → creditcard
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [Authorize(Roles="Edit")]
         public IActionResult ImportCreditcard(IFormFile? file, string? encoding)
         {
             if (file == null || file.Length == 0)
@@ -75,53 +84,47 @@ namespace ERPAPP.Controllers
             }
         }
 
-        // 步驟 3：信用卡核對 + 計算彙總（沿用既有 sp_FinanceSummary）
-        [HttpPost]
-        [ValidateAntiForgeryToken]
+        // 原始月結快照與更正分開保存；由同一個財務寫入鎖保護交易及月結。
+        [HttpPost, ValidateAntiForgeryToken, Authorize(Roles = "Edit")]
         public IActionResult RunSummary([FromBody] SummaryInputModel input)
         {
-            if (input == null || input.Month < 1 || input.Month > 12)
-                return BadRequest(new { message = "月份不正確。" });
+            if (!ModelState.IsValid || input.Year is < 1900 or > 9998 || input.Month is < 1 or > 12)
+                return BadRequest(new { message = "年月或收入格式不正確。" });
+            var month=$"{input.Year:0000}-{input.Month:00}";
             try
             {
-                var result = _spExecutor.ExecuteSummary(input.Year, input.Month, input.Own);
-                return Json(result);
+                var before=_workspace.Read();
+                if(before.Months.Any(m=>m.Month==month))
+                    return Json(new FinanceSummaryResult {Already=1,Version=before.Version});
+                var state=_workspace.Execute(new BudgetCommand {Action="close",Month=month,Amount=input.Own,
+                    OperationId=input.OperationId,Version=input.Version,Reason=input.Reason??"月結"},User.Identity!.Name!);
+                var position=BudgetEngine.Position(state,month);
+                return Json(new FinanceSummaryResult {Already=2,Version=state.Version,Spare=position.Spare,Totalproperty=position.Total});
             }
-            catch (Exception ex)
+            catch(CreditcardMismatchException ex)
             {
-                return StatusCode(500, new { message = "執行彙總失敗：" + ex.Message });
+                return Json(new FinanceSummaryResult {Already=-1,Errors=ex.Errors});
+            }
+            catch(Exception ex) when(ex is ArgumentException or InvalidOperationException or FormatException or OverflowException)
+            {
+                return BadRequest(new {message=ex.Message});
             }
         }
 
-        // 步驟 3（撤銷）：撤銷/重置當月彙總（觸發 sp_FinanceSummary 的 own=-1 重置分支）
-        // 只允許撤銷「最近一次彙總的月份」——若不是最新月，SP 會略過重置往下重覆 INSERT，
-        // 造成 budget/Property 重覆列，故在此先擋掉。
-        [HttpPost]
-        [ValidateAntiForgeryToken]
+        [HttpPost, ValidateAntiForgeryToken, Authorize(Roles = "Edit")]
         public IActionResult RollbackSummary([FromBody] SummaryInputModel input)
         {
-            if (input == null || input.Month < 1 || input.Month > 12)
-                return BadRequest(new { message = "月份不正確。" });
-
-            var start = new DateTime(input.Year, input.Month, 1);
-            var latest = _context.Properties.AsNoTracking()
-                .OrderByDescending(p => p.Date)
-                .Select(p => p.Date)
-                .FirstOrDefault();
-
-            if (latest == default)
-                return BadRequest(new { message = "目前沒有任何彙總紀錄可撤銷。" });
-            if (latest != start)
-                return BadRequest(new { message = $"只能撤銷最近一次彙總的月份（目前最近為 {latest:yyyy-MM}）。" });
-
+            if (!ModelState.IsValid || input.Year is < 1900 or > 9998 || input.Month is < 1 or > 12)
+                return BadRequest(new { message = "年月格式不正確。" });
             try
             {
-                var result = _spExecutor.ExecuteSummary(input.Year, input.Month, -1);
-                return Json(result);
+                var state=_workspace.Execute(new BudgetCommand {Action="rollback",Month=$"{input.Year:0000}-{input.Month:00}",
+                    OperationId=input.OperationId,Version=input.Version,Reason=input.Reason??""},User.Identity!.Name!);
+                return Json(new FinanceSummaryResult {Already=-2,Version=state.Version});
             }
-            catch (Exception ex)
+            catch(Exception ex) when(ex is ArgumentException or InvalidOperationException or FormatException or OverflowException)
             {
-                return StatusCode(500, new { message = "撤銷彙總失敗：" + ex.Message });
+                return BadRequest(new {message=ex.Message});
             }
         }
 
@@ -135,7 +138,7 @@ namespace ERPAPP.Controllers
         {
             if (input == null || input.Month < 1 || input.Month > 12)
                 return BadRequest(new { message = "月份不正確。" });
-            if (input.Year < 1900 || input.Year > 9999)
+            if (input.Year < 1900 || input.Year > 9998) // 9998：AddMonths 在 9999-12 會溢位
                 return BadRequest(new { message = "年份不正確。" });
 
             var nextStart = new DateTime(input.Year, input.Month, 1).AddMonths(1);
@@ -153,59 +156,36 @@ namespace ERPAPP.Controllers
             });
         }
 
-        // 步驟 4：總資產核對（加總實際餘額，與帳面 Totalproperty 比對；可自動倒回次月交易）
+        // 步驟 4（輔助）：自動帶入「已投入投資」＝累計投入淨額。
+        // 上界取「結算月月底」——補結舊月份時，不能把之後才發生的買賣算進去。
+        // 投資數字比照 InvestmentController 要 Select 角色。
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [Authorize(Roles = "Select")]
+        public IActionResult NetDeployed([FromBody] SummaryInputModel input)
+        {
+            if (input == null || input.Month < 1 || input.Month > 12)
+                return BadRequest(new { message = "月份不正確。" });
+            if (input.Year < 1900 || input.Year > 9998) // 9998：AddMonths(1) 在 9999-12 會溢位
+                return BadRequest(new { message = "年份不正確。" });
+
+            return Json(new NetDeployedResult
+            {
+                Amount = _investment.GetNetDeployedForClose(input.Year, input.Month),
+                AsOfMonth = $"{input.Year}-{input.Month:00}"
+            });
+        }
+
+        // 保存每次核對的輸入、當時帳面、倒回明細與結果。
+        [HttpPost, ValidateAntiForgeryToken, Authorize(Roles="Edit")]
         public IActionResult AssetCheck([FromBody] AssetCheckRequest req)
         {
-            if (req == null || req.Month < 1 || req.Month > 12)
-                return BadRequest(new { message = "月份不正確。" });
-
-            var start = new DateTime(req.Year, req.Month, 1);
-            var end = start.AddMonths(1).AddDays(-1); // 當月月底
-
-            var result = new AssetCheckResult
+            if(req==null || !ModelState.IsValid) return BadRequest(new {message="核對欄位格式不正確。"});
+            try { return Json(_workspace.Check(req,User.Identity!.Name!)); }
+            catch(Exception ex) when(ex is ArgumentException or InvalidOperationException or FormatException or OverflowException)
             {
-                ActualRaw = req.Cash + req.Ipass + req.Bank + req.UnbilledCredit + req.Adjust
-            };
-
-            if (req.AutoRollback)
-            {
-                // 次月（月底之後）交易：加回月底當下快照
-                // 月底餘額 = 目前餘額 + 次月支出 - 次月收入
-                var next = _context.Transactions.AsNoTracking()
-                    .Where(t => t.Date > end)
-                    .ToList();
-
-                foreach (var acc in new[] { "現金", "銀行" })
-                {
-                    var exp = next.Where(t => t.Account == acc && t.TransactionType == "支").Sum(t => t.Amount);
-                    var inc = next.Where(t => t.Account == acc && t.TransactionType == "收").Sum(t => t.Amount);
-                    if (exp == 0 && inc == 0) continue;
-
-                    var net = exp - inc;
-                    result.Rollbacks.Add(new AccountRollback
-                    {
-                        Account = acc,
-                        NextMonthExpense = exp,
-                        NextMonthIncome = inc,
-                        Net = net
-                    });
-                    result.RollbackTotal += net;
-                }
+                return BadRequest(new {message=ex.Message});
             }
-
-            result.ActualAdjusted = result.ActualRaw + result.RollbackTotal;
-
-            var book = _context.Properties.AsNoTracking().FirstOrDefault(p => p.Date == start);
-            if (book != null && book.Totalproperty.HasValue)
-            {
-                result.HasBook = true;
-                result.BookTotalproperty = book.Totalproperty;
-                result.Diff = result.ActualAdjusted - book.Totalproperty.Value;
-            }
-
-            return Json(result);
         }
     }
 }

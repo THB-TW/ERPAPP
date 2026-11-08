@@ -39,19 +39,13 @@ namespace ERPAPP.Dto
         public string Category { get; set; } = string.Empty;
     }
 
-    // 2. 這是 SP 執行的最終結果
+    // 月結精靈執行結果。
     public class FinanceSummaryResult
     {
-        // SP 總是會回傳的第一個結果
+        public long Version { get; set; }
+        public int? Spare { get; set; }
+        public int? Totalproperty { get; set; }
         public int Already { get; set; } // 2正常輸入成功 1已輸入過 -1信用卡資料有誤 -2 重置輸入資料
-
-        // 只有成功 (Already=2) 時才有的值
-        public int? Phone { get; set; }
-        public int? Gogoro { get; set; }
-        public int? Electricity { get; set; }
-        public int? Water { get; set; }
-        public int? Gas { get; set; }
-        public int? Negtive { get; set; }
 
         // 只有Already=-1時才有的列表
         public List<UnmatchedRecord> Errors { get; set; }
@@ -64,9 +58,12 @@ namespace ERPAPP.Dto
     }
     public class SummaryInputModel
     {
+        public Guid OperationId { get; set; }=Guid.NewGuid();
+        public long Version { get; set; }
+        public string? Reason { get; set; }
         // 使用 Data Annotations 確保輸入資料符合預期
         [Required(ErrorMessage = "請輸入年份")]
-        [Range(2000, 3000, ErrorMessage = "請輸入有效的年份")]
+        [Range(1900, 9998, ErrorMessage = "請輸入有效的年份")]
         [Display(Name = "年份")]
         public int Year { get; set; }
 

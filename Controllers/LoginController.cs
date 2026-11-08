@@ -1,4 +1,4 @@
-﻿using ERPAPP.Dto;
+using ERPAPP.Dto;
 using ERPAPP.Models;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -25,13 +25,6 @@ namespace ERPAPP.Controllers
         [HttpPost]
         public IActionResult Index(LoginDto value)
         {
-            //if (value.Account.ToLower() == "handsome".ToLower() && value.Password == "123456")
-            //{
-            //    var claims = new List<Claim>
-            //    {
-            //        new Claim(ClaimTypes.Name, value.Account),
-            //        new Claim("FullName", "kai")
-            //    };
             var employee = _context.Employee
                 .FirstOrDefault(e => e.Account.ToLower() == value.Account.ToLower()
                 && e.Password == value.Password);
@@ -56,7 +49,7 @@ namespace ERPAPP.Controllers
                 var claimsIdentity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
                 HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(claimsIdentity));
 
-                return RedirectToAction("Index", "Home");
+                return RedirectToAction("Index", "MonthlyClose");
             }
             else
             {

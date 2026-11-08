@@ -1,0 +1,99 @@
+@model ERPAPP.ViewModels.BudgetWorkspacePage
+@using ERPAPP.Services.Budgeting
+@using ERPAPP.ViewModels
+@{
+    ViewData["Title"]="預算上限";
+    var canEdit=User.IsInRole("Edit");
+    var effective=Model.Effective;
+    BudgetCommand Command(string action)=>new() {Action=action,Month=Model.OpenMonth,Version=Model.State.Version,OperationId=Guid.NewGuid()};
+}
+@await Html.PartialAsync("_BudgetMessage")
+<div class="alert alert-info">開放月份：<strong>@Model.OpenMonth</strong>。修改從這個月份生效；每次儲存保留版本與原因，已結月份使用原快照。</div>
+<p><a asp-controller="Finance" asp-action="BudgetReport">預算表與挪用</a> · <a asp-controller="BudgetAdjustments" asp-action="History" asp-route-kind="operations">設定與調整紀錄</a></p>
+@if(Model.UnmappedCategories.Count>0)
+{
+    <div class="alert alert-warning">@Model.OpenMonth 尚未設定預算歸屬：<strong>@string.Join("、",Model.UnmappedCategories)</strong>。請新增類別或在下方指定歸屬，處理完才能月結。</div>
+}
+<div class="settings-step"><span class="flow-step" aria-hidden="true">1</span><h2>安排每月上限</h2></div>
+<form asp-action="Save" method="post">
+    @await Html.PartialAsync("_BudgetCommandFields",Command("caps"))
+    <fieldset disabled="@(!canEdit)">
+    <div class="table-responsive"><table class="table table-bordered"><thead><tr><th>預算類別</th><th>用途</th><th>每月上限（元）</th></tr></thead><tbody>
+    @for(var i=0;i<(effective?.Limits.Count??0);i++)
+    {
+        var limit=effective!.Limits[i];var category=Model.State.Categories.Single(c=>c.Id==limit.CategoryId);
+        <tr><td>@category.Name<input type="hidden" name="Limits[@i].CategoryId" value="@limit.CategoryId" /></td><td>@BudgetWorkspacePage.KindName(category.Kind)</td>
+            <td><input class="form-control cap-value" aria-label="@category.Name 上限" name="Limits[@i].Amount" type="number" min="0" max="1000000" step="1" value="@limit.Amount" required readonly="@(category.Kind=="actual")" />
+            @if(category.Kind=="actual"){<small>照實支，無上限</small>}</td></tr>
+    }
+    <tr><td>學費儲備</td><td>每月提撥</td><td><input class="form-control cap-value" name="Tuition" aria-label="學費儲備每月提撥" type="number" min="0" max="1000000" step="1" value="@(effective?.Tuition??0)" required /></td></tr>
+    </tbody></table></div>
+    <p>每月上限＋學費提撥：<strong id="cap-total"></strong> 元</p>
+    <label class="form-label" for="cap-reason">本次修改原因</label><input class="form-control mb-2" id="cap-reason" name="Reason" maxlength="300" required />
+    <button class="btn btn-success">儲存 @Model.OpenMonth 的新版本</button>
+    </fieldset>
+</form>
+@if(canEdit)
+{
+<div class="settings-step"><span class="flow-step" aria-hidden="true">2</span><h2>整理類別與歸屬</h2></div><div class="row g-4 budget-settings">
+<section class="col-lg-4"><h3 class="h5">新增支出類別</h3><form asp-action="Add" method="post">
+    @await Html.PartialAsync("_BudgetCommandFields",Command("add"))
+    <label for="new-name">名稱</label><input id="new-name" class="form-control" name="Name" maxlength="30" required />
+    <label for="new-kind">用途</label><select id="new-kind" class="form-select" name="Kind"><option value="reserve">儲備類別</option><option value="fixed">固定支出</option><option value="actual">照實支（無上限）</option></select>
+    <label for="new-cap">每月上限</label><input id="new-cap" class="form-control" name="Amount" type="number" value="0" min="0" max="1000000" step="1" required />
+    <label for="new-reason">原因</label><input id="new-reason" class="form-control" name="Reason" maxlength="300" required />
+    <button class="btn btn-outline-success mt-2">新增類別與版本</button>
+    <p class="text-muted small">新儲備從 0 開始，不追溯拆分歷史；照實支類別的上限固定為 0。</p>
+</form></section>
+<section class="col-lg-4"><h3 class="h5">移除支出類別</h3><form asp-action="Retire" method="post">
+    @await Html.PartialAsync("_BudgetCommandFields",Command("retire"))
+    <label for="retire-from">停止使用的類別</label><select id="retire-from" class="form-select" name="From">@foreach(var category in Model.Active){<option value="@category.Id">@category.Name（儲備 @Model.Current.Balances.GetValueOrDefault(category.Id).ToString("N0")）</option>}</select>
+    <label for="retire-to">正餘額全數轉入</label><select id="retire-to" class="form-select" name="To">@foreach(var category in Model.Active.Where(c=>c.Kind=="reserve")){<option value="@category.Id">@category.Name</option>}</select>
+    <label for="retire-reason">原因</label><input id="retire-reason" class="form-control" name="Reason" maxlength="300" required />
+    <button class="btn btn-outline-danger mt-2">停用並保存紀錄</button>
+    <p class="text-muted small">歷史保留，剩餘正儲備會挪到指定類別。負儲備須先補足，才能停用。</p>
+</form></section>
+<section class="col-lg-4"><h3 class="h5">指定交易分類的預算歸屬</h3><form asp-action="Map" method="post">
+    @await Html.PartialAsync("_BudgetCommandFields",Command("map"))
+    <label for="source-category">交易分類名稱</label><input id="source-category" class="form-control" name="SourceCategory" list="source-options" maxlength="50" required />
+    <datalist id="source-options">@foreach(var source in Model.UnmappedCategories.Union(effective?.Mapping.Keys.AsEnumerable()??Enumerable.Empty<string>()).Order()){<option value="@source"></option>}</datalist>
+    <label for="mapping-to">歸入預算類別</label><select id="mapping-to" class="form-select" name="To">@foreach(var category in Model.Active){<option value="@category.Id">@category.Name</option>}</select>
+    <label for="mapping-reason">原因</label><input id="mapping-reason" class="form-control" name="Reason" maxlength="300" required />
+    <button class="btn btn-outline-primary mt-2">保存歸屬版本</button>
+    <p class="text-muted small">從 @Model.OpenMonth 生效，不改寫交易原始分類。尚未指定歸屬的支出會擋下月結。</p>
+</form></section>
+</div>
+}
+<details class="mt-3"><summary>目前分類歸屬</summary><table class="table table-sm"><thead><tr><th>交易分類</th><th>預算類別</th></tr></thead><tbody>@foreach(var mapping in effective?.Mapping??new Dictionary<string,string>()){<tr><td>@mapping.Key</td><td>@Model.Name(mapping.Value)</td></tr>}</tbody></table></details>
+<div class="settings-step"><span class="flow-step" aria-hidden="true">3</span><h2 id="history">查看快照與修改版本</h2></div>
+<p>每月一列，每頁 10 個月份。未留存的歷史上限會明確標示；修改原因不補造。</p>
+<div class="table-responsive"><table class="table table-bordered"><thead><tr><th>月份</th><th>狀態</th><th>快照與版本</th></tr></thead><tbody>
+@foreach(var month in Model.HistoryMonths)
+{
+    var close=Model.State.Months.SingleOrDefault(m=>m.Month==month);
+    var versions=Model.State.Revisions.Where(r=>r.Month==month).Reverse().ToList();
+    <tr><td>@month</td><td>@(close!=null?"已結":month==Model.OpenMonth?"開放":"預設")</td><td>
+    @if(close?.LegacyTotalDifference!=0 && close!=null){<p class="text-warning">歷史資產加總差異：@close.LegacyTotalDifference.ToString("N0") 元（原值保留）</p>}
+    @if(versions.Count==0){<span>@(close?.Revision==null?"上限快照未留存":"沿用來源："+close.Revision.Month)</span>}
+    @foreach(var revision in versions)
+    {
+        <details><summary>@revision.Time.ToString("yyyy-MM-dd HH:mm") · @revision.Actor · @(close?.Revision?.Id==revision.Id?"月結採用版本":"設定版本")</summary>
+            <p>原因：@revision.Reason</p><p>上限＋學費提撥：@((revision.Limits.Sum(l=>l.Amount)+revision.Tuition).ToString("N0")) 元</p>
+            <ul>@foreach(var limit in revision.Limits){<li>@Model.Name(limit.CategoryId)：@limit.Amount.ToString("N0")</li>}<li>學費儲備：@revision.Tuition.ToString("N0")</li></ul>
+            <p>分類歸屬：@string.Join("；",revision.Mapping.Select(m=>m.Key+" → "+Model.Name(m.Value)))</p>
+        </details>
+    }
+    </td></tr>
+}
+</tbody></table></div>
+<nav aria-label="歷史快照分頁" class="d-flex gap-3 mb-4"><span>共 @Model.AllHistoryMonths.Count 個月份，第 @Model.Page / @Model.PageCount 頁</span>
+@if(Model.Page>1){<a asp-action="Index" asp-route-page="@(Model.Page-1)" asp-fragment="history">上一頁</a>}
+@if(Model.Page<Model.PageCount){<a asp-action="Index" asp-route-page="@(Model.Page+1)" asp-fragment="history">下一頁</a>}
+</nav>
+@section Scripts {
+<script>
+function updateCapTotal(){document.getElementById('cap-total').textContent=Array.from(document.querySelectorAll('.cap-value')).reduce((sum,e)=>sum+(Number(e.value)||0),0).toLocaleString();}
+document.querySelectorAll('.cap-value').forEach(e=>e.addEventListener('input',updateCapTotal));updateCapTotal();
+const kind=document.getElementById('new-kind');if(kind)kind.addEventListener('change',()=>{const cap=document.getElementById('new-cap');cap.readOnly=kind.value==='actual';if(cap.readOnly)cap.value=0;});
+</script>
+}

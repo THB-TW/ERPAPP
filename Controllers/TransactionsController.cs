@@ -1,4 +1,4 @@
-﻿
+
 using ERPAPP.Dto;
 using ERPAPP.Models;
 using ERPAPP.ViewModels;
@@ -13,10 +13,12 @@ namespace ERPAPP.Controllers
     public class TransactionsController : Controller
     {
         private readonly ErpdbContext _context;
+        private readonly ERPAPP.Services.Budgeting.BudgetWorkspace _workspace;
 
-        public TransactionsController(ErpdbContext context)
+        public TransactionsController(ErpdbContext context, ERPAPP.Services.Budgeting.BudgetWorkspace workspace)
         {
             _context = context;
+            _workspace = workspace;
         }
 
         // GET: Transactions
@@ -70,18 +72,9 @@ namespace ERPAPP.Controllers
 
             var types = new List<string> { "支", "收" };
             ViewBag.Types = new SelectList(types, searchType);
+            var latest=await _context.Properties.MaxAsync(p=>(DateTime?)p.Date);
+            ViewBag.ClosedBefore=latest.HasValue?new DateTime(latest.Value.Year,latest.Value.Month,1).AddMonths(1):(DateTime?)null;
 
-            //var transactions = from a in _context.Transactions
-            //                   select new Transaction
-            //                    {
-            //                       Id = a.Id,
-            //                       Date = a.Date,
-            //                        Category = a.Category,
-            //                        Amount = a.Amount,
-            //                        Member = a.Member,
-            //                        Account = a.Account,
-            //                        TransactionType = a.TransactionType,
-            //                   };
             return View(await transactions.OrderByDescending(t => t.Date).ToListAsync());
         }
 
@@ -136,7 +129,7 @@ namespace ERPAPP.Controllers
         public IActionResult Create()
         {
             // 取得所有類別
-            var categories = _context.Categories
+            var categories = WritableCategories()
                 .Select(c => new SelectListItem
                 {
                     Value = c.CategoryName,
@@ -170,6 +163,7 @@ namespace ERPAPP.Controllers
         // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [Authorize(Roles = "Edit")]
         public async Task<IActionResult> Create(NewsDto transaction)
         {
             if (ModelState.IsValid)
@@ -186,15 +180,19 @@ namespace ERPAPP.Controllers
                 if (category != null)
                 {
                     insert.TransactionType = category.Type;
+                    _context.Transactions.Add(insert);
+                    await _context.SaveChangesAsync();
+                    return RedirectToAction(nameof(Index));
                 }
-                _context.Transactions.Add(insert);
-                await _context.SaveChangesAsync();
-                return RedirectToAction(nameof(Index));
+                ModelState.AddModelError(nameof(transaction.Category),"請先選擇有效的交易分類。");
             }
-            return View(transaction);
+            PopulateTransactionLists(transaction.Category,transaction.Member,transaction.Account);
+            return View(new Transaction {Date=transaction.Date,Category=transaction.Category,Amount=transaction.Amount,
+                Member=transaction.Member,Account=transaction.Account,TransactionType=transaction.TransactionType});
         }
 
         // GET: Transactions/Edit/5
+        [Authorize(Roles = "Edit")]
         public async Task<IActionResult> Edit(int? id)
         {
             if (id == null)
@@ -202,7 +200,7 @@ namespace ERPAPP.Controllers
                 return NotFound();
             }
             // 取得所有類別
-            var categories = _context.Categories
+            var categories = WritableCategories()
                 .Select(c => new SelectListItem
                 {
                     Value = c.CategoryName,
@@ -239,25 +237,6 @@ namespace ERPAPP.Controllers
                     Account = a.Account,
                 })
                                 .FirstOrDefaultAsync();
-            //var insert = new NewsEditViewModel();
-            //insert.EditSpec = await (from a in _context.Transactions
-            //                         where a.Id == id
-            //                         select new NewsDto
-            //                         {
-            //                             Id = a.Id,
-            //                             Date = a.Date,
-            //                             Category = a.Category,
-            //                             Amount = a.Amount,
-            //                             Member = a.Member,
-            //                             Account = a.Account,
-            //                             TransactionType = a.TransactionType,
-            //                         }
-            //                        ).SingleOrDefaultAsync();
-            //insert.CategoryName = await _context.Categories
-            //                            .Select(c => c.CategoryName)
-            //                            .FirstOrDefaultAsync() ?? string.Empty;
-
-            //await _context.Transactions.FindAsync(id);
             if (transactionEdit == null)
             {
                 return NotFound();
@@ -270,6 +249,7 @@ namespace ERPAPP.Controllers
         // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [Authorize(Roles = "Edit")]
         public async Task<IActionResult> Edit(int id, NewsDto transactionDto)
         {
             if (id != transactionDto.Id)
@@ -286,16 +266,19 @@ namespace ERPAPP.Controllers
                     {
                         return NotFound();
                     }
+                    var category = await _context.Categories.FirstOrDefaultAsync(c => c.CategoryName == transactionDto.Category);
+                    if(category==null)
+                    {
+                        ModelState.AddModelError(nameof(transactionDto.Category),"請先選擇有效的交易分類。");
+                        PopulateTransactionLists(transactionDto.Category,transactionDto.Member,transactionDto.Account);
+                        return View(transactionDto);
+                    }
                     transactionUpdate.Date = transactionDto.Date;
                     transactionUpdate.Category = transactionDto.Category;
                     transactionUpdate.Amount = transactionDto.Amount;
                     transactionUpdate.Member = transactionDto.Member;
                     transactionUpdate.Account = transactionDto.Account;
-                    var category = await _context.Categories.FirstOrDefaultAsync(c => c.CategoryName == transactionDto.Category);
-                    if (category != null)
-                    {
-                        transactionUpdate.TransactionType = category.Type;
-                    }
+                    transactionUpdate.TransactionType = category.Type;
                     _context.Update(transactionUpdate);
                     await _context.SaveChangesAsync();
                 }
@@ -312,11 +295,13 @@ namespace ERPAPP.Controllers
                 }
                 return RedirectToAction(nameof(Index));
             }
+            PopulateTransactionLists(transactionDto.Category,transactionDto.Member,transactionDto.Account);
             return View(transactionDto);
         }
 
 
         // GET: Transactions/Delete/5
+        [Authorize(Roles = "Edit")]
         public async Task<IActionResult> Delete(int? id)
         {
             if (id == null)
@@ -337,6 +322,7 @@ namespace ERPAPP.Controllers
         // POST: Transactions/Delete/5
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
+        [Authorize(Roles = "Edit")]
         public async Task<IActionResult> DeleteConfirmed(int id)
         {
             var transaction = await _context.Transactions.FindAsync(id);
@@ -347,6 +333,21 @@ namespace ERPAPP.Controllers
 
             await _context.SaveChangesAsync();
             return RedirectToAction(nameof(Index));
+        }
+
+        private IQueryable<Category> WritableCategories()
+        {
+            var state=_workspace.Read();
+            var revision=ERPAPP.Services.Budgeting.BudgetEngine.Effective(state,ERPAPP.Services.Budgeting.BudgetEngine.OpenMonth(state));
+            var allowed=revision?.Mapping.Where(m=>revision.Limits.Any(l=>l.CategoryId==m.Value)).Select(m=>m.Key).ToArray()??[];
+            return _context.Categories.Where(c=>c.Type!="支"||allowed.Contains(c.CategoryName));
+        }
+
+        private void PopulateTransactionLists(string? category,string? member,string? account)
+        {
+            ViewBag.Categories=new SelectList(WritableCategories().ToList(),"CategoryName","CategoryName",category);
+            ViewBag.Members=new SelectList(_context.Members.ToList(),"MemberName","MemberName",member);
+            ViewBag.Accounts=new SelectList(_context.Accounts.ToList(),"AccountName","AccountName",account);
         }
 
         private bool TransactionExists(int id)

@@ -135,7 +135,7 @@ public static class CsvParsing
         if (!TryParseAmount(parts[map.Amount], out var amount)) return null;
 
         var type = parts[parts.Count - map.TypeFromRight];
-        if (string.IsNullOrEmpty(type)) return null;
+        if (amount<=0 || type is not ("收" or "支")) return null;
 
         return new Transaction
         {
@@ -162,11 +162,13 @@ public static class CsvParsing
 
         var category = parts[1];
         var type = parts[^1];
+        if(type is not ("收" or "支")) return null;
         var account = parts[^2];
         var member = parts[^3];
         // amount = index 2 .. (Count-4)，共 Count-5 欄合併
         var amountRaw = string.Concat(parts.GetRange(2, parts.Count - 5));
         if (!TryParseAmount(amountRaw, out var amount)) return null;
+        if(amount<=0) return null;
 
         return new Transaction
         {
@@ -191,19 +193,7 @@ public static class CsvParsing
 
         if (!TryParseDate(parts[0], out var d)) return null;
 
-        int j = parts.Count - 1;
-        var amtGroups = new List<string>();
-        while (j >= 2 && IsAmountField(parts[j]))
-        {
-            amtGroups.Insert(0, parts[j]);
-            j--;
-        }
-        // 吸收帶正負號的最高位群組（未加引號的負數金額，例：-1,580 → ["-1","580"]）
-        if (amtGroups.Count > 0 && j >= 2 && IsSignedAmountField(parts[j]))
-        {
-            amtGroups.Insert(0, parts[j]);
-            j--;
-        }
+        var amtGroups = CollectTrailingAmountGroups(parts, out int j);
 
         string amountRaw;
         string item;
@@ -221,5 +211,121 @@ public static class CsvParsing
 
         if (!TryParseAmount(amountRaw, out var amount)) return null;
         return (d, item, amount);
+    }
+
+    // 從列尾往左收集連續的「純數字」金額群組（index 0、1 留給日期與店家）。
+    // j 回傳最後一個未被吸收的欄位索引（店家 = parts[1..j]）。
+    // 三欄解析與三欄形狀檢查共用。
+    private static List<string> CollectTrailingAmountGroups(List<string> parts, out int j)
+    {
+        j = parts.Count - 1;
+        var amtGroups = new List<string>();
+        while (j >= 2 && IsAmountField(parts[j]))
+        {
+            amtGroups.Insert(0, parts[j]);
+            j--;
+        }
+        // 吸收帶正負號的最高位群組（未加引號的負數金額，例：-1,580 → ["-1","580"]）
+        if (amtGroups.Count > 0 && j >= 2 && IsSignedAmountField(parts[j]))
+        {
+            amtGroups.Insert(0, parts[j]);
+            j--;
+        }
+        return amtGroups;
+    }
+
+    // 銀行「帳單明細查詢」原始匯出檔的標題列欄位對應；
+    // 原始格式 消費日,入帳起息日,摘要,幣別,消費地金額,外幣折算日,消費地,末四碼,新臺幣金額；
+    // 只取 消費日／摘要／新臺幣金額。
+    public sealed class CcHeaderMap
+    {
+        public int Date;
+        public int Item;
+        public int AmountFromRight; // 新臺幣金額「距列尾」的偏移：摘要含逗號使欄位增多時仍能從右錨定
+        public int MinColumns;      // 標題列的欄位數（資料列至少要有這麼多欄）
+    }
+
+    // 判斷此列是否為銀行原始匯出檔（Bank Statement Export）的標題列；是則回傳欄位對應，否則回傳 null。
+    public static CcHeaderMap? TryParseCreditcardHeader(string rawLine)
+    {
+        if (string.IsNullOrWhiteSpace(rawLine)) return null;
+        var parts = SplitCsv(rawLine.Trim().TrimStart('﻿')).Select(p => p.Trim()).ToList();
+
+        int date = parts.IndexOf("消費日");
+        int item = parts.IndexOf("摘要");
+        int amt = parts.IndexOf("新臺幣金額");
+        if (date < 0 || item < 0 || amt < 0) return null;
+        // 必須 消費日 < 摘要 < 新臺幣金額：解析資料列時「多出的欄位併回摘要」的算法依賴這個順序
+        if (!(date < item && item < amt)) return null;
+
+        return new CcHeaderMap
+        {
+            Date = date,
+            Item = item,
+            AmountFromRight = parts.Count - amt,
+            MinColumns = parts.Count
+        };
+    }
+
+    // 依標題對應解析銀行原始匯出檔的資料列（摘要頭尾空白含全形空白會被 Trim 去掉）。
+    // 負數（繳款列）照常解析回傳，是否寫入由呼叫端（ImportSources）決定。
+    public static (DateTime Date, string Item, int Amount)? ParseCreditcardLine(string rawLine, CcHeaderMap map)
+    {
+        if (string.IsNullOrWhiteSpace(rawLine)) return null;
+        var parts = SplitCsv(rawLine.Trim().TrimStart('﻿')).Select(p => p.Trim()).ToList();
+        if (parts.Count < map.MinColumns) return null;
+
+        if (!TryParseDate(parts[map.Date], out var d)) return null;
+
+        // 摘要是唯一的自由文字欄，未加引號的逗號會多出欄位——消費日在它左邊（索引不受影響）、
+        // 新臺幣金額由列尾倒數錨定，所以多出的欄位都併回摘要。
+        int extra = parts.Count - map.MinColumns;
+        int amtIdx = parts.Count - map.AmountFromRight;
+
+        // 例外：新臺幣金額若是未加引號的千分位（4,827 或 -15,070），也會被切成多欄、看起來像摘要多了欄位，
+        // 這時金額只剩最後一段、負數還會變正數。這種列不猜，當錯誤列。銀行匯出檔本身會加引號，
+        // 通常只有手動編修過的檔案才會遇到。金額左邊一欄是 4 位數末四碼或空白，不會被誤判成千分位的首段。
+        if (extra > 0 && IsValidThousandsGrouping(new List<string> { parts[amtIdx - 1], parts[amtIdx] }))
+            return null;
+
+        var item = string.Join(",", parts.GetRange(map.Item, 1 + extra));
+        if (item.Length == 0) return null;
+
+        if (!TryParseAmount(parts[amtIdx], out var amount)) return null;
+        return (d, item, amount);
+    }
+
+    // 三欄格式（日期,店家,金額）的形狀檢查：null＝像三欄；否則回傳原因。
+    // 用來擋下沒有標題列的銀行原始匯出檔——直接當三欄解析會把卡號末四碼黏進金額（20 → 447620）。
+    // 只對 ParseCreditcardLine 解析成功的列有意義。
+    public static string? ThreeColumnShapeProblem(string rawLine)
+    {
+        if (string.IsNullOrWhiteSpace(rawLine)) return null;
+        var parts = SplitCsv(rawLine.Trim().TrimStart('﻿')).Select(p => p.Trim()).ToList();
+        if (parts.Count < 3) return null;
+
+        if (TryParseDate(parts[1], out _))
+            return "第二欄是日期，像是銀行原始匯出檔但找不到「消費日…新臺幣金額」標題列（若檔案確實有標題列，請確認上方的編碼選項：銀行匯出檔是 Big5）";
+
+        var groups = CollectTrailingAmountGroups(parts, out _);
+        if (groups.Count > 1 && !IsValidThousandsGrouping(groups))
+            return $"金額「{string.Join(",", groups)}」不是合法的千分位，像是把卡號末四碼併進了金額";
+
+        return null;
+    }
+
+    // 合法千分位：第一段為可帶 +/- 的 1–3 位數，其後每段恰 3 位數。
+    private static bool IsValidThousandsGrouping(List<string> groups)
+    {
+        var first = groups[0].Replace(" ", "").Trim();
+        if (first.Length > 0 && (first[0] == '-' || first[0] == '+')) first = first.Substring(1);
+        if (first.Length < 1 || first.Length > 3 || !first.All(char.IsDigit)) return false;
+
+        for (int i = 1; i < groups.Count; i++)
+        {
+            var g = groups[i].Replace(" ", "").Trim();
+            if (g.Length != 3 || !g.All(char.IsDigit)) return false;
+        }
+        return true;
     }
 }

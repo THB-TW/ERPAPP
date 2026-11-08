@@ -1,0 +1,88 @@
+@model ERPAPP.ViewModels.BudgetActivityPage
+@using ERPAPP.Services.Budgeting
+@{ViewData["Title"]="財務紀錄";}
+@await Html.PartialAsync("_BudgetMessage")
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-3"><label for="history-month">月份（留空查全部）</label><input id="history-month" class="form-control" name="month" type="month" value="@Model.Month" /></div>
+    <div class="col-md-4"><label for="history-kind">紀錄類型</label><select id="history-kind" class="form-select" name="kind">
+        <option value="checks" selected="@(Model.Kind=="checks")">總資產核對</option><option value="adjustments" selected="@(Model.Kind=="adjustments")">挪用、更正與沖銷</option>
+        <option value="closes" selected="@(Model.Kind=="closes")">原始月結快照</option><option value="operations" selected="@(Model.Kind=="operations")">操作與設定紀錄</option>
+    </select></div><div class="col-auto align-self-end"><button class="btn btn-primary">查詢</button></div>
+</form>
+<p><a asp-controller="MonthlyClose" asp-action="Index">月結精靈</a> · <a asp-controller="BudgetCap" asp-action="Index">上限版本</a> · <a asp-controller="Finance" asp-action="BudgetReport">預算表</a></p>
+<div class="table-responsive"><table class="table table-bordered"><thead><tr><th>月份／時間</th><th>內容</th><th>操作者與原因</th></tr></thead><tbody>
+@if(Model.Kind=="checks")
+{
+    foreach(var check in Model.Checks.Skip(Model.Skip).Take(20))
+    {
+        var input=check.Input;var result=check.Result;
+        <tr><td>@check.Month<br />@check.Time.ToString("yyyy-MM-dd HH:mm:ss zzz")</td><td>
+            <p>實際 @result.ActualAdjusted.ToString("N0")；帳面 @(result.BookTotalproperty?.ToString("N0")??"未結算")；差額 @(result.HasBook?result.Diff.ToString("N0"):"未核對")</p>
+            <details><summary>完整核對內容（當時版本 @check.Version）</summary>
+                <p>餘額日期：@input.AsOfDate?.ToString("yyyy-MM-dd")；自動倒回：@(input.AutoRollback?"是":"否")</p>
+                <ul><li>現金：@input.Cash.ToString("N0")</li><li>一卡通：@input.Ipass.ToString("N0")</li><li>銀行：@input.Bank.ToString("N0")</li>
+                <li>未出帳信用卡：@input.UnbilledCredit.ToString("N0")</li><li>累計投入投資：@input.NetDeployed.ToString("N0")</li><li>其他調整：@input.Adjust.ToString("N0")</li></ul>
+                <p>未倒回合計 @result.ActualRaw.ToString("N0")，倒回調整 @result.RollbackTotal.ToString("N0")。</p>
+                @foreach(var row in result.Rollbacks){<p>@row.Account：次月支出 @row.NextMonthExpense.ToString("N0") − 收入 @row.NextMonthIncome.ToString("N0") = @row.Net.ToString("N0")</p>}
+                <small>核對識別碼：@check.Id</small>
+            </details>
+        </td><td>@check.Actor<br /><span style="white-space:pre-wrap">@check.Reason</span></td></tr>
+    }
+}
+else if(Model.Kind=="adjustments")
+{
+    foreach(var adjustment in Model.Adjustments.Skip(Model.Skip).Take(20))
+    {
+        var pending=!Model.State.Months.Any(m=>m.Month==adjustment.Month);
+        var reversed=Model.State.Adjustments.Any(a=>a.Reverses==adjustment.Id);
+        <tr><td>@adjustment.Month<br />@adjustment.Time.ToString("yyyy-MM-dd HH:mm:ss zzz")</td><td>
+            @if(adjustment.Kind=="correct"){<p>可用餘額更正：@adjustment.Amount.ToString("+0;-0;0") 元，向後延續。</p>}
+            else if(adjustment.Kind=="fund"){<p>可用餘額 → @Model.Name(adjustment.To) 儲備：@adjustment.Amount.ToString("N0") 元</p>}
+            else{<p>@Model.Name(adjustment.From) → @Model.Name(adjustment.To)：@adjustment.Amount.ToString("N0") 元</p>}
+            <p>@(pending?"待重結原月份":reversed?"已被反向沖銷":"已生效")</p>
+            @if(adjustment.Reverses!=null){<small>沖銷原紀錄：@adjustment.Reverses</small>}
+            else if(!pending&&!reversed&&User.IsInRole("Edit"))
+            {
+                <details><summary>以反向調整沖銷</summary><form asp-action="Preview" method="post">
+                    @await Html.PartialAsync("_BudgetCommandFields",new BudgetCommand {Action="reverse",Month=BudgetEngine.Latest(Model.State),Version=Model.State.Version,OperationId=Guid.NewGuid()})
+                    <input type="hidden" name="Reverses" value="@adjustment.Id" />
+                    <label>沖銷原因<input class="form-control" name="Reason" maxlength="300" required /></label>
+                    <button class="btn btn-sm btn-outline-warning">預覽沖銷</button>
+                </form></details>
+            }
+            <small>紀錄：@adjustment.Id</small>
+            <details><summary>當時變動前後</summary><ul>@foreach(var change in adjustment.Changes){<li>@change.Month @(change.Field=="spare"?"可用餘額":change.Field=="total"?"帳面總資產":Model.Name(change.CategoryId)+" 儲備")：@change.Before.ToString("N0") → @change.After.ToString("N0")</li>}</ul></details>
+        </td><td>@adjustment.Actor<br /><span style="white-space:pre-wrap">@adjustment.Reason</span></td></tr>
+    }
+}
+else if(Model.Kind=="closes")
+{
+    foreach(var close in Model.Closes.Skip(Model.Skip).Take(20))
+    {
+        <tr><td>@close.Month<br />@close.Time.ToString("yyyy-MM-dd HH:mm:ss zzz")</td><td>
+            <p>@(Model.State.Months.Any(m=>m.Id==close.Id)?"目前採用":"已撤銷，快照保留") · @(close.Migrated?"既有資料移轉基準":"原始月結計算")</p>
+            <p>原始收入 @close.Income.ToString("N0")；當月盈餘 @close.Surplus.ToString("N0")；可用餘額 @close.RawSpare.ToString("N0")；學費 @close.Tuition.ToString("N0")；儲備 @close.Balances.Values.Sum().ToString("N0")</p>
+            @if(close.LegacyTotalDifference!=0){<p class="text-warning">原有總資產加總差異 @close.LegacyTotalDifference.ToString("N0") 元，原值保留，未自動修正。</p>}
+            <details><summary>上限、分類與結餘基準</summary>
+                @if(!close.Migrated){<p>當月實支：@string.Join("；",close.Expenses.Select(p=>Model.Name(p.Key)+" "+p.Value.ToString("N0")))</p>}
+                @if(close.Migrated){<p>既有資料未留完整逐類月結快照；類別餘額由已存結餘及累計基準移轉，基準差額 @close.LegacyBalanceAnchor.ToString("N0") 元保留在其他。未使用現在的交易回算。</p>}
+                <ul>@foreach(var balance in close.Balances){<li>@Model.Name(balance.Key)：@balance.Value.ToString("N0")</li>}</ul>
+                @if(close.Revision==null){<p>歷史上限未留存。</p>}
+                else{<p>上限版本：@close.Revision.Id</p><ul>@foreach(var limit in close.Revision.Limits){<li>@Model.Name(limit.CategoryId)：@limit.Amount.ToString("N0")</li>}</ul><p>分類歸屬：@string.Join("；",close.Revision.Mapping.Select(m=>m.Key+" → "+Model.Name(m.Value)))</p>}
+            </details>
+        </td><td>@close.Actor</td></tr>
+    }
+}
+else
+{
+    foreach(var operation in Model.Operations.Skip(Model.Skip).Take(20))
+    {
+        <tr><td>@operation.Month<br />@operation.Time.ToString("yyyy-MM-dd HH:mm:ss zzz")</td><td>@ERPAPP.ViewModels.BudgetWorkspacePage.ActionName(operation.Action)<br /><small>@operation.Id</small></td><td>@operation.Actor<br /><span style="white-space:pre-wrap">@operation.Reason</span></td></tr>
+    }
+}
+@if(Model.Count==0){<tr><td colspan="3">尚無符合條件的紀錄。舊流程未保存的核對資料不補造。</td></tr>}
+</tbody></table></div>
+<nav class="d-flex gap-3 mb-4" aria-label="財務紀錄分頁"><span>共 @Model.Count 筆，每頁 20 筆；第 @Model.Page / @Model.PageCount 頁</span>
+@if(Model.Page>1){<a asp-route-month="@Model.Month" asp-route-kind="@Model.Kind" asp-route-page="@(Model.Page-1)">上一頁</a>}
+@if(Model.Page<Model.PageCount){<a asp-route-month="@Model.Month" asp-route-kind="@Model.Kind" asp-route-page="@(Model.Page+1)">下一頁</a>}
+</nav>

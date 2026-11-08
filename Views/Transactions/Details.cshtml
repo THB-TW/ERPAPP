@@ -1,13 +1,11 @@
-﻿@model ERPAPP.Models.Transaction
+@model ERPAPP.Models.Transaction
 
 @{
-    ViewData["Title"] = "Details";
+    ViewData["Title"] = "交易詳細資料";
 }
 
-<h1>Details</h1>
-
 <div>
-    <h4>Transaction</h4>
+
     <hr />
     <dl class="row">
         <dt class = "col-sm-2">
@@ -49,6 +47,6 @@
     </dl>
 </div>
 <div>
-    <a asp-action="Edit" asp-route-id="@Model?.Id">Edit</a> |
-    <a asp-action="Index">Back to List</a>
+    <a asp-action="Edit" asp-route-id="@Model?.Id">編輯</a> |
+    <a asp-action="Index">返回交易明細</a>
 </div>

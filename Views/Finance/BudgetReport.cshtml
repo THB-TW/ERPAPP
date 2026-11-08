@@ -1,4 +1,4 @@
-﻿@model ERPAPP.ViewModels.BudgetReportViewModel
+@model ERPAPP.ViewModels.BudgetReportViewModel
 
 @{
     ViewData["Title"] = "預算報表";
@@ -10,13 +10,16 @@
 }
 
 <div class="container-fluid">
-    <h2>📊 @ViewData["Title"]</h2>
-    <hr />
+    @await Html.PartialAsync("_CurrentBudget",(ERPAPP.ViewModels.BudgetWorkspacePage)ViewData["BudgetWorkspace"]!)
 
     <div class="row">
         <div class="col-lg-12">
-            <h3>預算比較</h3>
-            <p>比較總預算與 @Model.LatestMonthDisplay 的剩餘預算。</p>
+            <div class="section-heading"><h2>歷史分類預算比較</h2><p>新增分類合計於其他</p></div>
+            <p class="text-muted small">上方是含手動挪用的目前儲備；下方保留各月原始結餘，調整原因與前後金額可在調整紀錄查看。</p>
+            <p>
+                比較總預算與 @Model.LatestMonthDisplay 的剩餘預算。
+                <a class="small ms-2" asp-controller="BudgetCap" asp-action="Index">調整每月上限 →</a>
+            </p>
             <div class="table-responsive">
                 <table class="table table-bordered table-striped table-hover table-sm">
                     <thead class="table-dark">

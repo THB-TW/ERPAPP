@@ -1,68 +1,60 @@
-﻿﻿
+@{
+    var controller=ViewContext.RouteData.Values["controller"]?.ToString();
+    var action=ViewContext.RouteData.Values["action"]?.ToString();
+    string? Current(string name,string? page=null)=>controller==name && (page==null||action==page)?"page":null;
+    var description=controller switch
+    {
+        "MonthlyClose"=>"依序完成匯入、計算與資產核對，保存這個月的紀錄。",
+        "BudgetCap"=>"安排下期上限與分類，讓每個月的設定都有跡可循。",
+        "Finance"=>"確認手邊餘裕，再為需要的類別補足預備金。",
+        "BudgetAdjustments"=>"清楚查看金額的前後變化，以及每一次調整的原因。",
+        "Transactions"=>"從日常收支到信用卡明細，保留每筆金額的來處與去向。",
+        "Investment"=>"分清投入成本與市值，掌握持有部位及資金流向。",
+        _=>"整理收支與預算，一步一步掌握自己的財務。"
+    };
+}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-Hant">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - ERPAPP</title>
+    <title>@ViewData["Title"] · 記帳日常</title>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
-    <link rel="stylesheet" href="~/ERPAPP.styles.css" asp-append-version="true" />
 </head>
 <body>
-    <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
-            <div class="container-fluid">
-                <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index">ERPAPP</a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
-                        aria-expanded="false" aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
-                    <ul class="navbar-nav flex-grow-1">
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Index">Home</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
-                        </li>
-                        @if (User.IsInRole("Select"))
+    <a href="#main-content" class="skip-link">跳至主要內容</a>
+    <header class="app-header">
+        <nav class="navbar navbar-expand-lg navbar-light" aria-label="主要導覽">
+            <div class="container-fluid app-nav-shell">
+                <a class="navbar-brand" asp-controller="MonthlyClose" asp-action="Index"><span class="brand-mark" aria-hidden="true">◎</span> 記帳日常</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#main-navigation" aria-controls="main-navigation" aria-expanded="false" aria-label="展開導覽"><span class="navbar-toggler-icon"></span></button>
+                <div class="collapse navbar-collapse" id="main-navigation">
+                    <ul class="navbar-nav gap-lg-1 mx-lg-auto">
+                        <li class="nav-item"><a class="nav-link" aria-current="@Current("Finance")" asp-controller="Finance" asp-action="BudgetReport">預算表</a></li>
+                        <li class="nav-item"><a class="nav-link" aria-current="@Current("BudgetCap")" asp-controller="BudgetCap" asp-action="Index">預算上限</a></li>
+                        @if(User.IsInRole("Select"))
                         {
-                            <li class="nav-item">
-                                <a class="nav-link text-dark" asp-area="" asp-controller="Transactions" asp-action="Index">交易</a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link text-dark" asp-area="" asp-controller="Transactions" asp-action="Analysis">支出分析</a>
-                            </li>
+                            <li class="nav-item"><a class="nav-link" aria-current="@Current("Transactions","Index")" asp-controller="Transactions" asp-action="Index">交易明細</a></li>
+                            <li class="nav-item"><a class="nav-link" aria-current="@Current("Transactions","Analysis")" asp-controller="Transactions" asp-action="Analysis">支出分析</a></li>
+                            <li class="nav-item"><a class="nav-link" aria-current="@Current("Investment")" asp-controller="Investment" asp-action="Index">投資</a></li>
                         }
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Finance" asp-action="SummaryInput">交易匯總</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Finance" asp-action="BudgetReport">預算表</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark fw-bold" asp-area="" asp-controller="MonthlyClose" asp-action="Index">🧙 月結精靈</a>
-                        </li>
+                        <li class="nav-item"><a class="nav-link" aria-current="@Current("BudgetAdjustments")" asp-controller="BudgetAdjustments" asp-action="History">財務紀錄</a></li>
+                        <li class="nav-item"><a class="nav-link" aria-current="@Current("MonthlyClose")" asp-controller="MonthlyClose" asp-action="Index">月結精靈</a></li>
                     </ul>
+                    <a class="nav-link logout-link" asp-controller="Login" asp-action="Index">登出</a>
                 </div>
             </div>
         </nav>
     </header>
-    <div class="container">
-        <main role="main" class="pb-3">
-            @RenderBody()
-        </main>
-    </div>
-
-    <footer class="border-top footer text-muted">
-        <div class="container">
-            &copy; 2025 - ERPAPP - <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
-        </div>
-    </footer>
+    <main id="main-content" class="app-main" tabindex="-1">
+        <header class="page-intro"><p class="eyebrow">我的財務筆記</p><h1>@ViewData["Title"]</h1><p>@description</p></header>
+        <div class="page-body">@RenderBody()</div>
+    </main>
+    <footer class="app-footer"><span>記帳日常</span><span>為每一筆安排，留下清楚的紀錄。</span></footer>
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="~/js/site.js" asp-append-version="true"></script>
+    <script src="~/js/app-ui.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>
