@@ -41,6 +41,7 @@ Created: 2026-11-08
 - [查明純本機 iOS 財務 App 的技術選項、備份與訂閱驗證](issues/18-local-first-stack.md)：Expo 58＋expo-sqlite、規則移植 TS；備份用 iCloud 裝置備份＋手動匯出檔；StoreKit 2 手機驗證即可；Apple 晶片 Mac 可直接跑 iPhone App。
 - [決定公開產品的提醒管道](issues/11-reminder-channel.md)：不用 LINE，所有提醒都用 App 本身的 iPhone 本機通知。
 - [決定哪些舊規則是產品預設、哪些是個人設定](issues/09-personal-vs-defaults.md)：三種預算組照舊為核心；學費儲備一般化為「貸款／分期」；有資料者依平均開銷建議預算、否則用翰陞的預設；匯入規格只強制類別與金額，未知分類報錯不自動新增；新增電子支付帳戶；成員選填。
+- [做可操作的手機快速記帳與儲備預算原型](issues/12-mobile-entry-prototype.md)：第五版定案；首頁是記帳（上方月曆、點日期看當天帳再新增）、明細是可左右滑切支出／收入的圓餅圖、預算有頂端橫排跳轉列、月結精靈四步且收入與核對自動帶出、調整類功能放設定。
 
 ## Not yet specified
 
