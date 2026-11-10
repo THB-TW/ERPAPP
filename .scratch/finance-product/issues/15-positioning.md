@@ -2,7 +2,8 @@
 
 Type: grilling
 Labels: wayfinder:grilling
-Status: open
+Status: claimed
+Assignee: claude（翰陞的雲端 thread）
 Blocked by: 05-competitors-pricing
 
 ## Question
