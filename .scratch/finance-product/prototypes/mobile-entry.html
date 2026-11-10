@@ -74,6 +74,19 @@ h2{font-size:14px;margin:0;color:var(--muted);font-weight:600;letter-spacing:.04
 .tx .a.in{color:var(--accent)}
 .tx button{border:0;background:transparent;color:var(--muted);font-size:13px;padding:6px}
 .empty{color:var(--muted);text-align:center;padding:16px 0;font-size:14px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.calcard{background:var(--surface);border-radius:var(--r);padding:10px;display:flex;flex-direction:column;gap:8px}
+.cal.inline button{min-height:44px;background:var(--bg)}
+.addbtn{border:0;background:var(--accent);color:var(--accent-ink);border-radius:999px;padding:9px 16px;font-weight:700;font-size:15px;display:inline-flex;align-items:center;gap:4px}
+.addbtn:disabled{opacity:.45}
+.back{border:0;background:transparent;color:var(--accent);font-weight:600;padding:4px 0;font-size:15px}
+.jumpbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:6;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;
+  margin:0 -4px;padding:8px 4px;background:color-mix(in srgb,var(--bg) 78%,transparent);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.jumpbar button{border:0;background:transparent;display:flex;flex-direction:column;align-items:stretch;gap:5px;padding:4px 0;min-height:44px;opacity:.65}
+.jumpbar button span{font-size:12px;font-weight:700;text-align:center;white-space:nowrap;color:var(--ink)}
+.jumpbar button i{display:block;height:5px;border-radius:3px}
+.jumpbar button[aria-current="true"]{opacity:1}
+.jumpbar button[aria-current="true"] i{height:7px}
 /* calendar sheet */
 .cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
 .cal .w{font-size:11px;color:var(--muted);text-align:center;padding:2px 0}
@@ -169,16 +182,10 @@ h2{font-size:14px;margin:0;color:var(--muted);font-weight:600;letter-spacing:.04
 .spec{background:var(--bg);border-radius:10px;padding:8px 10px}
 .spec summary{font-size:13px;font-weight:600;color:var(--accent);cursor:pointer}
 .code{background:var(--surface);border-radius:8px;padding:8px;font-size:12px;overflow-x:auto;margin:6px 0 0}
-.rail{position:fixed;right:calc(env(safe-area-inset-right,0px) + 4px);top:50%;transform:translateY(-50%);z-index:6;display:flex;flex-direction:column;gap:2px;
-  background:color-mix(in srgb,var(--surface) 55%,transparent);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);border-radius:16px;padding:6px 3px}
-.rail button{border:0;background:transparent;width:32px;height:46px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:0;opacity:.6}
-.rail button i{display:block;width:5px;height:22px;border-radius:3px}
-.rail button span{font-size:10px;font-weight:700;color:var(--ink);line-height:1}
-.rail button[aria-current="true"]{opacity:1}
-.rail button[aria-current="true"] i{width:7px}
 .gdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px}
-.view.withrail{padding-right:28px;padding-bottom:45vh}
-.group{scroll-margin-top:12px}
+.view.withjump{padding-bottom:45vh}
+.group{scroll-margin-top:70px}
+.balin{width:120px;max-width:100%;text-align:right;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:8px;padding:6px 8px;font:inherit;box-sizing:border-box}
 .err{background:var(--bad-soft);color:var(--bad);border-radius:10px;padding:10px 12px;font-size:13px}
 @media (prefers-reduced-motion:no-preference){.receipt{animation:pop .25s ease-out}@keyframes pop{from{transform:translateY(-4px);opacity:.6}to{transform:none;opacity:1}}}
 </style>
@@ -256,11 +263,12 @@ if(!S||S.v!==3)S=seed();
 const persist=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
 
 let tab='entry';
+let entryMode='day',calMonth=ym(today());
 let day=today();
 let draft={type:'out',amount:'',cat:null,acc:S.lastAccount,note:''};
 let lastSaved=null;
 let reportMonth=ym(today()),reportOpen=null;
-let wiz={step:1,maxStep:1,month:addMonth(S.closedThrough,1),income:null,calc:null,check:null,msg:''};
+let wiz={step:1,maxStep:1,month:addMonth(S.closedThrough,1),income:null,calc:null,check:null,bal:{},msg:''};
 
 const catById=id=>S.categories.find(c=>c.id===id)||S.incomeCats.find(c=>c.id===id);
 const accName=id=>(S.accounts.find(a=>a.id===id)||{}).name||'';
@@ -335,6 +343,12 @@ function importReport(r,kind){
 const CSV_SPEC=`<details class="spec"><summary>記帳 CSV 格式</summary><p class="note">第一列放標題。必要欄位：<b>類別</b>、<b>金額</b>（正整數）。選填：日期（2026/11/09 或 2026-11-09）、帳戶、收支（收／支）、備註、成員。選填欄位缺漏或格式不對就用預設值：日期＝今天、帳戶＝上次用的帳戶、收支＝支。天天記帳的原始匯出檔可以直接用。</p><pre class="code">日期,類別,金額,帳戶,收支,備註
 2026/11/09,飲食,120,現金,支,午餐
 2026/11/09,薪水,52000,玉山銀行,收,</pre></details>`;
+function ccImporterHtml(){return `
+  <h2>信用卡帳單 CSV → 信用卡核對表</h2>
+  <p class="note">可直接用銀行「帳單明細查詢」原始匯出檔（找「消費日、摘要、新臺幣金額」標題），也接受「日期,店家,金額」三欄檔；負數的繳款列不會寫入。可以重複匯入，重複的資料會自動略過。</p>
+  <div class="grid2"><div class="inp"><label for="fCc">選擇檔案</label><input id="fCc" type="file" accept=".csv,.txt,text/csv"></div>
+  <div class="inp"><label for="encCc">編碼</label><select id="encCc"><option value="big5">Big5（信用卡帳單常用）</option><option value="utf-8">UTF-8</option></select></div></div>
+  ${importReport(imp.cc,'cc')}`}
 function importerHtml(){return `
   <h2>記帳 CSV → 交易明細</h2>${CSV_SPEC}
   <div class="grid2"><div class="inp"><label for="fTx">選擇檔案</label><input id="fTx" type="file" accept=".csv,.txt,text/csv"></div>
@@ -358,10 +372,32 @@ const ICON={
 };
 const TABS=[['entry','記帳'],['report','明細'],['budget','預算'],['close','月結'],['settings','設定']];
 function renderTabs(){document.getElementById('tabs').innerHTML=TABS.map(([k,l])=>`<button type="button" data-tab="${k}" ${tab===k?'aria-current="page"':''}>${ICON[k]}<span>${l}</span></button>`).join('')}
-document.getElementById('tabs').addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(!b)return;tab=b.dataset.tab;render();window.scrollTo(0,0)});
+document.getElementById('tabs').addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(!b)return;if(b.dataset.tab==='entry'&&tab==='entry')entryMode='day';tab=b.dataset.tab;render();window.scrollTo(0,0)});
 
 /* ---------- 記帳 ---------- */
-function viewEntry(){
+function viewEntry(){return entryMode==='form'?viewForm():viewDay()}
+function viewDay(){
+  const t=today(),m=calMonth,first=dateObj(m+'-01').getDay(),n=daysIn(m);
+  let cells=WD.map(w=>`<div class="w">${w}</div>`).join('');
+  for(let i=0;i<first;i++)cells+='<div></div>';
+  for(let i=1;i<=n;i++){const ds=m+'-'+String(i).padStart(2,'0');const sum=S.tx.filter(x=>x.date===ds&&x.type==='out').reduce((a,x)=>a+x.amt,0);
+    cells+=`<button type="button" data-day="${ds}" class="${ds===t?'today':''}" aria-pressed="${ds===day}" ${ds>t?'disabled':''}><span class="dn">${i}</span><span class="ds num">${sum?plain(sum):''}</span></button>`}
+  const monthOut=S.tx.filter(x=>ym(x.date)===m&&x.type==='out').reduce((a,x)=>a+x.amt,0);
+  const closed=ym(day)<=S.closedThrough,isToday=day===t;
+  const items=S.tx.filter(x=>x.date===day).sort((a,b)=>a.type<b.type?1:-1);
+  const outSum=items.filter(x=>x.type==='out').reduce((a,x)=>a+x.amt,0),inSum=items.filter(x=>x.type==='in').reduce((a,x)=>a+x.amt,0);
+  return `<section class="view" aria-label="記帳">
+    <div class="calcard">
+      <div class="monthnav"><button type="button" id="cPrev" aria-label="上個月">‹</button><div style="text-align:center"><strong>${esc(monthLabel(m))}</strong><div class="num" style="font-size:12px;color:var(--muted)">支出 ${fmt(monthOut)}</div></div><button type="button" id="cNext" aria-label="下個月" ${m>=ym(t)?'disabled':''}>›</button></div>
+      <div class="cal inline">${cells}</div>
+    </div>
+    <div class="topbar"><div><h1 style="font-size:19px">${isToday?'今天':esc(longDate(day))}</h1><div class="sub num">${isToday?esc(longDate(day))+'・':''}支出 ${fmt(outSum)}${inSum?'・收入 '+fmt(inSum):''}</div></div>
+      <button type="button" class="addbtn" id="addBtn" ${closed?'disabled':''}>＋ 新增</button></div>
+    ${closed?`<div class="alert bad">${esc(monthLabel(ym(day)))}已月結，不能直接記帳。要改已結月份請到「設定 → 前期更正」。</div>`:''}
+    ${items.length?items.map(x=>{const c=catById(x.cat);return `<div class="tx"><div><div>${esc(c?c.name:'?')}${x.note?'・'+esc(x.note):''}</div><div class="d">${esc(accName(x.acc))}</div></div><span class="a num ${x.type==='in'?'in':''}">${x.type==='in'?'+':'−'}${plain(x.amt)}</span>${closed?'<span></span>':`<button type="button" data-del="${x.id}" aria-label="刪除這筆">刪除</button>`}</div>`}).join(''):'<p class="empty">這天還沒有記帳，按「＋ 新增」開始記。</p>'}
+  </section>`;
+}
+function viewForm(){
   const isOut=draft.type==='out',m=ym(day),u=usage();
   const pool=isOut?S.categories.slice().sort((a,b)=>(u[b.id]||0)-(u[a.id]||0)):S.incomeCats;
   const shown=isOut?pool.slice(0,7):pool.slice();
@@ -376,8 +412,7 @@ function viewEntry(){
   const isToday=day===today();
   const receipt=lastSaved?`<section class="receipt" aria-live="polite"><div class="top"><span>${esc(lastSaved.title)}</span><span class="num">${esc(lastSaved.amount)}</span></div><div class="sub">${esc(lastSaved.sub)}</div><div><span class="pill">已存在手機</span> ${lastSaved.warn?`<span class="pill warn">${esc(lastSaved.warn)}</span>`:''}</div></section>`:'';
   return `<section class="view" aria-label="記帳">
-    <div class="topbar"><div><h1>${isToday?'今天':esc(longDate(day))}</h1><div class="sub">${isToday?esc(longDate(day)):'<button type="button" class="backtoday" id="backToday">回到今天</button>'}</div></div>
-      <button type="button" class="chip" id="openCal" aria-label="整月，選擇日期">${ICON.cal}整月</button></div>
+    <div class="topbar"><button type="button" class="back" id="backDay">‹ ${isToday?'今天':esc(longDate(day))}的帳</button><span class="sub">記到 ${esc(longDate(day))}</span></div>
     ${receipt}
     ${closed?`<div class="alert bad">${esc(monthLabel(m))}已月結，不能直接記帳。要改已結月份請到「設定 → 前期更正」。</div>`:''}
     <div class="typeseg" role="group" aria-label="收支別"><button type="button" data-type="out" aria-pressed="${isOut}">支出</button><button type="button" data-type="in" aria-pressed="${!isOut}">收入</button></div>
@@ -392,8 +427,6 @@ function viewEntry(){
       <div class="field"><label for="noteIn">備註（選填）</label><input id="noteIn" type="text" maxlength="40" value="${esc(draft.note)}" placeholder="例如：午餐"></div>
     </div>
     <button type="button" class="save" id="saveBtn" ${amt>0&&draft.cat&&!closed?'':'disabled'}>儲存</button>
-    <div class="dayhead"><h2>${isToday?'今天':esc(longDate(day))}的帳</h2><span class="num" style="font-size:13px;color:var(--muted)">支出 ${fmt(outSum)}${inSum?'・收入 '+fmt(inSum):''}</span></div>
-    ${items.length?items.map(t=>{const c=catById(t.cat);return `<div class="tx"><div><div>${esc(c?c.name:'?')}${t.note?'・'+esc(t.note):''}</div><div class="d">${esc(accName(t.acc))}</div></div><span class="a num ${t.type==='in'?'in':''}">${t.type==='in'?'+':'−'}${plain(t.amt)}</span>${closed?'<span></span>':`<button type="button" data-del="${t.id}" aria-label="刪除這筆">刪除</button>`}</div>`}).join(''):'<p class="empty">這天還沒有記帳。</p>'}
   </section>`;
 }
 function openCalendar(){
@@ -460,8 +493,8 @@ function viewReport(){
 }
 
 /* ---------- 預算（唯讀） ---------- */
-const RAIL=[['g-top','總覽','var(--muted)'],['g-reserve','儲備類','var(--c1)'],['g-fixed','固定支出','var(--c3)'],['g-actual','照實支','var(--c2)'],['g-loan','貸款／分期','var(--c5)']];
-function railSync(){if(tab!=='budget')return;let cur='g-top';for(const [id] of RAIL){const el=document.getElementById(id);if(el&&el.getBoundingClientRect().top<80)cur=id}document.querySelectorAll('.rail [data-jump]').forEach(b=>b.setAttribute('aria-current',String(b.dataset.jump===cur)))}
+const RAIL=[['g-top','總覽','var(--muted)'],['g-reserve','儲備','var(--c1)'],['g-fixed','固定','var(--c3)'],['g-actual','照實支','var(--c2)'],['g-loan','貸款','var(--c5)']];
+function railSync(){if(tab!=='budget')return;let cur='g-top';for(const [id] of RAIL){const el=document.getElementById(id);if(el&&el.getBoundingClientRect().top<110)cur=id}document.querySelectorAll('.jumpbar [data-jump]').forEach(b=>b.setAttribute('aria-current',String(b.dataset.jump===cur)))}
 window.addEventListener('scroll',railSync,{passive:true});
 function viewBudget(){
   const m=ym(today());
@@ -471,7 +504,8 @@ function viewBudget(){
     if(c.group==='actual')return `<div class="row"><span class="name">${esc(c.name)}</span><span class="right num">${fmt(sp)}</span><span class="small">照實支，沒有上限</span></div>`;
     const left=c.cap-sp,pct=Math.min(100,c.cap?sp/c.cap*100:0);
     return `<div class="row"><span class="name">${esc(c.name)}</span><span class="right num ${left<0?'neg':''}">${left<0?'超支 '+fmt(-left):'剩 '+fmt(left)}</span><div class="bar"><i class="${left<0?'over':''}" style="width:${pct}%"></i></div><span class="small num">已花 ${fmt(sp)} ／ 上限 ${fmt(c.cap)}</span><span class="small num">${c.group==='reserve'?'累積儲備 '+fmt(c.reserve):'結餘回到當月盈餘'}</span></div>`};
-  return `<section class="view withrail" aria-label="預算">
+  return `<section class="view withjump" aria-label="預算">
+    <nav class="jumpbar" aria-label="跳到預算組">${RAIL.map(([id,l,c])=>`<button type="button" data-jump="${id}" aria-current="${id==='g-top'}"><span>${l}</span><i style="background:${c}"></i></button>`).join('')}</nav>
     <h1 id="g-top" class="group">${esc(monthLabel(m))}預算</h1>
     <div class="summary">
       <div><div class="k">可用餘額</div><div class="v num">${fmt(S.spare)}</div></div>
@@ -486,13 +520,12 @@ function viewBudget(){
     <div class="group" id="g-loan"><div class="ghead"><h2><span class="gdot" style="background:var(--c5)"></span>貸款／分期</h2><span class="gnote">月結時自動提撥當月繳款</span></div>
       ${S.loans.map(l=>`<div class="row"><span class="name">${esc(l.name)}</span><span class="right num">剩 ${fmt(l.remaining)}</span><div class="bar"><i style="width:${Math.round((1-l.remaining/l.total)*100)}%"></i></div><span class="small num">每月 ${fmt(l.monthly)}・總額 ${fmt(l.total)}</span><span class="small">預計 ${esc(monthLabel(l.end))}結清</span></div>`).join('')}</div>
     <p class="note">這頁只用來看。要改上限、分類、帳戶或做預算挪用，請到「設定」。</p>
-    <nav class="rail" aria-label="跳到預算組">${RAIL.map(([id,l,c])=>`<button type="button" data-jump="${id}" aria-label="跳到${l}" aria-current="${id==='g-top'}"><i style="background:${c}"></i><span>${l.slice(0,1)}</span></button>`).join('')}</nav>
   </section>`;
 }
 
 /* ---------- 月結精靈 ---------- */
 function calcClose(m){
-  const income=wiz.income??incomeIn(m);
+  const income=incomeIn(m);
   const per=S.categories.map(c=>{const sp=spentIn(c.id,m);let cost=c.group==='reserve'?c.cap:sp;return {c,sp,cost,delta:c.group==='reserve'?c.cap-sp:0}});
   const loanCost=S.loans.reduce((s,l)=>s+(l.remaining>0?Math.min(l.monthly,l.remaining):0),0);
   const totalCost=per.reduce((s,x)=>s+x.cost,0)+loanCost;
@@ -505,13 +538,13 @@ function calcClose(m){
 function viewClose(){
   const m=wiz.month,canClose=m<ym(today());
   const step=wiz.step;
-  const pills=[1,2,3,4].map(i=>`<button type="button" data-step="${i}" ${i===step?'aria-current="step"':''} ${i>wiz.maxStep?'disabled':''}>${['①選月份','②匯入CSV','③核對計算','④總資產'][i-1]}</button>`).join('');
+  const pills=[1,2,3,4].map(i=>`<button type="button" data-step="${i}" ${i===step?'aria-current="step"':''} ${i>wiz.maxStep?'disabled':''}>${['①選月份','②信用卡','③核對計算','④總資產'][i-1]}</button>`).join('');
   let body='';
   if(step===1){
-    const inc=wiz.income??incomeIn(m);
-    body=`<div class="card"><div class="ch">① 選擇結帳月份與當月收入</div><div class="cb">
+    const inc=incomeIn(m);
+    body=`<div class="card"><div class="ch">① 選擇結帳月份</div><div class="cb">
       <div class="grid2"><div class="inp"><label for="wMonth">結帳月份</label><input id="wMonth" type="month" value="${m}"></div>
-      <div class="inp"><label for="wIncome">當月收入</label><input id="wIncome" type="text" inputmode="numeric" value="${inc}"><span class="help">預設帶入本月記帳的收入</span></div></div>
+      <div class="inp"><label>當月收入</label><div style="padding:9px 0;font-weight:700" class="num">${fmt(inc)}</div><span class="help">從記帳自動帶入，要改請改記帳</span></div></div>
       ${!canClose?'<div class="alert bad">這個月還沒結束，要等下個月才能月結。</div>':''}
       ${m!==addMonth(S.closedThrough,1)?`<div class="alert info">下一個可月結的月份是 ${esc(monthLabel(addMonth(S.closedThrough,1)))}。</div>`:''}
       <div class="btnrow"><button type="button" class="btn primary" id="w1Next" ${canClose&&m===addMonth(S.closedThrough,1)?'':'disabled'}>確認月份，下一步 →</button></div>
@@ -521,12 +554,13 @@ function viewClose(){
       ${wiz.msg?`<div class="alert info">${esc(wiz.msg)}</div>`:''}
     </div></div>`;
   }else if(step===2){
-    body=`<div class="card"><div class="ch">② 匯入 CSV（可重複執行，重複資料自動略過）</div><div class="cb">
-      ${importerHtml()}
-      <p class="note">兩個都可以略過；平常已經在 App 記帳的話，記帳 CSV 不一定要匯入。</p>
+    body=`<div class="card"><div class="ch">② 匯入信用卡帳單</div><div class="cb">
+      ${ccImporterHtml()}
+      <p class="note">記帳資料 App 裡已經有，不用匯入。沒有信用卡帳單可以直接按下一步，第③步會略過信用卡核對。</p>
       <div class="btnrow"><button type="button" class="btn" data-go="1">← 上一步</button><button type="button" class="btn primary" data-go="3">下一步 →</button></div>
     </div></div>`;
   }else if(step===3){
+    wiz.check=ccCheck(m);wiz.calc=wiz.check.issues.length?null:calcClose(m);
     const c=wiz.calc,ck=wiz.check;
     let checkHtml='';
     if(ck){
@@ -535,8 +569,7 @@ function viewClose(){
       else checkHtml=`<div class="alert ok">信用卡帳單 ${ck.billed} 筆與 App 一致</div>`;
     }
     body=`<div class="card"><div class="ch">③ 信用卡核對 ＋ 計算彙總</div><div class="cb">
-      <p class="note">先核對信用卡帳單與 App 裡的信用卡支出，通過後計算預算並保存當月快照。</p>
-      <div class="btnrow"><button type="button" class="btn primary" id="wRun">執行核對＋計算</button></div>
+      <p class="note">進到這一步就自動核對信用卡帳單與 App 裡的信用卡支出，通過後算出當月預算。</p>
       ${checkHtml}
       ${c?`<div class="alert ok">已完成計算</div>
         <table class="tbl"><tr><th>當月收入</th><td>${fmt(c.income)}</td></tr><tr><th>當月總開銷</th><td>${fmt(-c.totalCost)}</td></tr><tr><th>當月盈餘</th><td>${fmt(c.gete)}</td></tr><tr><th>可用餘額</th><td>${fmt(c.spare)}</td></tr><tr><th>總儲備金</th><td>${fmt(c.newReserve)}</td></tr><tr><th>貸款／分期提撥</th><td>${fmt(c.newLoanRes)}</td></tr><tr><th>帳面總資產</th><td><strong>${fmt(c.total)}</strong></td></tr></table>
@@ -546,19 +579,17 @@ function viewClose(){
     </div></div>`;
   }else{
     const c=wiz.calc,end=monthEnd(m);
-    const bal=S.accounts.map(a=>({a,b:accBalance(a.id,end)}));
-    const actual=bal.reduce((s,x)=>s+x.b,0)+S.invested,diff=actual-c.total;
+    const rows=S.accounts.map(a=>{const app=accBalance(a.id,end),editable=a.kind==='銀行'||a.kind==='電子支付';
+      return `<tr><th>${esc(a.name)}<span style="color:var(--muted);font-weight:400">・${esc(a.kind)}</span>${editable?'<div class="help num" style="font-weight:400;color:var(--muted);font-size:11px">App 算出 '+fmt(app)+'</div>':''}</th><td>${editable?`<input class="balin num" data-bal="${a.id}" type="text" inputmode="numeric" value="${wiz.bal[a.id]??app}" aria-label="${esc(a.name)}實際餘額">`:fmt(app)}</td></tr>`}).join('');
     body=`<div class="card"><div class="ch">④ 總資產核對</div><div class="cb">
-      <p class="note">帳戶餘額直接用 App 裡的記帳算出來（開帳餘額加減 ${esc(monthLabel(m))}底前的每一筆），不用再填。</p>
-      <div style="overflow-x:auto"><table class="tbl">
-        ${bal.map(x=>`<tr><th>${esc(x.a.name)}<span style="color:var(--muted);font-weight:400">・${esc(x.a.kind)}</span></th><td>${fmt(x.b)}</td></tr>`).join('')}
+      <p class="note">現金和信用卡直接用 App 的記帳算出。銀行和電子支付還沒有自動連動，可能有忘記記的帳，請對照銀行或支付 App 的實際餘額修改。</p>
+      <div style="overflow-x:auto"><table class="tbl">${rows}
         <tr><th>已投入投資<span style="color:var(--muted);font-weight:400">・投資頁</span></th><td>${fmt(S.invested)}</td></tr>
-        <tr><th>實際加總</th><td><strong>${fmt(actual)}</strong></td></tr>
+        <tr><th>實際加總</th><td><strong id="aSum"></strong></td></tr>
         <tr><th>帳面總資產</th><td>${fmt(c.total)}</td></tr>
-        <tr class="${diff===0?'diffok':'diffbad'}"><th>差額（實際 − 帳面）</th><td><strong>${fmt(diff)}</strong></td></tr></table></div>
-      ${diff===0?'<div class="alert ok">一致，可以完成月結</div>':'<div class="alert bad">有差額，月結會留在待處理。找到原因後再核對一次。</div>'}
-      <div class="btnrow"><button type="button" class="btn primary" id="wFinish" ${diff===0?'':'disabled'}>核對並完成 ${esc(monthLabel(m))}月結</button></div>
-      <p class="note">如果銀行 App 顯示的餘額和這裡不同，代表有漏記或記錯帳戶，先回記帳頁修正。</p>
+        <tr id="aDiffRow"><th>差額（實際 − 帳面）</th><td><strong id="aDiff"></strong></td></tr></table></div>
+      <div id="aMsg"></div>
+      <div class="btnrow"><button type="button" class="btn primary" id="wFinish">核對並完成 ${esc(monthLabel(m))}月結</button></div>
       <div class="btnrow"><button type="button" class="btn" data-go="3">← 上一步</button></div>
     </div></div>`;
   }
@@ -596,20 +627,25 @@ let settingsMsg=null;
 function render(){
   renderTabs();
   document.getElementById('main').innerHTML=({entry:viewEntry,report:viewReport,budget:viewBudget,close:viewClose,settings:viewSettings})[tab]();
+  paintAsset();
 }
 
 const main=document.getElementById('main');
 main.addEventListener('click',e=>{
   const t=e.target.closest('button');if(!t)return;
   // entry
-  if(t.id==='openCal'){openCalendar();return}
+  if(t.id==='cPrev'){calMonth=addMonth(calMonth,-1);render();return}
+  if(t.id==='cNext'){calMonth=addMonth(calMonth,1);render();return}
+  if(t.dataset.day){day=t.dataset.day;render();return}
+  if(t.id==='addBtn'){entryMode='form';lastSaved=null;render();window.scrollTo(0,0);return}
+  if(t.id==='backDay'){entryMode='day';lastSaved=null;draft.amount='';draft.cat=null;draft.note='';render();return}
   if(t.id==='backToday'){day=today();lastSaved=null;render();return}
   if(t.dataset.type){draft.type=t.dataset.type;draft.cat=null;lastSaved=null;render();return}
   if(t.dataset.cat){draft.cat=draft.cat===t.dataset.cat?null:t.dataset.cat;render();return}
   if(t.dataset.allcats){openCats();return}
   if(t.id==='saveBtn'){save();return}
   if(t.dataset.del){S.tx=S.tx.filter(x=>x.id!==t.dataset.del);persist();render();return}
-  if(t.dataset.jump){const el=document.getElementById(t.dataset.jump);document.querySelectorAll('.rail [data-jump]').forEach(b=>b.setAttribute('aria-current',String(b===t)));if(el){const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;if(t.dataset.jump==='g-top')window.scrollTo({top:0,behavior:reduce?'auto':'smooth'});else el.scrollIntoView({behavior:reduce?'auto':'smooth',block:'start'})}return}
+  if(t.dataset.jump){const el=document.getElementById(t.dataset.jump);document.querySelectorAll('.jumpbar [data-jump]').forEach(b=>b.setAttribute('aria-current',String(b===t)));if(el){const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;if(t.dataset.jump==='g-top')window.scrollTo({top:0,behavior:reduce?'auto':'smooth'});else el.scrollIntoView({behavior:reduce?'auto':'smooth',block:'start'})}return}
   // report
   if(t.id==='rPrev'){reportMonth=addMonth(reportMonth,-1);reportOpen=null;render();return}
   if(t.id==='rNext'){reportMonth=addMonth(reportMonth,1);reportOpen=null;render();return}
@@ -618,14 +654,13 @@ main.addEventListener('click',e=>{
   if(t.dataset.step){wiz.step=Number(t.dataset.step);render();return}
   if(t.dataset.go){const g=Number(t.dataset.go);wiz.step=g;wiz.maxStep=Math.max(wiz.maxStep,g);render();return}
   if(t.id==='w1Next'){wiz.step=2;wiz.maxStep=Math.max(wiz.maxStep,2);wiz.msg='';render();return}
-  if(t.id==='wRun'){wiz.check=ccCheck(wiz.month);wiz.calc=wiz.check.issues.length?null:calcClose(wiz.month);render();return}
   if(t.id==='wFinish'){finishClose();return}
   if(t.id==='wRollback'){const r=(document.getElementById('wReason')||{}).value||'';wiz.msg=r.trim()?'原型沒有保存歷史快照，撤銷只示意流程：實際 App 會依當時快照回沖該月，調整紀錄保留。':'請先填撤銷原因。';render();return}
   // settings
   if(t.dataset.sp){settingsPage=t.dataset.sp;settingsMsg=null;render();return}
   if(t.dataset.soon){settingsMsg={ok:false,t:'這一項在原型裡還沒做，正式版會照舊系統的規則放在這裡。'};render();return}
   if(t.id==='saveCaps'){saveCaps();return}
-  if(t.id==='resetBtn'){S=seed();persist();imp={tx:null,cc:null};day=today();draft={type:'out',amount:'',cat:null,acc:S.lastAccount,note:''};lastSaved=null;wiz={step:1,maxStep:1,month:addMonth(S.closedThrough,1),income:null,calc:null,check:null,msg:''};settingsPage='home';settingsMsg=null;tab='entry';render();return}
+  if(t.id==='resetBtn'){S=seed();persist();entryMode='day';calMonth=ym(today());imp={tx:null,cc:null};day=today();draft={type:'out',amount:'',cat:null,acc:S.lastAccount,note:''};lastSaved=null;wiz={step:1,maxStep:1,month:addMonth(S.closedThrough,1),income:null,calc:null,check:null,bal:{},msg:''};settingsPage='home';settingsMsg=null;tab='entry';render();return}
 });
 const digits=v=>String(v).replace(/[^0-9]/g,'');
 main.addEventListener('input',e=>{
@@ -635,16 +670,29 @@ main.addEventListener('input',e=>{
     if(sel&&draft.type==='out'&&sel.group!=='actual'){const left=leftOf(sel,ym(day))-Number(d||0);h.textContent=`${sel.name}：存檔後本月剩 ${fmt(left)}`+(left<0?'，超出部分月結時從累積儲備扣':'');h.classList.toggle('neg',left<0)}
     btn.disabled=!(Number(d)>0&&draft.cat&&ym(day)>S.closedThrough);return}
   if(el.id==='noteIn'){draft.note=el.value;return}
-  if(el.id==='wIncome'){wiz.income=Number(digits(el.value)||0);wiz.calc=null;return}
+  if(el.dataset&&el.dataset.bal){const d=digits(el.value);wiz.bal[el.dataset.bal]=d===''?0:Number(d);paintAsset();return}
 });
 main.addEventListener('change',e=>{
   const el=e.target;
   if(el.id==='accSel')draft.acc=el.value;
-  if(el.id==='wMonth'){wiz.month=el.value||wiz.month;wiz.income=null;wiz.calc=null;wiz.check=null;wiz.maxStep=1;render()}
+  if(el.id==='wMonth'){wiz.month=el.value||wiz.month;wiz.calc=null;wiz.check=null;wiz.bal={};wiz.maxStep=1;render()}
   if(el.id==='fTx'&&el.files[0]){const enc=(document.getElementById('encTx')||{}).value||'utf-8';readText(el.files[0],enc).then(tx=>{imp.tx=importTx(tx);wiz.calc=null;wiz.check=null;render()})}
   if(el.id==='fCc'&&el.files[0]){const enc=(document.getElementById('encCc')||{}).value||'big5';readText(el.files[0],enc).then(tx=>{imp.cc=importCc(tx);wiz.calc=null;wiz.check=null;render()})}
 });
 
+function assetTotals(){
+  const m=wiz.month,end=monthEnd(m);
+  const actual=S.accounts.reduce((sum,a)=>{const editable=a.kind==='銀行'||a.kind==='電子支付';return sum+(editable&&wiz.bal[a.id]!=null?wiz.bal[a.id]:accBalance(a.id,end))},0)+S.invested;
+  return {actual,diff:actual-wiz.calc.total};
+}
+function paintAsset(){
+  const sum=document.getElementById('aSum');if(!sum||!wiz.calc)return;
+  const {actual,diff}=assetTotals();
+  sum.textContent=fmt(actual);document.getElementById('aDiff').textContent=fmt(diff);
+  document.getElementById('aDiffRow').className=diff===0?'diffok':'diffbad';
+  document.getElementById('aMsg').innerHTML=diff===0?'<div class="alert ok">一致，可以完成月結</div>':`<div class="alert bad">差額 ${fmt(diff)}。多半是銀行或電子支付有漏記的帳：回記帳補記到正確日期後再核對。找到原因前月結會留在待處理。</div>`;
+  document.getElementById('wFinish').disabled=diff!==0;
+}
 function ccCheck(m){
   const bill=S.cc.filter(x=>ym(x.date)===m);if(!bill.length)return {none:true,issues:[]};
   const app=S.tx.filter(t=>t.acc==='card'&&t.type==='out'&&ym(t.date)===m).map(t=>({date:t.date,amt:t.amt,item:(catById(t.cat)||{}).name+(t.note?'・'+t.note:''),used:false}));
@@ -658,7 +706,7 @@ function finishClose(){
   S.categories.forEach(cat=>{if(cat.group==='reserve')cat.reserve+=cat.cap-spentIn(cat.id,m)});
   S.loans.forEach(l=>{const pay=l.remaining>0?Math.min(l.monthly,l.remaining):0;l.reserved+=pay;l.remaining-=pay});
   S.spare=c.spare;S.closedThrough=m;persist();
-  wiz={step:1,maxStep:1,month:addMonth(m,1),income:null,calc:null,check:null,msg:`${monthLabel(m)}已完成月結，帳面總資產 ${fmt(c.total)}。`};
+  wiz={step:1,maxStep:1,month:addMonth(m,1),income:null,calc:null,check:null,bal:{},msg:`${monthLabel(m)}已完成月結，帳面總資產 ${fmt(c.total)}。`};
   render();
 }
 function saveCaps(){
@@ -691,7 +739,7 @@ function openCats(){
   draw();
   host.onclick=e=>{
     if(e.target.id==='scrim'||e.target.id==='closeSheet'){host.innerHTML='';return}
-    const p=e.target.closest('[data-pick]');if(p){draft.cat=p.dataset.pick;tab='entry';host.innerHTML='';render()}
+    const p=e.target.closest('[data-pick]');if(p){draft.cat=p.dataset.pick;tab='entry';entryMode='form';host.innerHTML='';render()}
   };
   host.onsubmit=e=>{e.preventDefault();
     const name=document.getElementById('ncName').value.trim(),group=document.getElementById('ncGroup').value,cap=Number(digits(document.getElementById('ncCap').value)||0);
