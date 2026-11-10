@@ -24,7 +24,7 @@ Created: 2026-11-08
 - **所有 subagent 一律 Sonnet。**
 - 2026-11-08 08:18 使用者確認單機方向四題：不另做電腦版（Apple 晶片 Mac 能跑 iPhone App 當附帶）；只支援一台 iPhone，換機用備份還原、不做即時同步；不需註冊或登入，訂閱綁 Apple ID；提醒不用 LINE，改用 App 本身的本機通知。
 - 2026-11-09 使用者對產品定位的一句話：「有點像天天記帳 App，再加上我預算規劃的架構。」快速記帳體驗對標天天記帳，差異化是預算儲備與月結。
-- 2026-11-10 翰陞選定手機資料庫用 **SQLite**（一個檔案，方便匯出備份、換機還原）；程式語言仍依[票 18](issues/18-local-first-stack.md)建議 TypeScript＋Expo，翰陞在確認能否上架與相容性。
+- 2026-11-10 翰陞選定手機資料庫用 **SQLite**（一個檔案，方便匯出備份、換機還原）；程式語言照[票 18](issues/18-local-first-stack.md)建議用 TypeScript＋Expo：翰陞確認可正常上架 App Store、聽過相容性注意事項（內購需開發版或 TestFlight 測、iOS 新功能較晚支援、小工具類需另寫 Swift）後說「往下規劃」。
 - 改成單機後，Cloudflare Workers/D1、自建登入與 LINE 推播都不再是第一版的必要元件；`cloudflare/` 雛形保留不刪，僅作為帳務規則移植的參考。
 - 研究成果放在 `research/`（本 repo 只允許推指定分支，因此不另開 `research/<name>` 分支）。
 - 雲端作業：不在使用者 Windows 電腦上執行；成果推 GitHub。`.private/` 私人備份不在 Git，需要時請使用者提供，絕不提交。
