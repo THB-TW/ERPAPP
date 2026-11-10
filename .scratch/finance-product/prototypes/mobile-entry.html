@@ -109,6 +109,13 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .lrow .amt{font-weight:700}
 .sublist{display:flex;flex-direction:column;gap:4px;padding:2px 0 6px 22px}
 .sublist div{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);gap:8px}
+.kindseg{display:grid;grid-template-columns:1fr 1fr;background:var(--line);border-radius:10px;padding:3px;gap:3px}
+.kindseg button{border:0;background:transparent;border-radius:8px;padding:7px;font-weight:600}
+.kindseg button[aria-selected="true"]{background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.donutwrap{touch-action:pan-y}
+.dots{display:flex;justify-content:center;gap:6px;margin-top:-6px}
+.dots i{width:6px;height:6px;border-radius:50%;background:var(--line)}
+.dots i.on{background:var(--accent)}
 /* budget */
 .summary{background:var(--surface);border-radius:var(--r);padding:14px 16px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .summary .k{font-size:12px;color:var(--muted)}
@@ -217,7 +224,7 @@ function seed(){
   const t=today(),m=ym(t),dd=Number(t.slice(8,10));
   const d=n=>m+'-'+String(Math.max(1,Math.min(n,dd))).padStart(2,'0');
   const p=addMonth(m,-1),pd=n=>p+'-'+String(n).padStart(2,'0');
-  return {v:3,cc:[],invested:30000,lastAccount:'card',closedThrough:addMonth(m,-2),
+  return {v:4,cc:[],invested:30000,lastAccount:'card',closedThrough:addMonth(m,-2),
     categories:[
       {id:'food',name:'飲食',group:'reserve',cap:9000,reserve:4200},
       {id:'car',name:'汽車',group:'reserve',cap:3000,reserve:12500},
@@ -250,6 +257,8 @@ function seed(){
       {id:uid(),date:d(3),type:'out',cat:'car',acc:'card',amt:1450,note:'加油'},
       {id:uid(),date:d(4),type:'out',cat:'food',acc:'cash',amt:85,note:'早餐'},
       {id:uid(),date:d(5),type:'in',cat:'salary',acc:'bank',amt:52000,note:''},
+      {id:uid(),date:d(7),type:'in',cat:'bonus',acc:'bank',amt:6000,note:'績效獎金'},
+      {id:uid(),date:d(8),type:'in',cat:'inc_other',acc:'jko',amt:850,note:'二手拍賣'},
       {id:uid(),date:d(6),type:'out',cat:'fun',acc:'jko',amt:2890,note:'演唱會'},
       {id:uid(),date:d(6),type:'out',cat:'food',acc:'card',amt:1260,note:'聚餐'},
       {id:uid(),date:d(7),type:'out',cat:'daily',acc:'card',amt:438,note:''},
@@ -257,9 +266,9 @@ function seed(){
       {id:uid(),date:t,type:'out',cat:'food',acc:'cash',amt:65,note:'早餐'},
       {id:uid(),date:t,type:'out',cat:'other',acc:'jko',amt:180,note:'停車'}]};
 }
-const KEY='reserve-ledger-proto-v3';
+const KEY='reserve-ledger-proto-v4';
 let S;try{S=JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){S=null}
-if(!S||S.v!==3)S=seed();
+if(!S||S.v!==4)S=seed();
 const persist=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
 
 let tab='entry';
@@ -267,7 +276,7 @@ let entryMode='day',calMonth=ym(today());
 let day=today();
 let draft={type:'out',amount:'',cat:null,acc:S.lastAccount,note:''};
 let lastSaved=null;
-let reportMonth=ym(today()),reportOpen=null;
+let reportMonth=ym(today()),reportOpen=null,reportKind='out';
 let wiz={step:1,maxStep:1,month:addMonth(S.closedThrough,1),income:null,calc:null,check:null,bal:{},msg:''};
 
 const catById=id=>S.categories.find(c=>c.id===id)||S.incomeCats.find(c=>c.id===id);
@@ -471,24 +480,29 @@ function save(){
 /* ---------- 明細（圓餅圖） ---------- */
 function viewReport(){
   const m=reportMonth,t=today();
-  const totals=S.categories.map(c=>({c,amt:spentIn(c.id,m)})).filter(x=>x.amt>0).sort((a,b)=>b.amt-a.amt);
-  const sum=totals.reduce((s,x)=>s+x.amt,0),inc=incomeIn(m);
+  const isIn=reportKind==='in',kindName=isIn?'收入':'支出';
+  const amtOf=c=>S.tx.filter(x=>x.type===reportKind&&x.cat===c.id&&ym(x.date)===m).reduce((a,x)=>a+x.amt,0);
+  const totals=(isIn?S.incomeCats:S.categories).map(c=>({c,amt:amtOf(c)})).filter(x=>x.amt>0).sort((a,b)=>b.amt-a.amt);
+  const sum=totals.reduce((s,x)=>s+x.amt,0);
+  const other=isIn?S.tx.filter(x=>x.type==='out'&&ym(x.date)===m).reduce((a,x)=>a+x.amt,0):incomeIn(m);
   let slices=totals.slice(0,7);
   if(totals.length>7)slices.push({c:{id:'__rest',name:'其他分類'},amt:totals.slice(7).reduce((s,x)=>s+x.amt,0),rest:totals.slice(7)});
   slices=slices.map((x,i)=>({...x,color:`var(--c${i+1})`}));
   const R=80,C=2*Math.PI*R;let off=0;
   const arcs=sum?slices.map(x=>{const len=x.amt/sum*C;const a=`<circle r="${R}" cx="110" cy="110" fill="none" stroke="${x.color}" stroke-width="34" stroke-dasharray="${Math.max(0,len-1.5)} ${C}" stroke-dashoffset="${-off}" transform="rotate(-90 110 110)"/>`;off+=len;return a}).join(''):`<circle r="${R}" cx="110" cy="110" fill="none" stroke="var(--line)" stroke-width="34"/>`;
-  const svg=`<svg viewBox="0 0 220 220" role="img" aria-label="${esc(monthLabel(m))}支出分類圓餅圖">${arcs}
-    <text x="110" y="104" text-anchor="middle" font-size="13" fill="var(--muted)">本月支出</text>
+  const svg=`<svg viewBox="0 0 220 220" role="img" aria-label="${esc(monthLabel(m))}${kindName}分類圓餅圖">${arcs}
+    <text x="110" y="104" text-anchor="middle" font-size="13" fill="var(--muted)">本月${kindName}</text>
     <text x="110" y="128" text-anchor="middle" font-size="22" font-weight="700" fill="var(--ink)" style="font-variant-numeric:tabular-nums">${plain(sum)}</text></svg>`;
-  const txOf=id=>S.tx.filter(x=>x.type==='out'&&x.cat===id&&ym(x.date)===m).sort((a,b)=>b.date.localeCompare(a.date));
+  const txOf=id=>S.tx.filter(x=>x.type===reportKind&&x.cat===id&&ym(x.date)===m).sort((a,b)=>b.date.localeCompare(a.date));
   return `<section class="view" aria-label="明細">
     <div class="monthnav"><button type="button" id="rPrev" aria-label="上個月">‹</button><h1 style="font-size:19px">${esc(monthLabel(m))}</h1><button type="button" id="rNext" aria-label="下個月" ${m>=ym(t)?'disabled':''}>›</button></div>
-    <div class="donutwrap">${svg}</div>
-    <div class="topbar"><h2>分類</h2><span class="num" style="font-size:13px;color:var(--muted)">收入 ${fmt(inc)}</span></div>
+    <div class="kindseg" role="tablist" aria-label="支出或收入"><button type="button" role="tab" data-kind="out" aria-selected="${!isIn}">支出</button><button type="button" role="tab" data-kind="in" aria-selected="${isIn}">收入</button></div>
+    <div class="donutwrap" id="donut">${svg}</div>
+    <div class="dots" aria-hidden="true"><i class="${isIn?'':'on'}"></i><i class="${isIn?'on':''}"></i></div>
+    <div class="topbar"><h2>${kindName}分類</h2><span class="num" style="font-size:13px;color:var(--muted)">${isIn?'支出':'收入'} ${fmt(other)}</span></div>
     ${slices.length?`<div class="legend">${slices.map(x=>{const open=reportOpen===x.c.id;
       const rows=x.rest?x.rest.map(r=>`<div><span>${esc(r.c.name)}</span><span class="num">${plain(r.amt)}</span></div>`).join(''):txOf(x.c.id).map(r=>`<div><span>${r.date.slice(5).replace('-','/')}${r.note?'・'+esc(r.note):''}</span><span class="num">${plain(r.amt)}</span></div>`).join('');
-      return `<button type="button" class="lrow" data-open="${x.c.id}" aria-expanded="${open}"><span class="dot" style="background:${x.color}"></span><span>${esc(x.c.name)}</span><span class="pct num">${(x.amt/sum*100).toFixed(1)}%</span><span class="amt num">${plain(x.amt)}</span></button>${open?`<div class="sublist">${rows}</div>`:''}`}).join('')}</div>`:'<p class="empty">這個月沒有支出。</p>'}
+      return `<button type="button" class="lrow" data-open="${x.c.id}" aria-expanded="${open}"><span class="dot" style="background:${x.color}"></span><span>${esc(x.c.name)}</span><span class="pct num">${(x.amt/sum*100).toFixed(1)}%</span><span class="amt num">${plain(x.amt)}</span></button>${open?`<div class="sublist">${rows}</div>`:''}`}).join('')}</div>`:`<p class="empty">這個月沒有${kindName}。</p>`}
   </section>`;
 }
 
@@ -631,6 +645,10 @@ function render(){
 }
 
 const main=document.getElementById('main');
+let swipe=null;
+main.addEventListener('touchstart',e=>{if(tab!=='report'||!e.target.closest('#donut'))return;const p=e.touches[0];swipe={x:p.clientX,y:p.clientY}},{passive:true});
+main.addEventListener('touchend',e=>{if(!swipe)return;const p=e.changedTouches[0],dx=p.clientX-swipe.x,dy=p.clientY-swipe.y;swipe=null;
+  if(Math.abs(dx)>40&&Math.abs(dx)>Math.abs(dy)){reportKind=reportKind==='out'?'in':'out';reportOpen=null;render()}},{passive:true});
 main.addEventListener('click',e=>{
   const t=e.target.closest('button');if(!t)return;
   // entry
@@ -649,6 +667,7 @@ main.addEventListener('click',e=>{
   // report
   if(t.id==='rPrev'){reportMonth=addMonth(reportMonth,-1);reportOpen=null;render();return}
   if(t.id==='rNext'){reportMonth=addMonth(reportMonth,1);reportOpen=null;render();return}
+  if(t.dataset.kind){reportKind=t.dataset.kind;reportOpen=null;render();return}
   if(t.dataset.open){reportOpen=reportOpen===t.dataset.open?null:t.dataset.open;render();return}
   // close wizard
   if(t.dataset.step){wiz.step=Number(t.dataset.step);render();return}
