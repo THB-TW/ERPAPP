@@ -2,8 +2,9 @@
 
 Type: grilling
 Labels: wayfinder:grilling
-Status: open
-Blocked by: 17-seller-identity
+Status: claimed
+Assignee: claude（翰陞的雲端 thread）
+Blocked by: 17-seller-identity（Q1 已定個人身分，可先行；稅務 Q3 不影響方案設計）
 
 ## Question
 
