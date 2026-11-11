@@ -16,6 +16,7 @@ import { ConversionStopped, loadVerifiedSource } from './source.ts';
 import { assertGitIgnored, assertPrivateOutput } from './output.ts';
 import { thousands } from '../common.ts';
 import { buildPlan, type MixedFlowMode } from './plan.ts';
+import { planCardStatements } from './cardStatements.ts';
 
 export { ConversionStopped };
 
@@ -32,6 +33,8 @@ export interface ConvertOptions {
   accountKinds?: Record<string, AccountKind>;
   /** 帳戶名稱 → 搬遷截止月月底的餘額（命令列 --opening）。 */
   openingBalances?: Record<string, number>;
+  /** 舊 creditcard 表沒有卡識別；多卡時明確指定全表所屬卡，不做猜測。 */
+  cardStatementAccount?: string;
   /**
    * 預期的舊帳基準身分；預設是 docs/cloudflare/baseline.md 記錄的 2026-11-08 基準（baseline.ts）。
    * 只給程式介面（測試）用，命令列沒有關閉這項檢查的旗標。
@@ -62,12 +65,14 @@ export interface ConvertSummary {
   documentVersion: number;
   incomeTotal: number;
   expenseTotal: number;
+  cardStatements: number;
+  cardStatementTotal: number;
   firstDate: string | null;
   lastDate: string | null;
   openings: OpeningSummary[];
   /** 舊系統帳戶表的 Balance（原字串）；僅供參考，未用於計算。 */
   legacyAccountBalances: { account: string; balance: string }[];
-  /** 匯出裡沒有搬入的資料表與列數（員工、信用卡明細、投資…）。 */
+  /** 匯出裡沒有搬入的資料表與列數（員工、投資…）。 */
   notMigrated: { table: string; rows: number }[];
   notices: string[];
 }
@@ -78,7 +83,7 @@ const KIND_WORDS = new Map<string, AccountKind>([
   ...ACCOUNT_KINDS.map((k): [string, AccountKind] => [k, k]),
   ['現金', 'cash'], ['銀行', 'bank'], ['信用卡', 'credit_card'], ['電子支付', 'e_wallet'],
 ]);
-const MIGRATED_TABLES = ['transactions', 'transaction', 'categories', 'category', 'accounts', 'account', 'members', 'member', 'financeworkspace'];
+const MIGRATED_TABLES = ['transactions', 'transaction', 'categories', 'category', 'accounts', 'account', 'members', 'member', 'financeworkspace', 'creditcard'];
 const ATTEMPTS = 3;
 
 async function askUntil<T>(ask: (q: string) => Promise<string>, question: string, parse: (answer: string) => T | null): Promise<T> {
@@ -164,6 +169,7 @@ export async function convertLegacy(options: ConvertOptions): Promise<ConvertSum
     throw new ConversionStopped(['還缺少下列資料，而且沒有辦法詢問（或已設定不詢問），已停止：', ...missing.map((m) => `- ${m}`), ...derived.notes.map((n) => `  說明：${n}`)].join('\n'));
   }
   const openingOf = new Map(openings.map((o) => [o.account, o.amount]));
+  const cardStatements = await planCardStatements(legacy.cardStatements ?? [], kinds, options.cardStatementAccount, options.ask);
 
   // 5. 寫入暫存檔（只經由帳本服務）→ 檢查 → 改成正式檔名（不覆寫）
   const data: LegacyImportData = {
@@ -172,6 +178,7 @@ export async function convertLegacy(options: ConvertOptions): Promise<ConvertSum
     categories: plan.categories,
     members: plan.members,
     transactions: plan.transactions,
+    cardStatements,
     document: legacy.document,
   };
   const partial = `${final}.partial`;
@@ -198,6 +205,8 @@ export async function convertLegacy(options: ConvertOptions): Promise<ConvertSum
       [result.transactions, result.incomeTotal, result.expenseTotal, result.accounts, result.categories, result.members, result.months],
       [plan.transactions.length, income, expense, plan.accounts.length, plan.categories.length, plan.members.length, legacy.months],
     );
+    deepStrictEqual([result.cardStatements, result.cardStatementTotal],
+      [cardStatements.length, cardStatements.reduce((sum, row) => sum + row.amount, 0)]);
     await ledger.close();
     db = undefined;
 
@@ -224,6 +233,8 @@ export async function convertLegacy(options: ConvertOptions): Promise<ConvertSum
       documentVersion: result.version,
       incomeTotal: result.incomeTotal,
       expenseTotal: result.expenseTotal,
+      cardStatements: result.cardStatements,
+      cardStatementTotal: result.cardStatementTotal,
       firstDate: dates[0] ?? null,
       lastDate: dates[dates.length - 1] ?? null,
       openings,
@@ -274,6 +285,17 @@ async function verifyReopened(file: string, data: LegacyImportData, legacy: Lega
       if (left === 0) fail('交易內容');
       counts.set(k, left - 1);
     }
+    const cardKey = (r: { date: string; merchant: string; amount: number; account: string }) => JSON.stringify([r.date, r.merchant, r.amount, r.account]);
+    const sourceCards = new Map<string, number>();
+    for (const row of data.cardStatements ?? []) sourceCards.set(cardKey(row), (sourceCards.get(cardKey(row)) ?? 0) + 1);
+    const storedCards = await ledger.listCardStatements();
+    if (storedCards.length !== (data.cardStatements?.length ?? 0)) fail('信用卡明細筆數');
+    for (const row of storedCards) {
+      const key = cardKey(row);
+      const left = sourceCards.get(key) ?? 0;
+      if (left === 0) fail('信用卡明細內容或所屬卡');
+      sourceCards.set(key, left - 1);
+    }
     if ((await ledger.listBudgetMonths()).length !== legacy.months) fail('月結月份數');
     if (!sameDocument(await ledger.exportFinanceDocument(), legacy.document)) {
       throw new ConversionStopped('財務文件經帳本服務讀回後與來源不同（可能含有帳本不認得的欄位），為免悄悄改動舊帳，已停止。請把這個情況回報。');
@@ -309,6 +331,7 @@ export function formatSummary(s: ConvertSummary): string[] {
     `  來源：資料庫 ${s.sourceDatabase}、程式版本 ${s.sourceCommit}`,
     `  來源清冊 SHA-256：${s.manifestSha256}`,
     `  交易：${s.transactions} 筆（${s.firstDate ?? '-'} 至 ${s.lastDate ?? '-'}）；收入合計 ${yen(s.incomeTotal)}、支出合計 ${yen(s.expenseTotal)}`,
+    `  信用卡明細：${s.cardStatements} 筆；金額加總 ${yen(s.cardStatementTotal)}`,
     `  帳戶 ${s.accounts}、分類 ${s.categories}、成員 ${s.members}`,
     `  財務文件：版本 ${s.documentVersion}，${s.months} 個月結（截止 ${s.cutoffMonth}），其中 ${s.monthsWithLegacyDifference} 個月有歷史總資產差異（原樣保留、未重算）`,
     `  開帳日 ${s.openingDate}，各帳戶開帳餘額：`,

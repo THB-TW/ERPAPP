@@ -6,6 +6,7 @@ import { assertAccountKnown, assertCategoryFlow, assertTransactionShape } from '
 import { parseImportedDocument, replaceDocument } from './financeDocument.ts';
 import { ACCOUNT_KINDS, DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES, type AccountKind, type Flow } from './defaults.ts';
 import { LedgerError } from './errors.ts';
+import { importLegacyCardStatements, type LegacyCardStatement } from './legacyCardStatements.ts';
 
 export interface LegacyImportData {
   /** 開帳日：某月 1 號。所有帶入的帳戶共用（舊帳在搬遷截止月的下個月 1 號開帳）。 */
@@ -22,6 +23,8 @@ export interface LegacyImportData {
     amount: number;
     member: string | null;
   }[];
+  /** 舊信用卡明細，原樣保留每列（含合法重複列）；必須明確指定所屬信用卡帳戶。 */
+  cardStatements?: LegacyCardStatement[];
   /** 舊系統格式的財務文件（JSON 字串），經與 importFinanceDocument 相同的驗證後原樣帶入。 */
   document: string;
 }
@@ -34,6 +37,8 @@ export interface LegacyImportResult {
   transactions: number;
   incomeTotal: number;
   expenseTotal: number;
+  cardStatements: number;
+  cardStatementTotal: number;
   months: number;
   monthsWithLegacyDifference: number;
 }
@@ -56,12 +61,12 @@ async function assertEmptyLedger(tx: Queryable): Promise<void> {
   const notEmpty = () => {
     throw new LedgerError('ledger_not_empty', '舊帳只能帶入全新的帳本：目前已有交易、財務文件或自訂的分類、帳戶、成員。');
   };
-  const counts = await tx.get<{ t: number; d: number; m: number; s: number; transfers: number }>(
+  const counts = await tx.get<{ t: number; d: number; m: number; s: number; transfers: number; cards: number }>(
     `SELECT (SELECT COUNT(*) FROM transactions) AS t, (SELECT COUNT(*) FROM finance_document) AS d,
             (SELECT COUNT(*) FROM members) AS m, (SELECT COUNT(*) FROM settings) AS s,
-            (SELECT COUNT(*) FROM transfers) AS transfers`,
+            (SELECT COUNT(*) FROM transfers) AS transfers, (SELECT COUNT(*) FROM card_statements) AS cards`,
   );
-  if (!counts || counts.t > 0 || counts.d > 0 || counts.m > 0 || counts.s > 0 || counts.transfers > 0) notEmpty();
+  if (!counts || counts.t > 0 || counts.d > 0 || counts.m > 0 || counts.s > 0 || counts.transfers > 0 || counts.cards > 0) notEmpty();
   const accounts = await tx.all<{ name: string; kind: string; opening_balance: number; active: number }>(
     'SELECT name, kind, opening_balance, active FROM accounts ORDER BY sort_order',
   );
@@ -132,6 +137,7 @@ export async function importLegacy(tx: Queryable, data: LegacyImportData): Promi
     );
   }
 
+  await importLegacyCardStatements(tx, data.cardStatements ?? []);
   await replaceDocument(tx, state);
 
   const sums = await tx.get<{ n: number; income: number; expense: number }>(
@@ -140,6 +146,7 @@ export async function importLegacy(tx: Queryable, data: LegacyImportData): Promi
             COALESCE(SUM(CASE WHEN flow = 'expense' THEN amount END), 0) AS expense
        FROM transactions`,
   );
+  const cards = await tx.get<{ n: number; total: number }>('SELECT COUNT(*) AS n, COALESCE(SUM(amount), 0) AS total FROM card_statements');
   return {
     version: state.version,
     accounts: data.accounts.length,
@@ -148,6 +155,8 @@ export async function importLegacy(tx: Queryable, data: LegacyImportData): Promi
     transactions: sums!.n,
     incomeTotal: sums!.income,
     expenseTotal: sums!.expense,
+    cardStatements: cards!.n,
+    cardStatementTotal: cards!.total,
     months: state.months.length,
     monthsWithLegacyDifference: state.months.filter((m) => m.legacyTotalDifference !== 0).length,
   };

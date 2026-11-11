@@ -19,8 +19,8 @@ test('虛構匯出轉換後比對：門檻全部 0 差異，歷史差異同額�
     assert.equal(outcome.passed, true, outcome.summary.join('\n'));
     assert.equal(outcome.thresholdDifferences, 0);
     const text = outcome.summary.join('\n');
-    assert.match(text, /結論：已比對範圍（逐月數字、交易）全部通過，0 差異/);
-    assert.match(text, /尚未涵蓋：信用卡明細（票 12）、投資（票 20）/);
+    assert.match(text, /結論：已比對範圍（逐月數字、交易、信用卡明細）全部通過，0 差異/);
+    assert.match(text, /尚未涵蓋：投資（票 20）/);
     assert.match(text, /4 個月/);
     assert.match(text, /歷史總資產差異：資產表推得 2 個月、來源財務文件 2 個月、App 2 個月有差異；每月同額：是；預期 2 個月（相符）/);
     assert.match(text, /來源 15 筆、App 15 筆/);
@@ -181,10 +181,10 @@ test('就算比對失敗，原帳本檔也不變，暫時副本也刪除', async
 test('摘要找不到虛構資料的金額與名稱（成功與失敗兩種情況）', async () => {
   const t = await setup();
   try {
-    const names = ['飲食', '薪資', '電話網路', '其他', '現金', '銀行', '信用卡', '小明', '寵物', '水費'];
+    const names = ['飲食', '薪資', '電話網路', '其他', '現金', '銀行', '小明', '寵物', '水費', '虛構店家'];
     const amounts = [8000, 9000, 9500, 10000, 800, 4700, 750, 400, 4800, 300, 5100, 700, 280, 60, 5000, 1000, 5500, 900, 11500, 14100, 17300, 2500, 2600, 3200, 420];
     const check = (lines: string[]) => {
-      // 固定文字「尚未涵蓋：信用卡明細…」裡的「信用卡」是功能名稱，不是帳戶名稱；其餘每一行都要檢查。
+      // 「信用卡明細」是功能名稱；其餘帳戶、分類、成員與店家名稱都不能出現。
       const text = lines.filter((l) => !l.startsWith('尚未涵蓋：')).join('\n');
       for (const n of names) assert.ok(!text.includes(n), `摘要含有名稱 ${n}`);
       const found = (text.match(NUMBERS) ?? []).map((x) => Number(x.replaceAll(',', '')));

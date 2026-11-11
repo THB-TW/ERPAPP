@@ -10,7 +10,7 @@ import { flowOf, parseDate, text } from '../legacy-convert/plan.ts';
 import { expectedPositions } from './expected.ts';
 import { CAP_COLUMN_IDS, LEGACY_RESERVE_IDS, type IndependentSources, type RawDocument } from './sources.ts';
 
-export type SourceKind = 'Property 資料表' | 'budget 資料表' | 'BudgetCap 資料表' | '來源財務文件' | '來源交易表';
+export type SourceKind = 'Property 資料表' | 'budget 資料表' | 'BudgetCap 資料表' | '來源財務文件' | '來源交易表' | '來源信用卡表';
 
 export interface Difference {
   /** 月份（YYYY-MM）、「財務文件」或「交易」。 */
@@ -31,7 +31,7 @@ export interface Difference {
 class Checker {
   readonly differences: Difference[] = [];
   readonly checks: Record<SourceKind, number> = {
-    'Property 資料表': 0, 'budget 資料表': 0, 'BudgetCap 資料表': 0, '來源財務文件': 0, '來源交易表': 0,
+    'Property 資料表': 0, 'budget 資料表': 0, 'BudgetCap 資料表': 0, '來源財務文件': 0, '來源交易表': 0, '來源信用卡表': 0,
   };
   eq(scope: string, kind: string, field: string, source: SourceKind, expected: string | number, actual: string | number, extra: { month?: string; note?: string } = {}): void {
     this.checks[source] += 1;

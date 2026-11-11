@@ -11,6 +11,8 @@ export interface BaselineIdentity {
   /** 所有資料表的總列數。 */
   totalRows: number;
   transactions: number;
+  /** 原樣搬入的信用卡明細筆數（基準 605 筆）。 */
+  cardStatements: number;
   /** 財務文件的月結月份數（清冊 validation.workspaceMonths，也要等於文件實際月數）。 */
   workspaceMonths: number;
   historicalAssetMismatches: number;
@@ -21,6 +23,7 @@ export const BASELINE_20261108: BaselineIdentity = {
   tables: 16,
   totalRows: 7823,
   transactions: 7033,
+  cardStatements: 605,
   workspaceMonths: 58,
   historicalAssetMismatches: 0,
 };
@@ -33,6 +36,7 @@ export function baselineDifferences(verified: VerifiedExport, legacy: LegacyData
     ['資料表張數', verified.tables.length, expected.tables],
     ['總列數', verified.tables.reduce((sum, t) => sum + t.rows.length, 0), expected.totalRows],
     ['交易筆數', legacy.transactions.length, expected.transactions],
+    ['信用卡明細筆數', legacy.cardStatements?.length ?? 0, expected.cardStatements],
     ['清冊記錄的月結月份數', validation.workspaceMonths, expected.workspaceMonths],
     ['財務文件實際月結月份數', legacy.months, expected.workspaceMonths],
     ['歷史資產差異月數', validation.historicalAssetMismatches, expected.historicalAssetMismatches],

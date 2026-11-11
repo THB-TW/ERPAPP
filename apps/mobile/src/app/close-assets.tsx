@@ -5,10 +5,13 @@ import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Platform, Pre
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { isValidDate } from '../calc/dates.ts';
 import type { AssetCheckPreview, AssetCheckRecord, AssetCheckRequest } from '../ledger/index.ts';
+import { CardStatementMismatchError, type CardReconciliation } from '../ledger/index.ts';
+import { CardStatementCheck } from '../ui/CardStatementCheck.tsx';
+import { cardStatementErrorMessage } from '../ui/cardStatementError.ts';
 import { hasMonthlyCloseEntitlement } from '../ui/closeEntitlement.ts';
 import { formatAmount, monthTitle } from '../ui/format.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
-import { CloseAmount, CloseButton, closeErrorMessage, closeStyles as styles } from '../ui/MonthlyCloseSummary.tsx';
+import { CloseAmount, CloseButton, closeStyles as styles } from '../ui/MonthlyCloseSummary.tsx';
 import { colors } from '../ui/theme.ts';
 
 function newOperationId(): string {
@@ -38,6 +41,7 @@ export default function CloseAssetsScreen() {
   const [busy, setBusy] = useState(false);
   const [completed, setCompleted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cardFailure, setCardFailure] = useState<CardReconciliation | null>(null);
   const [reload, setReload] = useState(0);
   const working = useRef(false);
   const confirming = useRef(false);
@@ -45,6 +49,12 @@ export default function CloseAssetsScreen() {
   const checkOperation = useRef(newOperationId());
   const closeOperation = useRef(newOperationId());
   const loadSequence = useRef(0);
+
+  function failed(error: unknown) {
+    setError(cardStatementErrorMessage(error));
+    setCardFailure(error instanceof CardStatementMismatchError ? error.reconciliation : null);
+    if (error instanceof CardStatementMismatchError) { setPreview(null); setSaved(null); }
+  }
 
   function show(value: AssetCheckPreview) {
     setPreview(value);
@@ -59,11 +69,12 @@ export default function CloseAssetsScreen() {
     const sequence = ++loadSequence.current;
     setLoading(true);
     setError(null);
+    setCardFailure(null);
     setSaved(null);
     ledger.previewAssetCheck({ month, hasEntitlement: hasMonthlyCloseEntitlement() }).then((value) => {
       if (sequence === loadSequence.current) { show(value); setLoading(false); }
     }, (e: unknown) => {
-      if (sequence === loadSequence.current) { setError(closeErrorMessage(e)); setLoading(false); setPreview(null); }
+      if (sequence === loadSequence.current) { failed(e); setLoading(false); setPreview(null); }
     });
     return () => { loadSequence.current++; };
   }, [ledger, month, reload]));
@@ -90,7 +101,7 @@ export default function CloseAssetsScreen() {
       const result = await ledger.previewAssetCheck({ month, asOf: value, hasEntitlement: hasMonthlyCloseEntitlement() });
       if (sequence === loadSequence.current) show(result);
     } catch (e) {
-      if (sequence === loadSequence.current) setError(closeErrorMessage(e));
+      if (sequence === loadSequence.current) failed(e);
     } finally {
       working.current = false;
       setBusy(false);
@@ -133,7 +144,7 @@ export default function CloseAssetsScreen() {
       setSaved(record);
       closeOperation.current = newOperationId();
     } catch (e) {
-      setError(closeErrorMessage(e));
+      failed(e);
     } finally {
       working.current = false;
       setBusy(false);
@@ -155,7 +166,7 @@ export default function CloseAssetsScreen() {
       Alert.alert('月結完成', '請記得匯出備份，保存這次月結。');
     } catch (e) {
       setSaved(null);
-      setError(closeErrorMessage(e));
+      failed(e);
     } finally {
       working.current = false;
       setBusy(false);
@@ -180,6 +191,10 @@ export default function CloseAssetsScreen() {
         <Text style={styles.title}>{month ? monthTitle(month) : '月結'}{completed ? '已完成' : '總資產核對'}</Text>
         {loading ? <ActivityIndicator accessibilityLabel="讀取總資產核對中" /> : null}
         {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
+        {cardFailure ? <>
+          <CardStatementCheck result={cardFailure} />
+          <CloseButton title="回信用卡帳單匯入與核對" onPress={() => router.push({ pathname: '/close-card-statement', params: { month } })} />
+        </> : null}
         {completed ? <>
           <Text style={styles.note}>本月已鎖定。請匯出一份備份，保存這次月結。</Text>
           <CloseButton title="匯出備份" onPress={() => router.push('/settings-backup')} />

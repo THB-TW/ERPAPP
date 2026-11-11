@@ -41,10 +41,10 @@ export default function MonthlyCloseScreen() {
         </View>
         <View style={styles.card}>
           <Text style={styles.heading}>② 信用卡帳單核對</Text>
-          <Text style={styles.note}>信用卡核對尚未開放，目前會略過此步驟。</Text>
+          <Text style={styles.note}>選擇信用卡並匯入帳單，核對同日同額的筆數。沒有信用卡可在下一頁略過。</Text>
         </View>
         {!draft.canClose ? <Text style={styles.note}>這個月還沒結束，要等下個月才能月結。</Text> : null}
-        <CloseButton title="進入計算預覽" disabled={!draft.canClose} onPress={() => router.push({ pathname: '/close-calculation', params: { month: draft.month } })} />
+        <CloseButton title="進入信用卡帳單核對" disabled={!draft.canClose} onPress={() => router.push({ pathname: '/close-card-statement', params: { month: draft.month } })} />
       </> : null}
       <Pressable accessibilityRole="button" onPress={() => router.push('/close-history')}><Text style={styles.link}>查看歷史月結 ›</Text></Pressable>
     </ClosePage>

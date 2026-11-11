@@ -1,6 +1,7 @@
 // 報告與摘要的文字。完整報告含金額與名稱，只能寫到私人位置；摘要只有計數與結論，不含任何金額、分類名稱、帳戶名稱。
 import { thousands } from '../common.ts';
 import type { BudgetComparison, Difference, TransactionComparison } from './compare.ts';
+import type { CardStatementComparison } from './cardStatements.ts';
 import { NOT_RECOMPUTABLE_TEXT, type NotRecomputableCode, type RecomputeMonth } from './recompute.ts';
 
 export interface ReportContext {
@@ -13,6 +14,7 @@ export interface ReportContext {
   ledgerSha256: string;
   budget: BudgetComparison;
   transactions: TransactionComparison;
+  cardStatements: CardStatementComparison;
   /** 重算結果；重算本身出錯時是 { error }。 */
   recompute: { months: RecomputeMonth[] } | { error: string };
 }
@@ -21,14 +23,14 @@ const yen = thousands;
 const count = (n: number) => thousands(n);
 
 /** 結論行（摘要與完整報告共用）：只說「已比對範圍」，不說整個搬遷都通過。 */
-const PASS_TEXT = '已比對範圍（逐月數字、交易）全部通過，0 差異';
-const NOT_COVERED_TEXT = '尚未涵蓋：信用卡明細（票 12）、投資（票 20）';
+const PASS_TEXT = '已比對範圍（逐月數字、交易、信用卡明細）全部通過，0 差異';
+const NOT_COVERED_TEXT = '尚未涵蓋：投資（票 20）';
 /** 摘要檔只放這一句（摘要檔不放操作指示）；完整報告再加上怎麼處理。 */
 const NOT_SAME_EXPORT_TEXT = '帳本檔可能不是由這份匯出轉出：月份清單與來源不同。';
 const NOT_SAME_EXPORT_ADVICE = '請確認用的是轉換時同一份匯出，並加 --manifest-sha256（用轉換摘要印出的值）。';
 
 export function thresholdDifferences(ctx: ReportContext): Difference[] {
-  return [...ctx.budget.differences, ...ctx.transactions.differences];
+  return [...ctx.budget.differences, ...ctx.transactions.differences, ...ctx.cardStatements.differences];
 }
 
 function legacyDifferenceVerdict(b: BudgetComparison) {
@@ -77,6 +79,7 @@ export function buildSummary(ctx: ReportContext): string[] {
     `  舊系統獨立資料表涵蓋：資產表 ${count(b.coverage.propertyMonths)} 個月；預算表逐月列 ${count(b.coverage.budgetRowMonths)} 個月；預算表累計列${b.coverage.cumulativeRowChecked ? '已比對' : '未比對'}；上限表 ${count(b.coverage.capRowMonths)} 個月`,
     `  歷史總資產差異：資產表推得 ${count(v.property)} 個月、來源財務文件 ${count(v.document)} 個月、App ${count(v.ledger)} 個月有差異；每月同額：${v.sameAmount ? '是' : '否'}；預期 ${count(b.legacyDifferenceMonthCount.expected)} 個月（${b.legacyDifferenceMonthCount.expected === b.legacyDifferenceMonthCount.actual ? '相符' : '不符，列入差異'}）`,
     `二、交易：來源 ${count(t.sourceCount)} 筆、App ${count(t.appCount)} 筆（涵蓋 ${count(t.months)} 個月）；筆數與金額加總（總計、收入、支出、分月、分類、帳戶、逐筆）${t.differences.length === 0 ? '相同' : `有 ${count(t.differences.length)} 項差異`}`,
+    `  信用卡明細：來源 ${count(ctx.cardStatements.sourceCount)} 筆、App ${count(ctx.cardStatements.appCount)} 筆；筆數與金額加總${ctx.cardStatements.differences.length === 0 ? '相同' : `有 ${count(ctx.cardStatements.differences.length)} 項差異`}`,
   ];
   if ('error' in ctx.recompute) {
     lines.push('三、重算報告（僅供參考，不影響結論）：重算過程發生錯誤，沒有結果（詳見完整報告）');
@@ -113,6 +116,7 @@ const SOURCE_NOTES: [string, string, string][] = [
   ['上限快照', 'dbo.BudgetCap（只有該月有自己的一列、且該月是舊帳原樣帶入的月份〔Migrated〕時）', '來源財務文件 Months[].Revision（所有月份）'],
   ['財務文件整份', '—', '帳本服務讀回的整份財務文件（含根層上限版本、調整、核對紀錄、各月儲備變動）與來源文件逐項相同'],
   ['交易', '—（舊系統沒有交易的獨立副本）', '來源匯出 dbo.Transactions（筆數與金額）'],
+  ['信用卡明細', '—（舊表沒有卡識別，不能證明卡歸屬）', '來源匯出 dbo.creditcard（筆數、金額加總、日期／店家／金額多重集合）'],
 ];
 
 const cumulativeText = (n: number | null) => (n === null ? '無' : yen(n));
@@ -144,7 +148,7 @@ export function buildReport(ctx: ReportContext): string {
     '',
     '## 結論',
     '',
-    diffs.length === 0 ? `**${PASS_TEXT}。**` : `**門檻項目未通過：共 ${count(diffs.length)} 項差異**（逐月 ${count(b.differences.length)} 項、交易 ${count(t.differences.length)} 項），見下方差異清單。`,
+    diffs.length === 0 ? `**${PASS_TEXT}。**` : `**門檻項目未通過：共 ${count(diffs.length)} 項差異**（逐月 ${count(b.differences.length)} 項、交易 ${count(t.differences.length)} 項、信用卡明細 ${count(ctx.cardStatements.differences.length)} 項），見下方差異清單。`,
     '',
     NOT_COVERED_TEXT,
     '',
@@ -200,6 +204,17 @@ export function buildReport(ctx: ReportContext): string {
     ...differenceTable(t.differences),
     '',
     `依分類比對時，從「X（收入）」併回 X 的分類名稱（來源把 X 當支出分類用、App 這邊是收入）：${t.mergedNames.length === 0 ? '無' : t.mergedNames.join('、')}`,
+    '',
+    '### 信用卡明細比對',
+    '',
+    ...table(['欄位', '來源值', 'App 值'], [
+      ['信用卡明細總筆數', count(ctx.cardStatements.sourceCount), count(ctx.cardStatements.appCount)],
+      ['信用卡明細金額加總', yen(ctx.cardStatements.sourceSum), yen(ctx.cardStatements.appSum)],
+    ]),
+    '',
+    '舊 dbo.creditcard 沒有卡識別；此處只比對來源能證明的日期、店家、金額與數量。轉換時所選卡帳戶另經輸出檔讀回驗證；混合多卡的舊表需先人工確認歸屬。',
+    '',
+    ...differenceTable(ctx.cardStatements.differences),
     '',
     '## 三、重算報告（僅供參考，不影響成功或失敗）',
     '',

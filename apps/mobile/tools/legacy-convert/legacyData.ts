@@ -1,5 +1,5 @@
-// 從已驗證的匯出讀出「要搬的五樣東西」：交易、分類、帳戶、成員、財務文件（含核對紀錄）。
-// 這裡只讀出原始值，不判斷對錯；判斷在 plan.ts。員工、密碼、權限、信用卡明細、投資等其他資料表不讀。
+// 從已驗證的匯出讀出交易、信用卡明細、分類、帳戶、成員、財務文件（含核對紀錄）。
+// 這裡只讀出原始值，不判斷對錯；員工、密碼、權限、投資等其他資料表不讀。
 import type { ExportTable, ExportValue, VerifiedExport } from '../../../../tools/lib/verify-export.mjs';
 
 export class LegacyExportError extends Error {
@@ -30,11 +30,15 @@ export interface RawNamed {
   balance?: ExportValue;
 }
 
+/** 舊表沒有卡識別；轉換時必須明確決定整張舊表的所屬信用卡帳戶。 */
+export interface RawCardStatement { row: number; date: ExportValue; merchant: ExportValue; amount: ExportValue }
+
 /** 財務文件中的總資產核對紀錄（舊格式 PascalCase，原樣）。 */
 export type RawCheck = Record<string, unknown>;
 
 export interface LegacyData {
   transactions: RawTransaction[];
+  cardStatements?: RawCardStatement[];
   categories: RawNamed[];
   accounts: RawNamed[];
   members: RawNamed[];
@@ -95,6 +99,12 @@ export function readLegacyExport(verified: VerifiedExport): LegacyData {
   const categories = named(findTable(verified, ['Categories', 'Category'], '分類'), 'CategoryId', 'CategoryName', 'Type');
   const accounts = named(findTable(verified, ['Accounts', 'Account'], '帳戶'), 'AccountId', 'AccountName', undefined, 'Balance');
   const members = named(findTable(verified, ['Members', 'Member'], '成員'), 'MemberId', 'MemberName');
+  const cardTable = findTable(verified, ['creditcard'], '信用卡明細');
+  const cc = resolver(cardTable);
+  const [cardDate, cardMerchant, cardAmount] = ['Date', 'Item', 'Amount'].map(cc);
+  const cardStatements = cardTable.rows.map((row, i): RawCardStatement => ({
+    row: i + 1, date: row[cardDate], merchant: row[cardMerchant], amount: row[cardAmount],
+  }));
 
   const workspace = findTable(verified, ['FinanceWorkspace'], '財務文件');
   if (workspace.rows.length !== 1) throw new LegacyExportError('財務文件資料表必須剛好一列。');
@@ -117,7 +127,7 @@ export function readLegacyExport(verified: VerifiedExport): LegacyData {
   if (months.some((m) => typeof m !== 'object' || m === null)) throw new LegacyExportError('財務文件的月結清單含有不是物件的項目。');
   const monthNames = (months as { Month?: unknown }[]).map((m) => m.Month).filter((m): m is string => typeof m === 'string').sort();
   return {
-    transactions, categories, accounts, members, document,
+    transactions, cardStatements, categories, accounts, members, document,
     cutoffMonth: monthNames.length ? monthNames[monthNames.length - 1] : null,
     months: months.length,
     checks: Array.isArray(doc.Checks) ? (doc.Checks as unknown[]).filter((c): c is RawCheck => typeof c === 'object' && c !== null) : [],
