@@ -23,7 +23,7 @@
 
 ## 建置開關：沒有內購的版本
 
-- `EXPO_PUBLIC_IAP=off`：不接內購（免費 Apple ID 自簽裝機用，因為這種簽章不能帶內購能力），狀態是 `dev_unlocked`：進階功能全開，設定頁與月結頁標示「開發版・未接內購」。這不綁任何 Apple ID；自簽版本也無法散布。（2026-11-11 待翰陞確認；若改成「當作免費版」，把 `appSubscription.ts` 的 `devUnlocked` 改成 `false`。）
+- `EXPO_PUBLIC_IAP=off`：不接內購（免費 Apple ID 自簽裝機用，因為這種簽章不能帶內購能力），狀態是 `dev_unlocked`：進階功能全開，設定頁與月結頁標示「開發版・未接內購」。這不綁任何 Apple ID；自簽版本也無法散布。（2026-11-11 翰陞定案：開發版付費功能全開。）
 - **必須明確設定才會全開**。沒設定而內購又不可用（例如還沒有轉接層、原生模組載入失敗）時一律當作免費版，付費功能鎖住，不會誤送給所有人。
 - 目前還沒有 StoreKit 轉接層，所以現在跑模擬器或裝機要驗收月結等功能，請加上 `EXPO_PUBLIC_IAP=off`，例如 `EXPO_PUBLIC_IAP=off npx expo run:ios`。不加就會看到免費版（可用來驗收付費牆）。
 - 上架前檢查：正式建置（之後的 EAS production 設定）**不得**設定 `EXPO_PUBLIC_IAP=off`（`subscription.test.ts` 會檢查 eas.json），且必須有 StoreKit 轉接層；設定頁不應出現黃色開發版標示。
