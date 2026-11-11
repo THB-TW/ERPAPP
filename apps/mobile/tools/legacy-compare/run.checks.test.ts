@@ -482,10 +482,10 @@ test('不是 App 帳本檔的輸入（空檔、沒有帳本資料表的 SQLite�
   } finally { t.cleanup(); }
 });
 
-test('帳本之後多了表與 application_id（例如備份功能的 ledger_meta）：不影響比對', async () => {
+test('帳本之後多了表、application_id 改變（之後的遷移）：不影響比對', async () => {
   const t = await setup();
   try {
-    await t.tamper('CREATE TABLE ledger_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
+    await t.tamper('CREATE TABLE some_future_table (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
     await t.tamper('PRAGMA application_id = 1234');
     const outcome = await t.run();
     assert.equal(outcome.passed, true, outcome.summary.join('\n'));
