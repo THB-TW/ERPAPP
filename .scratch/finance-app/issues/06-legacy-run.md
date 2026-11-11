@@ -4,7 +4,7 @@
 
 **Blocked by:** 05 58 個月比對工具與報告
 
-**Status:** ready-for-human
+**Status:** done（2026-11-11）
 
 **Owner:** `legacy-migration`（見 `docs/agents/team.md`）　**Spec:** [規格](../../finance-product/spec.md)
 
@@ -23,3 +23,5 @@
 - 比對通過、0 差異：摘要在 `docs/legacy-acceptance/2026-11-11-imported-58-months.md`。
 - **還缺**：現金、銀行、信用卡在 2026-10 月底的餘額（財務文件沒有可用的核對紀錄）。拿到後重新轉換出正式帳本檔，再交給票 17。
 - 提醒並行期：2026-11 的支出分類有 1 個尚未歸屬到預算類別，App 第一次月結前要先歸屬（舊系統也是同樣規則）。
+
+2026-11-11 結案：翰陞提供 2026-10 月底現金、銀行餘額，信用卡確認為 0（10 月卡費已扣繳）。用 xdtlp5 c76385f 重新轉換並比對，通過、0 差異。正式帳本檔 SHA-256 `bf224155…f06d5f`，放在專案私人檔案區 `legacy-ledger/ledger-20261111.sqlite`，含金額的完整報告在同一處；票 17 用這個檔匯入 iPhone。雲端工作環境的備份檔與匯出已刪除，之後有 PR 改到預算引擎或月結而要重跑比對時，需請翰陞再上傳原生備份檔（做法記在 `docs/cloudflare/baseline.md` 末段）。
