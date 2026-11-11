@@ -308,3 +308,15 @@ test('非零舊月結與歷史差異在轉帳及帳戶設定後完全相同', as
   assert.equal((await ledger.listTransactions('0001-01-01', '9999-12-31')).length, transactions.length);
   assert.equal(await ledger.getMonthIncome('2026-11'), 0);
 });
+
+test('轉帳資料表本身也擋格式不對的日期（和交易資料表一致），不只靠帳本服務檢查', async () => {
+  const db = openNodeDatabase(':memory:');
+  const ledger = await openLedger(db);
+  const [from, to] = await ledger.listAccounts();
+  const insert = (date: string) =>
+    db.run('INSERT INTO transfers (date, from_account_id, to_account_id, amount) VALUES (?, ?, ?, ?)', [date, from.id, to.id, 100]);
+  await assert.rejects(insert('2026/10/05'));
+  await assert.rejects(insert('2026-10-5'));
+  await insert('2026-10-05');
+  assert.equal((await ledger.listTransfers('2026-10-05', '2026-10-05')).length, 1);
+});

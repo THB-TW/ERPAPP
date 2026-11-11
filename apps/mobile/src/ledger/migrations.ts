@@ -106,7 +106,7 @@ export const ledgerMigrations: readonly Migration[] = [
         ALTER TABLE accounts ADD COLUMN active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1));
         CREATE TABLE transfers (
           id INTEGER PRIMARY KEY,
-          date TEXT NOT NULL,
+          date TEXT NOT NULL CHECK (date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
           from_account_id INTEGER NOT NULL REFERENCES accounts(id),
           to_account_id INTEGER NOT NULL REFERENCES accounts(id),
           amount INTEGER NOT NULL CHECK (amount > 0),
