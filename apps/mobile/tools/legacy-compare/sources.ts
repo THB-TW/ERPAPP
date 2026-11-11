@@ -20,6 +20,8 @@ export interface IndependentSources {
   budgetSurplus: Map<string, number>;
   /** dbo.budget 的 1911-01-01 列：目前累計儲備（十個舊類別）；沒有此列為 null。 */
   cumulative: Map<string, number> | null;
+  /** 1911-01-01 列的 total 欄（舊網站同步時寫入最近月份的總儲備金）；沒有累計列或該欄為空為 null。 */
+  cumulativeTotal: number | null;
   /** dbo.BudgetCap：月份 → { 十二個上限欄位, tuition }。 */
   caps: Map<string, { limits: Map<string, number>; tuition: number }>;
 }
@@ -58,12 +60,14 @@ export function readIndependentSources(verified: VerifiedExport): IndependentSou
   const bc = resolver(budgetTable);
   const budgetSurplus = new Map<string, number>();
   let cumulative: Map<string, number> | null = null;
+  let cumulativeTotal: number | null = null;
   for (const row of budgetTable.rows) {
     const { month, day } = monthOfDate(row[bc('date')], 'dbo.budget');
     const dateText = `${month}-${day}`;
     if (dateText === '1911-01-01') {
       if (cumulative) throw new LegacyExportError('dbo.budget 的 1911-01-01（累計儲備）列有重複。');
       cumulative = new Map(LEGACY_RESERVE_IDS.map((id) => [id, intOf(row[bc(id)], `dbo.budget 累計列的 ${id}`, 0)]));
+      cumulativeTotal = row[bc('total')] === null ? null : intOf(row[bc('total')], 'dbo.budget 累計列的 total');
       continue;
     }
     if (budgetSurplus.has(month)) throw new LegacyExportError(`dbo.budget 的 ${month} 有重複的列。`);
@@ -82,7 +86,7 @@ export function readIndependentSources(verified: VerifiedExport): IndependentSou
       tuition: intOf(row[cc('tuition')], `dbo.BudgetCap ${month} 的 tuition`),
     });
   }
-  return { property, budgetSurplus, cumulative, caps };
+  return { property, budgetSurplus, cumulative, cumulativeTotal, caps };
 }
 
 // ---- 財務文件原始 JSON ----

@@ -98,4 +98,23 @@ export const ledgerMigrations: readonly Migration[] = [
       await tx.exec(`PRAGMA application_id = ${BACKUP_APPLICATION_ID}`);
     },
   },
+  {
+    // 票 08 預先分配 v5；v4 可稍後補入，由遷移器逐版記錄，不能只看最高版本跳過。
+    version: 5,
+    async up(tx) {
+      await tx.exec(`
+        ALTER TABLE accounts ADD COLUMN active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1));
+        CREATE TABLE transfers (
+          id INTEGER PRIMARY KEY,
+          date TEXT NOT NULL CHECK (date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+          from_account_id INTEGER NOT NULL REFERENCES accounts(id),
+          to_account_id INTEGER NOT NULL REFERENCES accounts(id),
+          amount INTEGER NOT NULL CHECK (amount > 0),
+          note TEXT NOT NULL DEFAULT '',
+          CHECK (from_account_id <> to_account_id)
+        );
+        CREATE INDEX transfers_by_date ON transfers(date);
+      `);
+    },
+  },
 ];

@@ -296,3 +296,55 @@ test('CSV 整合備份：只有實際新增更新帳本修改時間，匯出、�
   assert.equal((await ledger.getBackupStatus()).lastModifiedAt, '2026-11-11T03:00:00.000Z');
   assert.equal((await all(ledger)).length, 2);
 });
+
+test('CSV 停用帳戶視為無效選填，改用使用中的現金帳戶，不使整份匯入失敗', async (t) => {
+  const ledger = await fresh(t);
+  const cash = (await ledger.listAccounts()).find((a) => a.kind === 'cash')!;
+  const bank = (await ledger.listAccounts()).find((a) => a.kind === 'bank')!;
+  const spare = await ledger.addAccount({ name: '備用現金', kind: 'cash', openingBalance: 500 });
+  await ledger.updateAccount(cash.id, { active: false });
+  await ledger.updateAccount(bank.id, { active: false });
+  const result = await ledger.importTransactionsCsv('日期,類別,金額,帳戶\n2026-11-01,飲食,80,銀行\n2026-11-02,飲食,90,');
+  assert.deepEqual([result.addedRows, result.rejectedRows, result.defaultedRows], [2, 0, 2]);
+  assert.ok(result.defaults.every((row) => row.fields.includes('帳戶')));
+  assert.deepEqual((await all(ledger)).map((row) => row.accountName), ['備用現金', '備用現金']);
+  const balances = await ledger.listAccountBalances();
+  assert.equal(balances.find((a) => a.id === spare.id)!.balance, 330);
+  assert.deepEqual(balances.filter((a) => a.id === cash.id || a.id === bank.id).map((a) => [a.active, a.balance]), [[false, 0], [false, 0]]);
+});
+
+test('CSV 所有現金帳戶皆停用時延遲補建使用中現金，不啟用舊帳戶、不為略過或拒收建帳戶', async (t) => {
+  const ledger = await fresh(t);
+  const accounts = await ledger.listAccounts();
+  const cash = accounts.find((a) => a.kind === 'cash')!;
+  const bank = accounts.find((a) => a.kind === 'bank')!;
+  const category = (await ledger.listCategories()).find((c) => c.name === '飲食')!;
+  await ledger.addTransaction({ date: '2026-11-01', categoryId: category.id, accountId: bank.id, flow: 'expense', amount: 80 });
+  await ledger.updateAccount(cash.id, { active: false });
+  const before = await ledger.listAccounts();
+  assert.equal((await ledger.importTransactionsCsv('日期,類別,金額\n2026-11-01,飲食,80')).skippedRows, 1);
+  assert.equal((await ledger.importTransactionsCsv('類別,金額\n未知,10')).rejectedRows, 1);
+  assert.deepEqual(await ledger.listAccounts(), before);
+  assert.equal((await ledger.importTransactionsCsv('日期,類別,金額\n2026-11-02,飲食,90')).addedRows, 1);
+  assert.deepEqual((await ledger.listAccounts()).filter((a) => a.kind === 'cash').map((a) => [a.name, a.active]), [['現金', false], ['現金（2）', true]]);
+  assert.equal((await all(ledger))[1].accountName, '現金（2）');
+});
+
+test('CSV 與帳戶轉帳整合：開帳前交易不計餘額，轉帳不進 CSV，回匯不改兩端餘額', async (t) => {
+  const ledger = await fresh(t);
+  await ledger.importLegacyLedger({ openingDate: '2026-11-01',
+    accounts: [{ name: '現金', kind: 'cash', openingBalance: 1000 }, { name: '銀行', kind: 'bank', openingBalance: 2000 }],
+    categories: [{ name: '飲食', flow: 'expense' }, { name: '薪資', flow: 'income' }], members: [], transactions: [],
+    document: serializeBudgetDocument(emptyBudgetState()) });
+  const result = await ledger.importTransactionsCsv('日期,類別,金額,帳戶,收支別\n2026-10-31,飲食,300,現金,支出\n2026-11-01,飲食,100,現金,支出\n2026-11-01,薪資,200,銀行,收入');
+  assert.equal(result.addedRows, 3);
+  const [cash, bank] = await ledger.listAccounts();
+  await ledger.addTransfer({ date: '2026-11-02', fromAccountId: cash.id, toAccountId: bank.id, amount: 150, note: '虛構轉帳' });
+  const balances = await ledger.listAccountBalances();
+  assert.deepEqual(balances.map((a) => a.balance), [750, 2350]);
+  const exported = await ledger.exportTransactionsCsv();
+  const imported = await ledger.importTransactionsCsv(exported);
+  assert.deepEqual([imported.totalRows, imported.addedRows, imported.skippedRows], [3, 0, 3]);
+  assert.deepEqual(await ledger.listAccountBalances(), balances);
+  assert.equal((await ledger.listTransfers('2026-11-01', '2026-11-30')).length, 1);
+});

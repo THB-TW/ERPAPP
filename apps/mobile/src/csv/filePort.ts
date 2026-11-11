@@ -1,5 +1,6 @@
 import { uuid } from 'expo';
 import { getDocumentAsync } from 'expo-document-picker';
+// iPhone 的任意檔案位元組讀寫需要正式宣告 expo-file-system 依賴；不使用巢狀套件路徑別名。
 import { Directory, File, Paths } from 'expo-file-system';
 import { isAvailableAsync, shareAsync } from 'expo-sharing';
 

@@ -59,14 +59,15 @@ export async function importTransactionsCsv(tx: Queryable, input: string | Uint8
   const legacy12 = header.length === 12 && LEGACY_HEADER.every((name, index) => header[index] === name || (index === 9 && ['收支', '收支別'].includes(header[index])));
   const [categories, accounts, members] = await Promise.all([
     tx.all<{ id: number; name: string; flow: Flow }>('SELECT id, name, flow FROM categories'),
-    tx.all<{ id: number; name: string; kind: string }>('SELECT id, name, kind FROM accounts ORDER BY sort_order, id'),
+    tx.all<{ id: number; name: string; kind: string; active: number }>('SELECT id, name, kind, active FROM accounts ORDER BY sort_order, id'),
     tx.all<{ id: number; name: string }>('SELECT id, name FROM members'),
   ]);
   // SQLite 名稱允許大小寫或前後空白不同的兩筆；優先原字串精確比對，避免改變交易歸屬。
   const categoryMap = new Map(categories.map((item) => [item.name, item]));
   const accountMap = new Map(accounts.map((item) => [item.name, item]));
   const memberMap = new Map(members.map((item) => [item.name, item]));
-  let cash = accounts.find((item) => item.kind === 'cash' && item.name === '現金') ?? accounts.find((item) => item.kind === 'cash');
+  let cash = accounts.find((item) => item.active === 1 && item.kind === 'cash' && item.name === '現金')
+    ?? accounts.find((item) => item.active === 1 && item.kind === 'cash');
   const result: CsvImportResult = { totalRows: records.length, addedRows: 0, skippedRows: 0, rejectedRows: 0, defaultedRows: 0, unknownCategories: [], rejections: [], defaults: [] };
   const valid: NewTransaction[] = [];
   for (const record of records) {
@@ -84,7 +85,8 @@ export async function importTransactionsCsv(tx: Queryable, input: string | Uint8
     const useDefault = (field: Field) => { fields.push(field); };
     const parsedDate = csvDate(trim('日期'));
     if (!parsedDate) useDefault('日期');
-    const account = named(accountMap, '帳戶');
+    const matchedAccount = named(accountMap, '帳戶');
+    const account = matchedAccount?.active === 1 ? matchedAccount : undefined;
     if (!account) useDefault('帳戶');
     const flowText = trim('收支別');
     const flow = ['收', '收入', 'income'].includes(flowText) ? 'income' : ['支', '支出', 'expense'].includes(flowText) ? 'expense' : null;
@@ -127,7 +129,7 @@ export async function importTransactionsCsv(tx: Queryable, input: string | Uint8
       return new Map(rows.map((row) => [dedupKey(row.date, row.categoryId, row.amount), row.count]));
     },
     async write(row) {
-      // 帳戶欄是選填：舊帳若完全沒有現金帳戶，在確定要新增時才補建零開帳餘額的現金帳戶。
+      // 帳戶欄是選填：若沒有使用中的現金帳戶，在確定要新增時才補建零開帳餘額的現金帳戶。
       // 不能為整份拒收或重複略過的檔案新增帳戶，也不覆寫現有同名的其他種類帳戶。
       if (row.accountId === 0) {
         if (!cash) {
@@ -135,7 +137,7 @@ export async function importTransactionsCsv(tx: Queryable, input: string | Uint8
           for (let suffix = 2; accountMap.has(name); suffix++) name = `現金（${suffix}）`;
           const last = await tx.get<{ top: number | null }>('SELECT MAX(sort_order) AS top FROM accounts');
           const added = await tx.run("INSERT INTO accounts (name, kind, sort_order, opening_balance) VALUES (?, 'cash', ?, 0)", [name, (last?.top ?? -1) + 1]);
-          cash = { id: added.lastInsertRowId, name, kind: 'cash' };
+          cash = { id: added.lastInsertRowId, name, kind: 'cash', active: 1 };
         }
         await insertTransaction(tx, { ...row, accountId: cash.id });
       } else {

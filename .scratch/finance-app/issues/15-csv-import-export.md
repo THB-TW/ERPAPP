@@ -4,7 +4,7 @@
 
 **Blocked by:** 07 記帳畫面
 
-**Status:** done（2026-11-11；CSV 原生選檔與分享已接線，iPhone 實機待驗收）
+**Status:** done（2026-11-11 帳務與接線完成；原生 CSV 尚待正式加入 expo-file-system 依賴及 iPhone 驗收）
 
 **Owner:** `import-export-backup`（見 `docs/agents/team.md`）　**Spec:** [規格](../../finance-product/spec.md)
 
@@ -58,3 +58,13 @@
 - `src/app/csv-import.tsx` 已移除尚未支援文案並顯示原生讀檔／分享錯誤的繁中訊息，貼上 CSV 備援保留；沒有改 _layout 或本票禁改檔。
 - 本輪最終 `npm test`：210 個，209 通過、1 個已知 legacy-compare macOS `/var`／`/private/var` 路徑別名失敗（未改該測試）；其中 CSV 測試 21／21 通過。`npm run typecheck` 通過；iOS `expo export` 成功。沒有 lint script／ESLint，未自行補裝。legacy-migration 最終交叉審核通過，另重跑 CSV／備份／交易／預算共 58／58 通過，未改月結計算或舊帳基準。所有測試僅合成資料；未讀私人帳本或 CSV。
 - 實機待驗收：依上方更新後第 7、8 步驗選檔／取消、UTF-8／Big5、系統分享存檔／AirDrop／取消、再次匯入及暫存清理；原生選檔與分享尚未在 iPhone 上實測。
+
+
+2026-11-11 再次整合票 08／05 與修正依賴處理（以下取代前述 tsconfig paths 方案及當時的型別／打包結論）：
+- 解決設定與帳本入口的所有內容衝突。設定 ROWS 保留「匯入 CSV」、「帳戶管理與餘額」→ /accounts、「備份與還原」三列；Ledger 同時繼承 AccountsLedger、TransfersLedger 並保留 CSV 方法，return 同時保留兩個 commands、CSV、備份與報表接線，CSV 仍透過追蹤修改時間的 db.transaction。未執行任何 Git 暫存／提交／合併控制指令；Git index 的 UU 留待使用者處理。
+- 保留票 08 的 v5（帳戶啟用狀態與轉帳），沒有新增遷移，不需要 v6。票 05 比對工具及新的 schema_migrations／transfers 資料表清單保持合併版本。
+- TDD 修正一項實際整合缺陷：新版交易禁止新增到停用帳戶，但原 CSV 未讀 active，造成整份匯入回滾。先新增測試重現 2 個失敗，再修成停用帳戶視為無效選填而套用使用中的現金帳戶；沒有使用中的現金時才延遲補建，不啟用／覆寫舊帳戶，略過與拒收不補建。規格畫面同步說明。另加開帳日前交易不計餘額、轉帳不進七欄收支 CSV、回匯不改餘額的整合回歸（假資料餘額 750／2350）。CSV 最終 24／24 通過，legacy-migration 交叉確認未見月結安全回歸。
+- 已完全移除 tsconfig.json 的 expo-file-system paths。查核已宣告套件的公開 SDK 58 型別與原生實作：expo-sqlite 的序列化／備份只能產生 SQLite 檔，未提供任意檔案 readfile／writefile；DocumentPicker 在 iPhone 只交付快取檔 URI，file／base64 只限 Web；Sharing 只分享已存在檔案。故無法用備份的 VACUUM INTO 流程建立合法 CSV，亦不使用 SQLite shell 擴充或私有原生 API。
+- 依使用者指定備案，filePort.ts 保留 `import { Directory, File, Paths } from 'expo-file-system'` 公開 API 及既有快取副本／分享／清理行為，加入正式依賴說明，不再依賴巢狀套件路徑。需要由修鎖檔的分支把 `"expo-file-system": "~58.0.13"` 正式加入 package.json 並更新 package-lock.json，之後安裝依賴再重跑型別及 iOS 打包。本輪未修改這兩個套件檔，也未建立別名、symlink、ambient 宣告或隱藏錯誤的處理。
+- 本輪 `npm test`：334 個，333 通過、1 個已知 `tools/legacy-compare/run.test.ts` macOS `/var` 與 `/private/var` 路徑別名失敗，未改該測試。`npm run typecheck` 實際執行結果未通過，唯一錯誤為 `src/csv/filePort.ts(4,40): TS2307 Cannot find module 'expo-file-system'`；正式依賴補齊前不能宣稱型別或原生打包通過。`git diff --check` 通過；本輪沒有跑會補裝套件的 lint，也沒有讀私人帳本或 CSV。
+- 待辦：另一分支正式加入檔案依賴後，重新安裝、typecheck、iOS 打包與 iPhone UTF-8／Big5 選檔／分享／取消／回匯驗收；另驗停用預設現金後 CSV 改用其他使用中現金，所有現金皆停用時只在實際新增時補建。

@@ -10,6 +10,9 @@
 // - 前一個月有歷史總資產差異時，引擎本來拒絕往下月結；這裡把期初的差異當 0 帶入（差異只影響帳面總資產，
 //   不影響可用餘額、學費儲備與各分類儲備）。重算結果只比對這些會被月結改動的欄位，不比對帳面總資產。
 // - 早期的手動調整（挪用、補入儲備、前期更正）不在月結裡，所以不會被重算出來；比對的是「原始月結」的存檔值（不含調整）。
+// - 沿用前期上限版本的月份：快照是較早月份設定的上限，重算用的是那份快照，當時實際的調整過程可能不同。
+// - 期初基準差額：舊資料帶入時，最近月份的「其他」帶有 Property.budget 與累計列合計的差額，月結引擎不會憑空算出它。
+// - 早期的當月收入是使用者手動輸入的（舊系統存的是輸入值），不是收入交易的加總；重算用交易加總，兩者本來就可能不同。
 // - 存檔的交易是現在的交易，不是當時月結時的交易；差異不代表 App 算錯。
 import { BudgetRuleError, applyBudgetCommand, mappedBudgetCategory } from '../../src/calc/budgetEngine.ts';
 import type { BudgetState } from '../../src/calc/budgetTypes.ts';
@@ -39,6 +42,19 @@ export interface TransactionsOfMonth {
   income: number;
   /** 當月每一筆支出（分類名稱與金額），不含收入。 */
   expenses: { category: string; amount: number }[];
+}
+
+/** 把支出交易依月份（交易日期的 YYYY-MM）分桶；收入不算。給重算報告用。 */
+export function bucketExpensesByMonth(transactions: { date: string; flow: string; categoryName: string; amount: number }[]): Map<string, { category: string; amount: number }[]> {
+  const byMonth = new Map<string, { category: string; amount: number }[]>();
+  for (const t of transactions) {
+    if (t.flow !== 'expense') continue;
+    const month = t.date.slice(0, 7);
+    const list = byMonth.get(month);
+    if (list) list.push({ category: t.categoryName, amount: t.amount });
+    else byMonth.set(month, [{ category: t.categoryName, amount: t.amount }]);
+  }
+  return byMonth;
 }
 
 export function recomputeMonths(
