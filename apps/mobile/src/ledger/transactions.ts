@@ -28,8 +28,13 @@ export interface DayTransaction {
   accountId: number;
   accountName: string;
   /** 沒有指定成員為 null。 */
-  memberId: number | null;
   memberName: string | null;
+}
+
+/** 單筆交易（修改表單用）：列表欄位之外多帶成員編號，表單才能選回原本的成員。 */
+export interface TransactionDetail extends DayTransaction {
+  /** 沒有指定成員為 null。 */
+  memberId: number | null;
 }
 
 const NOT_FOUND_MESSAGE = '找不到這筆交易，可能已被刪除。';
@@ -80,8 +85,11 @@ export async function deleteTransaction(tx: Queryable, id: number): Promise<void
   await tx.run('DELETE FROM transactions WHERE id = ?', [id]);
 }
 
-export async function getTransaction(q: Queryable, id: number): Promise<DayTransaction> {
-  const [row] = await selectTransactions(q, 't.id = ?', [id]);
+export async function getTransaction(q: Queryable, id: number): Promise<TransactionDetail> {
+  const row = await q.get<TransactionDetail>(
+    `SELECT ${LIST_COLUMNS}, t.member_id AS memberId ${LIST_JOINS} WHERE t.id = ?`,
+    [id],
+  );
   if (!row) throw new LedgerError('unknown_transaction', NOT_FOUND_MESSAGE);
   return row;
 }
@@ -91,17 +99,15 @@ export function transactionsBetween(q: Queryable, from: string, to: string): Pro
   return selectTransactions(q, 't.date >= ? AND t.date <= ?', [from, to]);
 }
 
-function selectTransactions(q: Queryable, where: string, params: SqlValue[]): Promise<DayTransaction[]> {
-  return q.all<DayTransaction>(
-    `SELECT t.id, t.date, t.flow, t.amount, t.note,
+const LIST_COLUMNS = `t.id, t.date, t.flow, t.amount, t.note,
             t.category_id AS categoryId, c.name AS categoryName,
             t.account_id AS accountId, a.name AS accountName,
-            t.member_id AS memberId, m.name AS memberName
-       FROM transactions t
+            m.name AS memberName`;
+const LIST_JOINS = `FROM transactions t
        JOIN categories c ON c.id = t.category_id
        JOIN accounts a ON a.id = t.account_id
-       LEFT JOIN members m ON m.id = t.member_id
-      WHERE ${where} ORDER BY t.date, t.id`,
-    params,
-  );
+       LEFT JOIN members m ON m.id = t.member_id`;
+
+function selectTransactions(q: Queryable, where: string, params: SqlValue[]): Promise<DayTransaction[]> {
+  return q.all<DayTransaction>(`SELECT ${LIST_COLUMNS} ${LIST_JOINS} WHERE ${where} ORDER BY t.date, t.id`, params);
 }

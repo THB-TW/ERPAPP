@@ -23,6 +23,7 @@ import {
   updateTransaction,
   type DayTransaction,
   type NewTransaction,
+  type TransactionDetail,
 } from './transactions.ts';
 import {
   budgetAdjustments,
@@ -58,7 +59,7 @@ export interface Account {
 export interface Member { id: number; name: string }
 export type { LegacyImportData, LegacyImportResult } from './legacyImport.ts';
 
-export type { DayTransaction, NewTransaction } from './transactions.ts';
+export type { DayTransaction, NewTransaction, TransactionDetail } from './transactions.ts';
 
 export interface CalendarDay {
   date: string;
@@ -93,7 +94,7 @@ export interface Ledger {
   /** 刪除交易。已結月份的交易不能刪（month_closed）。 */
   deleteTransaction(id: number): Promise<void>;
   /** 單筆交易（修改表單用）；不存在丟 LedgerError('unknown_transaction')。 */
-  getTransaction(id: number): Promise<DayTransaction>;
+  getTransaction(id: number): Promise<TransactionDetail>;
   /** 該月是否已月結（含期初基準月）。畫面用來把交易標成鎖定。 */
   isMonthClosed(month: string): Promise<boolean>;
   getDayTransactions(date: string): Promise<DayTransaction[]>;
