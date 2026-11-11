@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { taipeiDate } from '../calc/dates.ts';
-import { csvFilePort, CsvFilePortUnavailableError, type CsvFile } from '../csv/filePort.ts';
+import { csvFilePort, CsvFilePortError, type CsvFile } from '../csv/filePort.ts';
 import { CsvFormatError, LedgerError, type CsvImportResult } from '../ledger/index.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
 import { colors } from '../ui/theme.ts';
@@ -37,7 +37,7 @@ export default function CsvImportScreen() {
       await task();
     } catch (e: unknown) {
       if (mounted.current) {
-        setError(e instanceof CsvFormatError || e instanceof LedgerError || e instanceof CsvFilePortUnavailableError
+        setError(e instanceof CsvFormatError || e instanceof LedgerError || e instanceof CsvFilePortError
           ? e.message : fallback);
       }
     } finally {
@@ -95,7 +95,7 @@ export default function CsvImportScreen() {
 
           <View style={{ padding: 16, borderRadius: 12, backgroundColor: colors.surface, gap: 12 }}>
             <Action label="選擇 CSV 檔案" disabled={busy} onPress={pickFile} secondary />
-            <Text style={{ color: colors.muted }}>目前可貼上 CSV 匯入；檔案選取與分享尚未支援。</Text>
+            <Text style={{ color: colors.muted }}>可從「檔案」選擇 UTF-8 或 Big5 CSV，也可以貼上 CSV 內容。</Text>
             {file ? <Text style={{ color: colors.text }}>已選擇：{file.name}</Text> : null}
             <Text style={{ color: colors.text, fontWeight: '600' }}>或貼上 CSV 內容</Text>
             <TextInput

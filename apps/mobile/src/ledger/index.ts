@@ -1,6 +1,6 @@
 // 帳本服務：唯一的測試切入點。畫面只能透過這裡的指令與查詢碰資料。
 import type { Database, Queryable } from '../db/driver.ts';
-import { migrate } from '../db/migrate.ts';
+import { migrate, type Migration } from '../db/migrate.ts';
 import { isValidDate, isValidMonth, taipeiDate } from '../calc/dates.ts';
 import {
   BUDGET_ACTOR,
@@ -42,6 +42,8 @@ import { ledgerMigrations } from './migrations.ts';
 import { importTransactionsCsv, exportTransactionsCsv, type CsvImportOptions, type CsvImportResult } from './csvTransactions.ts';
 export { CsvFormatError } from './csvTransactions.ts';
 export type { CsvEncoding, CsvImportOptions, CsvImportResult, CsvRowRejection } from './csvTransactions.ts';
+import { backupCommands, trackModifications, type BackupFiles, type BackupInspection, type BackupStatus, type RestoreResult } from './backup.ts';
+export type { BackupFiles, BackupInspection, BackupStatus, RestoreResult } from './backup.ts';
 
 export type { AccountKind, Flow } from './defaults.ts';
 export { LedgerError } from './errors.ts';
@@ -83,6 +85,10 @@ export interface MonthCalendar {
 export interface LedgerOptions {
   /** 目前時間。預設為系統時鐘；測試傳固定值。時間由這裡傳給純計算，引擎不讀時鐘。 */
   now?: () => Date;
+  /** 備份檔的存放位置與開檔能力（票 16）；沒有接上時備份指令丟 LedgerError('backup_unavailable')。 */
+  backupFiles?: BackupFiles;
+  /** 只給測試模擬「之後的 App 版本」用；預設為帳本的遷移清單。 */
+  migrations?: readonly Migration[];
 }
 
 export interface BudgetCommandResult {
@@ -152,14 +158,33 @@ export interface Ledger {
   /** 以舊系統格式輸出目前的財務文件（尚無文件時為空狀態）。 */
   exportFinanceDocument(): Promise<string>;
 
+  // ---- 備份與還原（票 16，免費與到期後都可用）----
+  /** 上次備份時間與帳本最後修改時間（ISO 8601，UTC）。 */
+  getBackupStatus(): Promise<BackupStatus>;
+  /** 把整本帳匯出成 path 的備份檔（不覆寫既有檔案）。上次備份時間要等 recordBackupDelivered 才記。 */
+  exportBackup(path: string): Promise<{ path: string; exportedAt: string }>;
+  /** 備份檔確定送出（存到檔案、iCloud Drive 或 AirDrop）後，記下上次備份時間；傳 exportBackup 回傳的 exportedAt。 */
+  recordBackupDelivered(exportedAt: string): Promise<void>;
+  /** 驗證備份檔（識別標記、結構版本、完整性）並讀出時間；不合格丟 LedgerError。 */
+  inspectBackup(path: string): Promise<BackupInspection>;
+  /**
+   * 匯入備份檔：整本取代、不合併。取代前自動另存目前的帳（回傳路徑，可再用來復原）。
+   * 備份比目前的帳舊時丟 LedgerError('backup_older')，使用者確認後帶 allowOlder: true 再呼叫。
+   */
+  restoreBackup(path: string, options?: { allowOlder?: boolean }): Promise<RestoreResult>;
+
   close(): Promise<void>;
 }
 
 const MONTH_MESSAGE = '月份格式不正確，請用 YYYY-MM。';
 
-export async function openLedger(db: Database, options: LedgerOptions = {}): Promise<Ledger> {
-  await migrate(db, ledgerMigrations);
+export async function openLedger(rawDb: Database, options: LedgerOptions = {}): Promise<Ledger> {
+  const migrations = options.migrations ?? ledgerMigrations;
+  await migrate(rawDb, migrations);
   const now = options.now ?? (() => new Date());
+  // 所有寫入交易自動記下帳本最後修改時間（備份檔的「最後修改時間」）；備份指令本身用 rawDb，不算變動。
+  const db = trackModifications(rawDb, now);
+  const backup = backupCommands(rawDb, options.backupFiles, migrations, now);
   const fallbackMonth = () => taipeiDate(now()).slice(0, 7);
 
   // 所有指令與查詢排成一條隊：寫入交易進行中，不會有別的查詢插進來（expo-sqlite 的交易會把
@@ -307,6 +332,12 @@ export async function openLedger(db: Database, options: LedgerOptions = {}): Pro
 
     exportFinanceDocument: () =>
       serial(async () => serializeBudgetDocument((await readStoredDocument(db)).state)),
+
+    getBackupStatus: () => serial(backup.status),
+    exportBackup: (path) => serial(() => backup.export(path)),
+    recordBackupDelivered: (exportedAt) => serial(() => backup.recordDelivered(exportedAt)),
+    inspectBackup: (path) => serial(() => backup.inspect(path)),
+    restoreBackup: (path, restoreOptions) => serial(() => backup.restore(path, restoreOptions)),
 
     close: () => serial(() => db.close()),
   };

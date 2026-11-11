@@ -270,3 +270,29 @@ test('CSV 名稱前後空白是既有名稱的一部分時精確保留，回匯�
   const result = await ledger.importTransactionsCsv(await ledger.exportTransactionsCsv());
   assert.deepEqual([result.addedRows, result.skippedRows], [0, 1]);
 });
+
+test('CSV 整合備份：只有實際新增更新帳本修改時間，匯出、略過、拒收及整檔失敗不更新', async (t) => {
+  let current = new Date('2026-11-11T01:00:00Z');
+  const ledger = await openLedger(openNodeDatabase(':memory:'), { now: () => current });
+  t.after(() => ledger.close());
+  assert.equal((await ledger.getBackupStatus()).lastModifiedAt, null);
+  const csv = '日期,類別,金額\n2026-11-01,飲食,80';
+  assert.equal((await ledger.importTransactionsCsv(csv)).addedRows, 1);
+  assert.equal((await ledger.getBackupStatus()).lastModifiedAt, '2026-11-11T01:00:00.000Z');
+
+  current = new Date('2026-11-11T02:00:00Z');
+  const exported = await ledger.exportTransactionsCsv();
+  assert.equal((await ledger.importTransactionsCsv(exported)).skippedRows, 1);
+  assert.equal((await ledger.importTransactionsCsv('類別,金額\n不存在的分類,10\n飲食,-1')).rejectedRows, 2);
+  assert.equal((await ledger.getBackupStatus()).lastModifiedAt, '2026-11-11T01:00:00.000Z');
+
+  current = new Date('2026-11-11T03:00:00Z');
+  const result = await ledger.importTransactionsCsv(csv + '\n2026-11-01,飲食,90');
+  assert.deepEqual([result.addedRows, result.skippedRows], [1, 1]);
+  assert.equal((await ledger.getBackupStatus()).lastModifiedAt, '2026-11-11T03:00:00.000Z');
+
+  current = new Date('2026-11-11T04:00:00Z');
+  await assert.rejects(ledger.importTransactionsCsv('類別,金額,備註\n飲食,100,正常\n飲食,110,"未閉合'), /引號/);
+  assert.equal((await ledger.getBackupStatus()).lastModifiedAt, '2026-11-11T03:00:00.000Z');
+  assert.equal((await all(ledger)).length, 2);
+});

@@ -6,6 +6,9 @@
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "erasableSyntaxOnly": true,
+    "paths": {
+      "expo-file-system": ["./node_modules/expo-file-system", "./node_modules/expo/node_modules/expo-file-system"]
+    },
     "types": ["node"]
   },
   "include": ["src", "tools", "expo-env.d.ts", ".expo/types/**/*.ts"]

@@ -82,10 +82,35 @@ test('不搬員工、密碼、信用卡明細、投資：輸出檔沒有這些�
     await convert(t);
     const db = openNodeDatabase(t.out);
     const tables = (await db.all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")).map((r) => r.name);
-    assert.deepEqual(tables, ['accounts', 'categories', 'finance_document', 'members', 'settings', 'transactions']);
+    assert.deepEqual(tables, ['accounts', 'categories', 'finance_document', 'ledger_meta', 'members', 'settings', 'transactions']);
     await db.close();
     assert.ok(!readFileSync(t.out).includes(Buffer.from(FICTIONAL_PASSWORD)));
     assert.ok(!readFileSync(t.out).includes(Buffer.from('虛構店家')));
+  } finally { t.cleanup(); }
+});
+
+test('輸出檔就是合格的備份檔：用「匯入備份檔」在全新手機上還原，內容與輸出檔相同（票 16）', async () => {
+  const t = setup();
+  try {
+    await convert(t);
+    const files = {
+      directory: t.priv,
+      open: async (p: string) => openNodeDatabase(p),
+      remove: async (p: string) => rmSync(p, { force: true }),
+    };
+    const phone = await openLedger(openNodeDatabase(path.join(t.priv, 'phone.sqlite')), { backupFiles: files });
+    const info = await phone.inspectBackup(t.out);
+    assert.equal(info.olderThanCurrent, false);
+    assert.ok(info.lastModifiedAt);
+    await phone.restoreBackup(t.out);
+
+    const original = await openLedger(openNodeDatabase(t.out));
+    const all = (l: typeof phone) => l.listTransactions('0001-01-01', '9999-12-31');
+    assert.deepEqual(await all(phone), await all(original));
+    assert.deepEqual(await phone.listAccounts(), await original.listAccounts());
+    assert.equal(await phone.exportFinanceDocument(), await original.exportFinanceDocument());
+    await original.close();
+    await phone.close();
   } finally { t.cleanup(); }
 });
 

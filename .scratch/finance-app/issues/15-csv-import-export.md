@@ -4,7 +4,7 @@
 
 **Blocked by:** 07 記帳畫面
 
-**Status:** done（2026-11-11 程式完成；提交受環境權限阻擋，iPhone 實機與票 16 檔案介面接線待驗收）
+**Status:** done（2026-11-11；CSV 原生選檔與分享已接線，iPhone 實機待驗收）
 
 **Owner:** `import-export-backup`（見 `docs/agents/team.md`）　**Spec:** [規格](../../finance-product/spec.md)
 
@@ -43,7 +43,18 @@
 4. 貼上 12 欄假資料，含逗號、雙引號、多行備註及收入列；返回記帳頁核對日期、分類、帳戶、金額、收支及備註。
 5. 匯入已結月份（含期初基準）交易，確認拒收、原交易與月結數字不變；含大小寫／前後空白不同名稱的帳本也應精確歸屬。
 6. 鍵盤開啟時可捲動到匯入；快速連點只執行一次，返回再進頁面不顯示過期結果。
-7. 目前選檔／匯出按鈕明確顯示尚未支援，帳本仍可使用，不會受訂閱狀態限制。
-8. 票 16 接上 filePort 後，再驗 UTF-8／Big5 選檔、取消選檔、系統分享、匯出回匯不新增；已結列回匯仍顯示拒收。Big5 在 iPhone 上的解碼必須實測。
+7. 選擇 UTF-8／Big5 假 CSV 後按匯入，核對中文、金額與結果；取消選檔應保留原輸入且不改帳。貼上 CSV 的備援仍可使用。
+8. 按匯出，經系統分享存到「檔案」或 AirDrop，確認檔名、中文、emoji 及多行備註；取消分享後可重試，匯出回匯不新增（已結列仍拒收）。確認暫存副本會清理。Big5 在 iPhone 上的解碼必須實測。
 
 2026-11-11 提交狀態：`git add` 在建立 `/Users/chenhansheng/Documents/Account_app/ERPAPP/.git/worktrees/wt-15/index.lock` 時被執行環境拒絕（`Operation not permitted`）；目前環境禁止提權，故尚未建立 commit。所有變更保留在本專用 worktree，沒有 push、開 PR 或更換分支。預定 commit 訊息為「完成記帳 CSV 匯入匯出與規格畫面」，結尾 trailer 為 `Co-Authored-By: Codex <noreply@openai.com>`。
+
+
+2026-11-11 整合分支對齊與原生接線完成（取代前述暫時「尚未支援」狀態）：
+- 解決 `src/app/(tabs)/settings.tsx` 與 `src/ledger/index.ts` 的所有衝突標記。設定採 xdtlp5 新版清單，只在 ROWS 加一列 CSV，保留備份列；帳本入口保留 CSV、明細與備份兩邊功能。依本輪指示只改工作檔，未執行 git add／commit 或其他合併控制指令，所以 Git index 仍會顯示 UU，內容衝突已解。
+- CSV 匯入保留 openLedger 內 tracked `db.transaction`（不是 rawDb），實際新增會自動更新 ledger_meta.last_modified_at；匯出、全數重複略過、逐列拒收、畸形檔案整檔失敗不會更新。新增帳本入口／真 SQLite 整合回歸，修衝突前因標記導致語法失敗，解決後通過。
+- 票 16 的 v4（ledger_meta 與 application_id）保持原樣，不新增遷移，CSV 分配的 v6 仍不需要。`tools/legacy-convert/convert.test.ts` 的資料表清單已由合併版本包含 ledger_meta，確認保留，未另改。
+- `src/csv/filePort.ts` 已改為真正的原生介面：沿用票 16 的 getDocumentAsync／isAvailableAsync／shareAsync；選檔複製到 App 快取後用 File.bytes() 取原始位元組，交由帳本服務既有 UTF-8／Big5 解碼，取消回傳 null。匯出在每次獨立 UUID 快取目錄以 File.write(bytes) 寫入 CSV，經 expo-sharing 分享；完成、取消或失敗皆清理本次暫存檔，只處理自己的快取副本，不碰來源原檔。
+- 一般 CSV 位元組讀寫使用 Expo 本身已依賴且現有鎖檔內已有的 expo-file-system 公開 File／Directory／Paths API。`tsconfig.json` 僅補其頂層／Expo 巢狀套件解析候選，TypeScript 與 Expo 預設 Metro 共用；沒有新增套件或更改 package.json／package-lock.json，也不依賴私有原生 API。依既有鎖檔執行離線 `npm ci --legacy-peer-deps --ignore-scripts`，乾淨安裝後已通過型別檢查與 iOS 打包。
+- `src/app/csv-import.tsx` 已移除尚未支援文案並顯示原生讀檔／分享錯誤的繁中訊息，貼上 CSV 備援保留；沒有改 _layout 或本票禁改檔。
+- 本輪最終 `npm test`：210 個，209 通過、1 個已知 legacy-compare macOS `/var`／`/private/var` 路徑別名失敗（未改該測試）；其中 CSV 測試 21／21 通過。`npm run typecheck` 通過；iOS `expo export` 成功。沒有 lint script／ESLint，未自行補裝。legacy-migration 最終交叉審核通過，另重跑 CSV／備份／交易／預算共 58／58 通過，未改月結計算或舊帳基準。所有測試僅合成資料；未讀私人帳本或 CSV。
+- 實機待驗收：依上方更新後第 7、8 步驗選檔／取消、UTF-8／Big5、系統分享存檔／AirDrop／取消、再次匯入及暫存清理；原生選檔與分享尚未在 iPhone 上實測。
