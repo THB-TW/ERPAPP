@@ -1,6 +1,8 @@
 import type { Migration } from '../db/migrate.ts';
 import { DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES } from './defaults.ts';
 import { BACKUP_APPLICATION_ID } from './backup.ts';
+import { parseBudgetDocument } from '../calc/budgetDocument.ts';
+import { initializeLegacyTuition } from './loanMigration.ts';
 
 // 帳本的結構遷移。金額為新台幣整數（INTEGER），日期為台北時間的 YYYY-MM-DD 字串（TEXT）。
 export const ledgerMigrations: readonly Migration[] = [
@@ -115,6 +117,41 @@ export const ledgerMigrations: readonly Migration[] = [
         );
         CREATE INDEX transfers_by_date ON transfers(date);
       `);
+    },
+  },
+  {
+    // 票 19 預先分配 v10；schema_migrations 逐版記錄，v6～v9 日後補入仍會執行。
+    version: 10,
+    async up(tx) {
+      await tx.exec(`
+        CREATE TABLE loans (
+          id INTEGER PRIMARY KEY,
+          category_id INTEGER UNIQUE REFERENCES categories(id),
+          created_month TEXT NOT NULL,
+          legacy INTEGER NOT NULL CHECK (legacy IN (0, 1))
+        );
+        CREATE TABLE loan_terms (
+          id INTEGER PRIMARY KEY,
+          loan_id INTEGER NOT NULL REFERENCES loans(id),
+          month TEXT NOT NULL,
+          name TEXT NOT NULL,
+          total_amount INTEGER,
+          monthly_payment INTEGER,
+          remaining_principal INTEGER,
+          expected_end_month TEXT,
+          reason TEXT NOT NULL,
+          time TEXT NOT NULL
+        );
+        CREATE TABLE loan_closes (
+          close_id TEXT NOT NULL,
+          loan_id INTEGER NOT NULL REFERENCES loans(id),
+          month TEXT NOT NULL,
+          snapshot TEXT NOT NULL,
+          PRIMARY KEY (close_id, loan_id)
+        );
+      `);
+      const row = await tx.get<{ document: string }>('SELECT document FROM finance_document WHERE id = 1');
+      if (row) await initializeLegacyTuition(tx, parseBudgetDocument(row.document));
     },
   },
   {

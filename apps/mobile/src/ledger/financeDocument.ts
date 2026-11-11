@@ -5,6 +5,7 @@ import { BudgetDocumentError, emptyBudgetState, parseBudgetDocument, serializeBu
 import type { BudgetState } from '../calc/budgetTypes.ts';
 import { BudgetRuleError, position } from '../calc/budgetEngine.ts';
 import { LedgerError } from './errors.ts';
+import { replaceLegacyLoans } from './loanMigration.ts';
 
 interface Row { version: number; document: string }
 
@@ -33,6 +34,7 @@ export async function writeState(q: Queryable, exists: boolean, expectedVersion:
 
 /** 直接取代整份文件（只給匯入入口用）。 */
 export async function replaceDocument(q: Queryable, state: BudgetState): Promise<void> {
+  await replaceLegacyLoans(q, state);
   await q.run(
     `INSERT INTO finance_document (id, version, document) VALUES (1, ?, ?)
        ON CONFLICT(id) DO UPDATE SET version = excluded.version, document = excluded.document`,

@@ -33,7 +33,7 @@ export function MonthlyCloseSummary({ summary }: { summary: BudgetMonthView }) {
       <CloseAmount label="當月收入" amount={summary.income} />
       <CloseAmount label="當月盈餘" amount={summary.surplus} />
       <CloseAmount label="可用餘額" amount={summary.spare} />
-      <CloseAmount label="學費儲備" amount={summary.tuition} />
+      <CloseAmount label="貸款／分期儲備" amount={summary.tuition} />
       <CloseAmount label="總儲備金" amount={summary.reserve} />
       <CloseAmount label="帳面總資產" amount={summary.total} />
       {summary.legacyTotalDifference !== 0 ? <CloseAmount label="保留的歷史差異" amount={summary.legacyTotalDifference} /> : null}

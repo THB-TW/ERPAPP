@@ -52,7 +52,7 @@ export default function CloseSnapshotScreen() {
           <CloseAmount label="當月收入" amount={snapshot.calculation.income} />
           <CloseAmount label="當月盈餘" amount={snapshot.calculation.surplus} />
           <CloseAmount label="原始可用餘額" amount={snapshot.calculation.rawSpare} />
-          <CloseAmount label="原始學費儲備" amount={snapshot.calculation.tuition} />
+          <CloseAmount label="原始貸款／分期儲備" amount={snapshot.calculation.tuition} />
           <Text style={styles.note}>月結時間：{snapshot.time || '未提供'}</Text>
           {snapshot.calculation.capSnapshot ? snapshot.calculation.capSnapshot.limits.map((limit) => <View key={limit.categoryId} style={{ gap: 6 }}>
             <Text style={styles.label}>{names[limit.categoryId] ?? limit.categoryId}</Text>
@@ -66,7 +66,7 @@ export default function CloseSnapshotScreen() {
         {snapshot.calculation.capSnapshot ? <View style={styles.card}>
           <Text style={styles.note}>原因：{snapshot.calculation.capSnapshot.reason}</Text>
           <Text style={styles.note}>保存時間：{snapshot.calculation.capSnapshot.time || '未提供'}</Text>
-          <Text style={styles.label}>學費儲備每月提撥：NT$ {formatAmount(snapshot.calculation.capSnapshot.tuition)}</Text>
+          <Text style={styles.label}>舊學費設定（歷史上限快照）：NT$ {formatAmount(snapshot.calculation.capSnapshot.tuition)}</Text>
           {snapshot.calculation.capSnapshot.limits.map((limit) => <Text key={limit.categoryId} style={styles.label}>
             {names[limit.categoryId] ?? limit.categoryId}：NT$ {formatAmount(limit.amount)}
           </Text>)}

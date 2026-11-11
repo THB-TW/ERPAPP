@@ -8,6 +8,8 @@ import { budgetStatus, type BudgetStatus } from './budgetViews.ts';
 import { categoryAvailability, ensureExpenseCategory, renameExpenseCategory, setCategoryInactive } from './categoryLifecycle.ts';
 import { LedgerError } from './errors.ts';
 import { assertCardReconciliation } from './cardReconciliation.ts';
+import { loanCategoryNames, prepareLoanClose, saveLoanClose } from './loans.ts';
+import { initializeLegacyTuition } from './loanMigration.ts';
 
 export interface BudgetCommandPreview {
   before: BudgetStatus;
@@ -30,8 +32,10 @@ export async function budgetFallbackMonth(q: Queryable, now: Date): Promise<stri
 }
 
 export async function monthExpenses(q: Queryable, month: string): Promise<BudgetExpense[]> {
-  return q.all<BudgetExpense>(`SELECT c.name AS category, t.amount FROM transactions t JOIN categories c ON c.id = t.category_id
+  const loans = await loanCategoryNames(q, month);
+  const expenses = await q.all<BudgetExpense>(`SELECT c.name AS category, t.amount FROM transactions t JOIN categories c ON c.id = t.category_id
     WHERE t.flow = 'expense' AND substr(t.date, 1, 7) = ? ORDER BY t.id`, [month]);
+  return expenses.filter((e) => !loans.has(e.category));
 }
 
 function sourceName(command: BudgetCommand): string | null {
@@ -43,6 +47,10 @@ function sourceName(command: BudgetCommand): string | null {
 async function assertNamesAvailable(q: Queryable, command: BudgetCommand, state: BudgetState, fallback: string): Promise<void> {
   const name = sourceName(command);
   if (!name) return;
+  const loans = await loanCategoryNames(q, '9998-12');
+  if ([...loans].some((loan) => loan.toUpperCase() === name.toUpperCase())) {
+    throw new BudgetRuleError('argument', '貸款分類使用獨立提撥，請到貸款／分期設定修改，不能另設一般預算歸屬。');
+  }
   const clash = await q.get<{ id: number; name: string; flow: string }>('SELECT id, name, flow FROM categories WHERE name = ? COLLATE NOCASE', [name]);
   if (!clash) return;
   if (clash.flow !== 'expense') throw new LedgerError('category_name_conflict', '這個名稱已用於收入分類，請使用其他支出名稱。');
@@ -86,6 +94,9 @@ export async function executeBudgetCommand(q: Queryable, input: BudgetCommand, n
   if (!preview && input.action === 'close' && access.hasEntitlement !== undefined) {
     throw new BudgetRuleError('operation', '請透過月結精靈保存總資產核對後完成月結。');
   }
+  if (['transfer', 'fund', 'correct', 'reverse', 'retire'].includes(input.action) && access.hasEntitlement !== undefined && access.hasEntitlement !== true) {
+    throw new BudgetRuleError('operation', '需要有效的付費權益才能進行調整；既有紀錄仍可查閱。');
+  }
   // 新增分類預設照實支，既有引擎與舊文件的 reserve 預設不變。
   const command = input.action === 'add' ? { ...input, kind: input.kind ?? 'actual' } : input;
   const { exists, state } = await readStoredDocument(q);
@@ -94,13 +105,17 @@ export async function executeBudgetCommand(q: Queryable, input: BudgetCommand, n
   const fallback = await budgetFallbackMonth(q, now);
   if (!replay) await assertNamesAvailable(q, command, state, fallback);
   const expenses = command.action === 'close' && !replay ? await monthExpenses(q, command.month) : undefined;
-  const after = applyBudgetCommand(state, command, { actor: BUDGET_ACTOR, time: now.toISOString(), openingMonth: fallback, expenses });
+  const loans = command.action === 'close' && !replay ? await prepareLoanClose(q, state, command.month) : undefined;
+  const after = applyBudgetCommand(state, command, { actor: BUDGET_ACTOR, time: now.toISOString(), openingMonth: fallback, expenses, loans: loans?.totals });
   if (command.action === 'close' && !replay) await assertCardReconciliation(q, command.month);
   if (!preview && after !== state) {
     await writeState(q, exists, state.version, after);
     await syncCategories(q, command, state, fallback);
+    if (loans) await saveLoanClose(q, operationId, command.month, loans.rows);
+    await initializeLegacyTuition(q, after);
   }
   return {
+    state: after,
     result: { version: after.version, replayed: after === state },
     preview: {
       before: budgetStatus(state, fallback), after: budgetStatus(after, fallback),

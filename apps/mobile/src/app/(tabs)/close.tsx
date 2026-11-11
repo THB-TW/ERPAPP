@@ -47,6 +47,7 @@ export default function MonthlyCloseScreen() {
         <CloseButton title="進入信用卡帳單核對" disabled={!draft.canClose} onPress={() => router.push({ pathname: '/close-card-statement', params: { month: draft.month } })} />
       </> : null}
       <Pressable accessibilityRole="button" onPress={() => router.push('/close-history')}><Text style={styles.link}>查看歷史月結 ›</Text></Pressable>
+      {draft?.latestMonth ? <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/adjustments', params: { action: 'rollback' } })}><Text style={styles.link}>撤銷最近一次月結（先預覽） ›</Text></Pressable> : null}
     </ClosePage>
   );
 }

@@ -12,6 +12,8 @@ import type { BudgetCommand, BudgetRevision } from '../calc/budgetTypes.ts';
 import { parseImportedDocument, readStoredDocument, replaceDocument } from './financeDocument.ts';
 import { budgetFallbackMonth, executeBudgetCommand, type BudgetCommandAccess, type BudgetCommandPreview } from './budgetCommands.ts';
 import { getBudgetProgress } from './budgetPage.ts';
+import { confirmAdjustment, previewAdjustment, type AdjustmentPreview, type AdjustmentRequest, type ConfirmAdjustmentRequest } from './adjustments.ts';
+export type { AdjustmentAction, AdjustmentPreview, AdjustmentRequest, ConfirmAdjustmentRequest } from './adjustments.ts';
 import type { BudgetProgress } from './budgetViews.ts';
 import { listActiveCategories } from './categoryLifecycle.ts';
 import { importLegacy, type LegacyImportData, type LegacyImportResult } from './legacyImport.ts';
@@ -47,6 +49,8 @@ import { LedgerError } from './errors.ts';
 import { ledgerMigrations } from './migrations.ts';
 import { listAssetChecks, previewAssetCheck, recordAssetCheck, type AssetCheckPreview, type AssetCheckRequest, type AssetCheckRecord, type RecordAssetCheckRequest } from './assetCheck.ts';
 export type { AssetCheckPreview, AssetCheckRequest, AssetCheckAccount, AssetCheckMovement, AssetCheckRecord, RecordAssetCheckRequest } from './assetCheck.ts';
+import { loanCategoryNames, loanCommands, type LoansLedger } from './loans.ts';
+export type { LoanInput, LoanWriteRequest, LoanView, LoanRevision } from './loans.ts';
 import { completeMonthlyClose, monthlyCloseDraft, monthlyCloseSnapshot, previewMonthlyClose, type CompleteMonthlyCloseRequest, type MonthlyCloseDraft, type MonthlyClosePreview, type MonthlyCloseRequest, type MonthlyCloseSnapshot } from './monthlyClose.ts';
 import { importTransactionsCsv, exportTransactionsCsv, type CsvImportOptions, type CsvImportResult } from './csvTransactions.ts';
 export type { CsvEncoding, CsvImportOptions, CsvImportResult, CsvRowRejection } from './csvTransactions.ts';
@@ -57,6 +61,9 @@ export { CardStatementMismatchError, type CardReconciliation, type CardCount, ty
 export type { CardStatementRequest, CardStatementResult, CardStatementFilter, CardStatement } from './cardStatements.ts';
 export { CsvFormatError } from '../csv/records.ts';
 export type { BackupFiles, BackupInspection, BackupStatus, RestoreResult } from './backup.ts';
+import { notificationCommands, type NotificationsLedger } from './notifications.ts';
+export { NotificationSettingsError } from './notifications.ts';
+export type { NotificationKind, NotificationSettings, NotificationPlanInput, PlannedNotification } from './notifications.ts';
 
 export type { AccountKind, Flow } from './defaults.ts';
 export { LedgerError } from './errors.ts';
@@ -111,13 +118,16 @@ export interface BudgetCommandResult {
   replayed: boolean;
 }
 
-export interface Ledger extends AccountsLedger, TransfersLedger, InvestmentsLedger {
+export interface Ledger extends AccountsLedger, TransfersLedger, InvestmentsLedger, LoansLedger, NotificationsLedger {
   getCardReconciliation(month: string): Promise<CardReconciliation>;
   importCardStatement(input: CardStatementRequest): Promise<CardStatementResult>;
   listCardStatements(filter?: CardStatementFilter): Promise<CardStatement[]>;
   previewAssetCheck(input: AssetCheckRequest): Promise<AssetCheckPreview>;
   recordAssetCheck(input: RecordAssetCheckRequest): Promise<AssetCheckRecord>;
   listAssetChecks(month?: string): Promise<AssetCheckRecord[]>;
+  /** 調整先看完整金額預覽；確認時核對原指令與預覽，並重新驗權益。 */
+  previewAdjustment(input: AdjustmentRequest): Promise<AdjustmentPreview>;
+  confirmAdjustment(input: ConfirmAdjustmentRequest): Promise<BudgetCommandResult>;
   /** 月結精靈的開放月份與唯讀收入；當月尚未結束時不能完成。 */
   getMonthlyCloseDraft(): Promise<MonthlyCloseDraft>;
   /** 讀當月收入並立即試算，不寫入月結或快照。 */
@@ -238,6 +248,8 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
     previewAssetCheck: (input) => serial(() => previewAssetCheck(db, input, now())),
     recordAssetCheck: (input) => serial(() => db.transaction((tx) => recordAssetCheck(tx, input, now()))),
     listAssetChecks: (month) => serial(() => listAssetChecks(db, month)),
+    previewAdjustment: (input) => serial(() => previewAdjustment(db, input, now())),
+    confirmAdjustment: (input) => serial(() => db.transaction((tx) => confirmAdjustment(tx, input, now()))),
     getMonthlyCloseDraft: () => serial(() => monthlyCloseDraft(db, now())),
     previewMonthlyClose: (input) => serial(() => previewMonthlyClose(db, input, now())),
     completeMonthlyClose: (input) => serial(() => db.transaction((tx) => completeMonthlyClose(tx, input, now()))),
@@ -247,6 +259,8 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
     ...accountCommands(db, serial, () => taipeiDate(now())),
     ...investmentCommands(db, serial, () => taipeiDate(now())),
     ...transferCommands(db, serial),
+    ...loanCommands(db, serial, fallbackMonth, now),
+    ...notificationCommands(db, serial, now),
     addTransaction: (input) => serial(() => db.transaction((tx) => insertTransaction(tx, input))),
     updateTransaction: (id, input) => serial(() => db.transaction((tx) => updateTransaction(tx, id, input))),
     deleteTransaction: (id) => serial(() => db.transaction((tx) => deleteTransaction(tx, id))),
@@ -338,6 +352,7 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
         const target = month ?? openMonth(state, await fallbackMonth());
         if (!isValidMonth(target)) throw new LedgerError('invalid_month', MONTH_MESSAGE);
         const revision = effectiveRevision(state, target);
+        const loans = await loanCategoryNames(db, target);
         const rows = await db.all<{ name: string }>(
           `SELECT DISTINCT c.name AS name FROM transactions t JOIN categories c ON c.id = t.category_id
             WHERE t.flow = 'expense' AND substr(t.date, 1, 7) = ?`,
@@ -345,7 +360,7 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
         );
         return rows
           .map((r) => r.name)
-          .filter((name) => !revision || mappedBudgetCategory(revision, name) === undefined)
+          .filter((name) => !loans.has(name) && (!revision || mappedBudgetCategory(revision, name) === undefined))
           .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
       }),
 
