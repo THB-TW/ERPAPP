@@ -4,7 +4,7 @@ import { AppState, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { monthGrid } from '../../calc/calendarGrid.ts';
 import { monthOf, shiftMonth, taipeiDate } from '../../calc/dates.ts';
-import type { CalendarDay, DayTransaction } from '../../ledger/index.ts';
+import type { CalendarDay, DayTransaction, TransferDetail } from '../../ledger/index.ts';
 import { formatAmount, dayTitle, monthTitle, userMessage } from '../../ui/format.ts';
 import { useLedger } from '../../ui/LedgerProvider.tsx';
 import { colors } from '../../ui/theme.ts';
@@ -18,6 +18,7 @@ export default function HomeScreen() {
   const [selected, setSelected] = useState(today);
   const [days, setDays] = useState<Record<string, CalendarDay>>({});
   const [list, setList] = useState<DayTransaction[]>([]);
+  const [transfers, setTransfers] = useState<TransferDetail[]>([]);
   const [locked, setLocked] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,11 +30,13 @@ export default function HomeScreen() {
         ledger.getMonthCalendar(month),
         ledger.getDayTransactions(selected),
         ledger.isMonthClosed(monthOf(selected)),
+        ledger.listTransfers(selected, selected),
       ]).then(
-        ([calendar, transactions, closed]) => {
+        ([calendar, transactions, closed, dayTransfers]) => {
           if (cancelled) return;
           setDays(Object.fromEntries(calendar.days.map((d) => [d.date, d])));
           setList(transactions);
+          setTransfers(dayTransfers);
           setLocked(closed);
           setError(null);
         },
@@ -133,7 +136,7 @@ export default function HomeScreen() {
 
       <ScrollView style={{ flex: 1 }}>
         {error ? <Text style={{ color: colors.expense, padding: 12 }}>{error}</Text> : null}
-        {list.length === 0 && !error ? (
+        {list.length === 0 && transfers.length === 0 && !error ? (
           <Text style={{ color: colors.muted, padding: 12 }}>這天還沒有交易</Text>
         ) : null}
         {list.map((t) => (
@@ -164,6 +167,15 @@ export default function HomeScreen() {
               {t.flow === 'expense' ? '-' : '+'}
               {formatAmount(t.amount)}
             </Text>
+          </Pressable>
+        ))}
+        {transfers.map((t) => (
+          <Pressable key={`transfer-${t.id}`} onPress={() => router.push({ pathname: '/transfer', params: { id: String(t.id) } })} accessibilityRole="button" accessibilityHint={locked ? '已月結，只能檢視轉帳' : '修改或刪除這筆轉帳'} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 16, borderTopWidth: 1, borderTopColor: colors.border }}>
+            <View style={{ flexShrink: 1 }}>
+              <Text style={{ color: colors.text, fontSize: 16 }}>{locked ? '🔒 ' : ''}轉帳</Text>
+              <Text style={{ color: colors.muted, fontSize: 13 }}>{t.fromAccountName} → {t.toAccountName}{t.note ? `・${t.note}` : ''}</Text>
+            </View>
+            <Text style={{ color: colors.text, fontSize: 16 }}>{formatAmount(t.amount)}</Text>
           </Pressable>
         ))}
       </ScrollView>

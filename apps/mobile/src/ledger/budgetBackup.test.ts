@@ -86,6 +86,9 @@ async function budgetSnapshot(ledger: Ledger) {
     revisions: await ledger.listBudgetRevisions(),
     transactions: await ledger.listTransactions('2026-11-01', '2026-12-31'),
     report: await ledger.getMonthBreakdown('2026-12', 'expense'),
+    accounts: await ledger.listAccounts(),
+    balances: await ledger.listAccountBalances('2026-12-31'),
+    transfers: await ledger.listTransfers('2026-11-01', '2026-12-31'),
   };
 }
 
@@ -115,6 +118,9 @@ test('備份還原保留跨月分類啟停、預算、月結與明細，還原�
   const temporary = await command(source, { action: 'add', name: '合成停用分類', kind: 'actual' });
   await source.runBudgetCommand(temporary);
   await source.runBudgetCommand(await command(source, { action: 'retire', from: temporary.operationId }));
+  const bank = await source.addAccount({ name: '合成備份銀行', kind: 'bank', openingBalance: 1000 });
+  await source.addTransfer({ date: '2026-12-11', fromAccountId: bank.id, toAccountId: account.id, amount: 20, note: '合成領現' });
+  await source.updateAccount(bank.id, { name: '合成銀行新版', openingBalance: 1300, active: false });
   const before = await budgetSnapshot(source);
   const modified = (await source.getBackupStatus()).lastModifiedAt;
 

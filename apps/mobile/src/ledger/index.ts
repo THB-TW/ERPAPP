@@ -1,7 +1,7 @@
 // 帳本服務：唯一的測試切入點。畫面只能透過這裡的指令與查詢碰資料。
 import type { Database } from '../db/driver.ts';
 import { migrate, type Migration } from '../db/migrate.ts';
-import { isValidDate, isValidMonth } from '../calc/dates.ts';
+import { isValidDate, isValidMonth, taipeiDate } from '../calc/dates.ts';
 import {
   effectiveRevision,
   mappedBudgetCategory,
@@ -38,7 +38,9 @@ import {
   type BudgetStatus,
 } from './budgetViews.ts';
 import { categoryMonthTransactions, monthBreakdown, type MonthBreakdown } from './report.ts';
-import type { AccountKind, Flow } from './defaults.ts';
+import type { Flow } from './defaults.ts';
+import { accountCommands, type AccountsLedger } from './accounts.ts';
+import { transferCommands, type TransfersLedger } from './transfers.ts';
 import { LedgerError } from './errors.ts';
 import { ledgerMigrations } from './migrations.ts';
 import { backupCommands, trackModifications, type BackupFiles, type BackupInspection, type BackupStatus, type RestoreResult } from './backup.ts';
@@ -58,13 +60,8 @@ export type {
 export type { CategoryShare, MonthBreakdown } from './report.ts';
 
 export interface Category { id: number; name: string; flow: Flow }
-export interface Account {
-  id: number;
-  name: string;
-  kind: AccountKind;
-  /** 開帳日當天的餘額（新台幣整數；信用卡為未繳金額的負數）。 */
-  openingBalance: number;
-}
+export type { Account, AccountBalance, NewAccount, AccountChanges } from './accounts.ts';
+export type { NewTransfer, TransferDetail } from './transfers.ts';
 export interface Member { id: number; name: string }
 export type { LegacyImportData, LegacyImportResult } from './legacyImport.ts';
 
@@ -99,7 +96,7 @@ export interface BudgetCommandResult {
   replayed: boolean;
 }
 
-export interface Ledger {
+export interface Ledger extends AccountsLedger, TransfersLedger {
   getMonthCalendar(month: string): Promise<MonthCalendar>;
   addTransaction(input: NewTransaction): Promise<{ id: number }>;
   /** 修改交易的全部欄位。原日期或新日期落在已結月份都會被拒（month_closed）。 */
@@ -113,7 +110,6 @@ export interface Ledger {
   getDayTransactions(date: string): Promise<DayTransaction[]>;
   /** 預設查開放月份；傳月份可取得當時可選的交易分類（撤銷月結後編輯舊交易使用）。 */
   listCategories(month?: string): Promise<Category[]>;
-  listAccounts(): Promise<Account[]>;
   listMembers(): Promise<Member[]>;
   /** 全域設定的開帳日（某月 1 號，YYYY-MM-DD）；尚未設定為 null。開帳日以前的交易不計入帳戶餘額（票 08）。 */
   getOpeningDate(): Promise<string | null>;
@@ -201,6 +197,8 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
   }
 
   return {
+    ...accountCommands(db, serial, () => taipeiDate(now())),
+    ...transferCommands(db, serial),
     addTransaction: (input) => serial(() => db.transaction((tx) => insertTransaction(tx, input))),
     updateTransaction: (id, input) => serial(() => db.transaction((tx) => updateTransaction(tx, id, input))),
     deleteTransaction: (id) => serial(() => db.transaction((tx) => deleteTransaction(tx, id))),
@@ -251,12 +249,6 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
       if (!isValidMonth(target)) throw new LedgerError('invalid_month', MONTH_MESSAGE);
       return listActiveCategories(db, target);
     }),
-    listAccounts: () =>
-      serial(() =>
-        db.all<Account>(
-          'SELECT id, name, kind, opening_balance AS openingBalance FROM accounts ORDER BY sort_order',
-        ),
-      ),
     listMembers: () => serial(() => db.all<Member>('SELECT id, name FROM members ORDER BY sort_order')),
 
     importLegacyLedger: (data) => serial(() => db.transaction((tx) => importLegacy(tx, data))),

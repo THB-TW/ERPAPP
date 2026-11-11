@@ -56,17 +56,18 @@ async function assertEmptyLedger(tx: Queryable): Promise<void> {
   const notEmpty = () => {
     throw new LedgerError('ledger_not_empty', '舊帳只能帶入全新的帳本：目前已有交易、財務文件或自訂的分類、帳戶、成員。');
   };
-  const counts = await tx.get<{ t: number; d: number; m: number; s: number }>(
+  const counts = await tx.get<{ t: number; d: number; m: number; s: number; transfers: number }>(
     `SELECT (SELECT COUNT(*) FROM transactions) AS t, (SELECT COUNT(*) FROM finance_document) AS d,
-            (SELECT COUNT(*) FROM members) AS m, (SELECT COUNT(*) FROM settings) AS s`,
+            (SELECT COUNT(*) FROM members) AS m, (SELECT COUNT(*) FROM settings) AS s,
+            (SELECT COUNT(*) FROM transfers) AS transfers`,
   );
-  if (!counts || counts.t > 0 || counts.d > 0 || counts.m > 0 || counts.s > 0) notEmpty();
-  const accounts = await tx.all<{ name: string; kind: string; opening_balance: number }>(
-    'SELECT name, kind, opening_balance FROM accounts ORDER BY sort_order',
+  if (!counts || counts.t > 0 || counts.d > 0 || counts.m > 0 || counts.s > 0 || counts.transfers > 0) notEmpty();
+  const accounts = await tx.all<{ name: string; kind: string; opening_balance: number; active: number }>(
+    'SELECT name, kind, opening_balance, active FROM accounts ORDER BY sort_order',
   );
   const categories = await tx.all<{ name: string; flow: string }>('SELECT name, flow FROM categories ORDER BY sort_order');
   const sameAccounts = accounts.length === DEFAULT_ACCOUNTS.length &&
-    accounts.every((a, i) => a.name === DEFAULT_ACCOUNTS[i].name && a.kind === DEFAULT_ACCOUNTS[i].kind && a.opening_balance === 0);
+    accounts.every((a, i) => a.name === DEFAULT_ACCOUNTS[i].name && a.kind === DEFAULT_ACCOUNTS[i].kind && a.opening_balance === 0 && a.active === 1);
   const sameCategories = categories.length === DEFAULT_CATEGORIES.length &&
     categories.every((c, i) => c.name === DEFAULT_CATEGORIES[i].name && c.flow === DEFAULT_CATEGORIES[i].flow);
   if (!sameAccounts || !sameCategories) notEmpty();
