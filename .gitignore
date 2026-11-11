@@ -376,3 +376,8 @@ cloudflare/dist/
 cloudflare/.dev.vars
 cloudflare/.env*
 !cloudflare/.env.example
+
+# iPhone App：匯出的備份檔與匯入前的另存檔含完整私人帳務，不進 Git。
+ledger-backup-*.db
+before-restore-*.db
+restore-staging-*.db

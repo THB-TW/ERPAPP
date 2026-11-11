@@ -28,6 +28,14 @@
 - 新增：`apps/mobile/src/app/budget-settings.tsx`、`apps/mobile/src/ledger/budgetCommands.ts`、`budgetPage.ts`、`categoryLifecycle.ts`、`budgetPage.test.ts`。修改：`apps/mobile/src/app/(tabs)/budget.tsx`、`settings.tsx`、`apps/mobile/src/app/entry.tsx`、`apps/mobile/src/ledger/index.ts`、`budgetViews.ts`、`transactions.ts`、`apps/mobile/src/calc/budgetEngine.ts` 與本票。
 - 提交受環境權限阻擋：`git add` 無法建立 `ERPAPP/.git/worktrees/wt-10/index.lock`，回傳 `Operation not permitted`；尚未建立 commit。檔案變更完整保留在目前分支，未 push、未開 PR、未切換分支。預定 commit 訊息為「完成免費預算頁與分類上限設定」，結尾須另起一行 `Co-Authored-By: Codex <noreply@openai.com>`。
 
+2026-11-11 整合分支合併後補驗：
+
+- 解開 `origin/claude/project-thread-xdtlp5` 的兩個內容衝突：設定分頁採新版 `ROWS` 清單，加入「預算與分類」一列並保留「備份與還原」；帳本入口保留票 07／09／10／16 全部功能，開帳月份仍由 `budgetFallbackMonth` 判定。
+- 一般預算寫入使用 `trackModifications` 包裝後的 `db.transaction`，會更新 `ledger_meta.last_modified_at`；備份指令維持使用 `rawDb`，還原時保留來源的修改時間。保留整合版遷移 **v4**（`ledger_meta` 與 `application_id`），本票仍不新增遷移，v7 未使用；寫死資料表清單的測試已含 `ledger_meta`。
+- 新增 `apps/mobile/src/ledger/budgetBackup.test.ts` 兩個真 SQLite 服務整合測試：預算預覽／查詢／重送／拒絕不更新修改時間，確認寫入才更新；跨月分類啟停、上限版本、月結與明細在備份還原後一致，還原後也能接續預覽與修改。
+- `npm test` 共 **209** 個：208 通過、1 個既有 macOS 路徑別名例外；以 worktree 內無別名暫存目錄重跑為 **209／209 通過**。`npm run typecheck` 通過。僅離線同步整合版已列出的 `expo-document-picker`、`expo-sharing`，未額外修改 package.json／lockfile。
+- 本次依使用者指示只改檔案，未暫存或提交，也未執行 abort／checkout／reset。檔內衝突標記已全部移除；Git 索引仍列 `UU`，待使用者在可寫入 Git 管理目錄的環境完成暫存與合併提交。
+
 待 iPhone 實機驗收：
 
 1. 開啟「預算」，確認三組與總覽；上下捲動時跳轉列固定、文字在色條上方，手動捲至頁底會標示照實支。逐一點選跳轉項目，確認位置與選取狀態。
