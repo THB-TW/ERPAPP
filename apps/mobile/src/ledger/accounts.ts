@@ -20,7 +20,6 @@ export interface AccountsLedger {
   listAccounts(): Promise<Account[]>;
   addAccount(input: NewAccount): Promise<{ id: number }>;
   updateAccount(id: number, changes: AccountChanges): Promise<void>;
-  /** 含截止日，預設今天。開帳日前只回開帳餘額；未設定全域開帳日時暫計全部交易。 */
   /** 含截止日，預設今天。早於開帳日回傳開帳餘額；未設定全域開帳日時暫計全部交易。 */
   listAccountBalances(asOf?: string): Promise<AccountBalance[]>;
 }
