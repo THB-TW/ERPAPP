@@ -2,18 +2,13 @@
 // 只給翰陞在 Mac 上跑；用法與每個詢問的回答方式見 docs/legacy-migration.md。
 import { createInterface } from 'node:readline/promises';
 import { parseArgs } from 'node:util';
-import { fileURLToPath } from 'node:url';
 import type { Readable } from 'node:stream';
 import { ACCOUNT_KINDS, type AccountKind } from '../../src/ledger/defaults.ts';
+import { EXIT, UsageError, consoleIo, isMainModule, type Io as BaseIo } from '../common.ts';
 import { OutputPathError } from './output.ts';
 import { ConversionStopped, convertLegacy, formatSummary, parseMoney, type ConvertOptions, type ConvertSummary } from './convert.ts';
 
-export class UsageError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'UsageError';
-  }
-}
+export { UsageError };
 
 export const USAGE = `用法：node tools/legacy-convert/cli.ts <匯出目錄> <輸出檔> [選項]
   <匯出目錄>   已驗證的私人匯出（在 .private/ 之下，含 manifest.json）
@@ -78,14 +73,11 @@ export function parseCliArgs(argv: string[]): Pick<ConvertOptions, 'exportDirect
   };
 }
 
-interface Io {
-  out(line: string): void;
-  err(line: string): void;
+interface Io extends BaseIo {
   /** 輸入是互動終端嗎；預設看 process.stdin.isTTY。不是就不詢問（等同 --no-prompt）。 */
   interactive?: boolean;
   input?: Readable;
 }
-const consoleIo: Io = { out: (l) => console.log(l), err: (l) => console.error(l) };
 
 /** 結束代碼：0 成功；2 需要人處理（已說明原因，沒有輸出）；1 其他錯誤（含來源驗證失敗）；64 用法錯誤。 */
 export async function main(
@@ -115,23 +107,23 @@ export async function main(
       : undefined;
     const summary = await convert({ ...args, ask, log: io.out });
     for (const line of formatSummary(summary)) io.out(line);
-    return 0;
+    return EXIT.ok;
   } catch (e) {
     if (e instanceof UsageError) {
       io.err(`${e.message}\n\n${USAGE}`);
-      return 64;
+      return EXIT.usage;
     }
     if (e instanceof ConversionStopped || e instanceof OutputPathError) {
       io.err(e.message);
-      return 2;
+      return EXIT.stopped;
     }
     io.err(`轉換失敗，沒有產生輸出：${e instanceof Error ? e.message : String(e)}\n（若訊息提到 Checksum、manifest 或 inventory，代表來源匯出未通過驗證，請重新取得已驗證的匯出，不要修改它。）`);
-    return 1;
+    return EXIT.failed;
   } finally {
     rl?.close();
   }
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (isMainModule(import.meta.url)) {
   process.exitCode = await main(process.argv.slice(2));
 }
