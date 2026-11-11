@@ -82,6 +82,9 @@ export async function executeBudgetCommand(q: Queryable, input: BudgetCommand, n
   if ((input.action === 'close' || input.action === 'rollback') && access.hasEntitlement !== undefined) {
     assertMonthlyCloseAccess(access.hasEntitlement);
   }
+  if (!preview && input.action === 'close' && access.hasEntitlement !== undefined) {
+    throw new BudgetRuleError('operation', '請透過月結精靈保存總資產核對後完成月結。');
+  }
   // 新增分類預設照實支，既有引擎與舊文件的 reserve 預設不變。
   const command = input.action === 'add' ? { ...input, kind: input.kind ?? 'actual' } : input;
   const { exists, state } = await readStoredDocument(q);

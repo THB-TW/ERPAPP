@@ -43,6 +43,8 @@ import { accountCommands, type AccountsLedger } from './accounts.ts';
 import { transferCommands, type TransfersLedger } from './transfers.ts';
 import { LedgerError } from './errors.ts';
 import { ledgerMigrations } from './migrations.ts';
+import { listAssetChecks, previewAssetCheck, recordAssetCheck, type AssetCheckPreview, type AssetCheckRequest, type AssetCheckRecord, type RecordAssetCheckRequest } from './assetCheck.ts';
+export type { AssetCheckPreview, AssetCheckRequest, AssetCheckAccount, AssetCheckMovement, AssetCheckRecord, RecordAssetCheckRequest } from './assetCheck.ts';
 import { completeMonthlyClose, monthlyCloseDraft, monthlyCloseSnapshot, previewMonthlyClose, type CompleteMonthlyCloseRequest, type MonthlyCloseDraft, type MonthlyClosePreview, type MonthlyCloseRequest, type MonthlyCloseSnapshot } from './monthlyClose.ts';
 import { importTransactionsCsv, exportTransactionsCsv, type CsvImportOptions, type CsvImportResult } from './csvTransactions.ts';
 export { CsvFormatError } from './csvTransactions.ts';
@@ -104,6 +106,9 @@ export interface BudgetCommandResult {
 }
 
 export interface Ledger extends AccountsLedger, TransfersLedger {
+  previewAssetCheck(input: AssetCheckRequest): Promise<AssetCheckPreview>;
+  recordAssetCheck(input: RecordAssetCheckRequest): Promise<AssetCheckRecord>;
+  listAssetChecks(month?: string): Promise<AssetCheckRecord[]>;
   /** 月結精靈的開放月份與唯讀收入；當月尚未結束時不能完成。 */
   getMonthlyCloseDraft(): Promise<MonthlyCloseDraft>;
   /** 讀當月收入並立即試算，不寫入月結或快照。 */
@@ -146,7 +151,8 @@ export interface Ledger extends AccountsLedger, TransfersLedger {
    * 執行一個預算指令（caps、add、edit、map、retire、transfer、fund、correct、reverse、rollback、close）。
    * 在同一個資料庫交易內讀文件、套用引擎、寫回。close 的實支由該月支出交易彙總，當月收入由 command.amount 傳入
    * （保留舊帳工具相容；App 精靈使用 completeMonthlyClose 自動帶入）。被拒時丟 BudgetRuleError 或 LedgerError。
-   * App 必須帶入 access.hasEntitlement；省略只供既有移植測試與舊帳工具相容使用。
+   * App 必須帶入 access.hasEntitlement；App 的 close 寫入請改走已核對的 completeMonthlyClose。
+   * 省略 access 只供既有移植測試與舊帳工具相容使用。
    */
   runBudgetCommand(command: BudgetCommand, access?: BudgetCommandAccess): Promise<BudgetCommandResult>;
   /** 僅計算，不寫入；確認時重送相同指令，仍會重新檢查版本與開放月份。 */
@@ -217,6 +223,9 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
   }
 
   return {
+    previewAssetCheck: (input) => serial(() => previewAssetCheck(db, input, now())),
+    recordAssetCheck: (input) => serial(() => db.transaction((tx) => recordAssetCheck(tx, input, now()))),
+    listAssetChecks: (month) => serial(() => listAssetChecks(db, month)),
     getMonthlyCloseDraft: () => serial(() => monthlyCloseDraft(db, now())),
     previewMonthlyClose: (input) => serial(() => previewMonthlyClose(db, input, now())),
     completeMonthlyClose: (input) => serial(() => db.transaction((tx) => completeMonthlyClose(tx, input, now()))),

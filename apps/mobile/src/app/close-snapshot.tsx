@@ -1,4 +1,4 @@
-import { Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { Stack, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 import type { MonthlyCloseSnapshot } from '../ledger/index.ts';
@@ -40,6 +40,7 @@ export default function CloseSnapshotScreen() {
         <Text style={styles.heading}>已生效調整後的資產</Text>
         <Text style={styles.note}>當月盈餘保留原始月結值；可用餘額、各分類儲備與帳面總資產包含其後已生效的調整。</Text>
         <MonthlyCloseSummary summary={snapshot.summary} />
+        <CloseButton title="查看本月總資產核對紀錄" onPress={() => router.push({ pathname: '/asset-check-history', params: { month } })} />
         <Text style={styles.heading}>各分類累積儲備</Text>
         {snapshot.summary.reserves.length === 0 ? <Text style={styles.note}>沒有分類儲備。</Text> : null}
         {snapshot.summary.reserves.map((reserve) => <View key={reserve.categoryId} style={styles.card}>

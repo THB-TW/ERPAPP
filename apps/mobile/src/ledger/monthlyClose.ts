@@ -7,6 +7,7 @@ import { readStoredDocument } from './financeDocument.ts';
 import { assertMonthlyCloseAccess, budgetFallbackMonth, executeBudgetCommand, monthExpenses } from './budgetCommands.ts';
 import { budgetMonth, budgetStatus, type BudgetMonthView } from './budgetViews.ts';
 import { LedgerError } from './errors.ts';
+import { assertAssetCheckForClose } from './assetCheck.ts';
 
 export interface MonthlyCloseRow {
   categoryId: string;
@@ -31,6 +32,7 @@ export interface CompleteMonthlyCloseRequest extends MonthlyCloseRequest {
   version: number;
   operationId: string;
   previewToken: string;
+  assetCheckId?: string;
 }
 export interface MonthlyCloseSnapshot {
   summary: BudgetMonthView;
@@ -117,12 +119,14 @@ export async function completeMonthlyClose(q: Queryable, input: CompleteMonthlyC
   const { state } = await readStoredDocument(q);
   const operationId = typeof input.operationId === 'string' ? input.operationId.toLowerCase() : '';
   const receiptKey = `monthly_close_receipt:${operationId}`;
+  const receiptValue = JSON.stringify([input.previewToken, input.assetCheckId ?? null]);
   let income: number;
   if (state.receipts.some((r) => r.id === operationId)) {
     // 成功後即使已撤銷或已有下個月份，重送仍只讀當次原始快照，不套用新交易。
     const original = state.closeHistory.find((m) => m.id === operationId);
     const receipt = await q.get<{ value: string }>('SELECT value FROM settings WHERE key = ?', [receiptKey]);
-    if (!original || original.month !== input.month || receipt?.value !== input.previewToken) {
+    const sameReceipt = receipt?.value === receiptValue || (input.assetCheckId === undefined && receipt?.value === input.previewToken);
+    if (!original || original.month !== input.month || !sameReceipt) {
       throw new BudgetRuleError('operation', '操作識別碼已用於其他內容，請重新載入。');
     }
     income = original.income;
@@ -131,14 +135,15 @@ export async function completeMonthlyClose(q: Queryable, input: CompleteMonthlyC
     if (preview.version !== input.version || preview.previewToken !== input.previewToken) {
       throw new BudgetRuleError('operation', '交易或預算已變更，請重新預覽後再完成月結。');
     }
+    await assertAssetCheckForClose(q, input.month, input.assetCheckId, now);
     income = preview.income;
   }
   const { result } = await executeBudgetCommand(q, { action: 'close', operationId: input.operationId,
-    version: input.version, month: input.month, amount: income, reason: '月結' }, now, false, input);
+    version: input.version, month: input.month, amount: income, reason: '月結' }, now);
   if (!result.replayed) {
     // 與財務文件同一筆 SQLite 交易保存確認內容；不改財務文件格式或引擎收據規則。
     await q.run('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
-      [receiptKey, input.previewToken]);
+      [receiptKey, receiptValue]);
   }
   return result;
 }
