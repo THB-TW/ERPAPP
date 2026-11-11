@@ -3,7 +3,7 @@
 // 備份檔格式：就是一個完整的帳本 SQLite 檔（用 SQLite 的 VACUUM INTO 產生一致的單一檔案，
 // 不直接複製日誌檔），帶三樣東西：
 // - 識別標記：SQLite 檔頭的 application_id = BACKUP_APPLICATION_ID（由遷移 v4 寫入，所以帳本檔本身
-//   與舊帳轉換程式的輸出也都帶著它）。
+//   與舊帳轉換程式的輸出也都帶著它；見 migrations.ts）。
 // - 結構版本：PRAGMA user_version，與帳本遷移版本同一個號碼。
 // - 時間：ledger_meta 表的 last_modified_at（帳本最後一次有資料變動）與 last_backup_at（匯出時間）。
 // 匯入＝整本取代、不合併：先把目前的帳另存一份（同樣是合格的備份檔），再在單一資料庫交易內把每個
@@ -53,18 +53,9 @@ const LAST_BACKUP = 'last_backup_at';
 // 只存檔名：iOS 更新 App 後容器路徑會變，絕對路徑不能存。
 const SAFETY_COPY = 'safety_copy_file';
 
+const SCHEMA_MISMATCH = '這份備份的資料表與這個 App 的帳本不一致，無法匯入。';
+const quoteName = (name: string) => `"${name.replace(/"/g, '""')}"`;
 const NOT_A_BACKUP = '這個檔案不是這個 App 的備份檔，無法匯入。請選擇用「匯出備份檔」產生的檔案。';
-
-export const ledgerMetaMigration: Migration['up'] = async (tx) => {
-  await tx.exec(`
-    CREATE TABLE ledger_meta (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-  `);
-  // PRAGMA 不能帶參數；值是程式內的常數。
-  await tx.exec(`PRAGMA application_id = ${BACKUP_APPLICATION_ID}`);
-};
 
 async function readMeta(q: Queryable, key: string): Promise<string | null> {
   return (await q.get<{ value: string }>('SELECT value FROM ledger_meta WHERE key = ?', [key]))?.value ?? null;
@@ -117,26 +108,41 @@ function inDirectory(files: BackupFiles, name: string): string {
   return `${files.directory.replace(/\/+$/, '')}/${name}`;
 }
 
+let stampSequence = 0;
+/** 檔名用的時間戳（到毫秒）加上本次執行內的流水號：同一毫秒內連續兩次也不撞名，不用亂數。 */
 function fileStamp(now: Date): string {
-  const unique = Math.random().toString(36).slice(2, 8);
-  return `${now.toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z')}-${unique}`;
+  stampSequence += 1;
+  return `${now.toISOString().replace(/[-:.]/g, '')}-${stampSequence}`;
 }
 
-/** 把整本帳寫成 path（不可已存在），並記下上次備份時間。記錄備份時間不算帳本變動。 */
+/**
+ * 把整本帳寫成 path（不可已存在）。備份檔裡帶著自己的匯出時間；手機上的「上次備份時間」這裡不記，
+ * 等畫面確認檔案真的送出去之後才用 recordBackupTime 記（分享面板被取消時分不出來，要問使用者）。
+ */
 export async function exportBackupFile(db: Database, files: BackupFiles | undefined, path: string, now: Date) {
   filesOrThrow(files);
   const exportedAt = now.toISOString();
   const previous = await readMeta(db, LAST_BACKUP);
-  // 先寫進帳本，備份檔裡就帶著自己的匯出時間；匯出失敗再改回去。
-  await db.transaction((tx) => writeMeta(tx, LAST_BACKUP, exportedAt));
+  const setLastBackup = (value: string | null) =>
+    db.transaction((tx) => (value === null ? deleteMeta(tx, LAST_BACKUP) : writeMeta(tx, LAST_BACKUP, value)));
+  // 匯出時間先寫進帳本，VACUUM INTO 複製出去的檔案就帶著它；複製完（或失敗）一律改回原值。
+  await setLastBackup(exportedAt);
   try {
     await db.run('VACUUM INTO ?', [path]);
   } catch (e) {
-    await db.transaction((tx) => (previous === null ? deleteMeta(tx, LAST_BACKUP) : writeMeta(tx, LAST_BACKUP, previous)));
     const reason = e instanceof Error ? e.message : String(e);
     throw new LedgerError('backup_failed', `備份檔沒有產生（${reason}）。請換一個檔名或位置再試一次。`);
+  } finally {
+    await setLastBackup(previous);
   }
   return { path, exportedAt };
+}
+
+/** 記下上次備份時間（備份檔確定送出後呼叫）。這不算帳本變動。 */
+export async function recordBackupTime(db: Database, exportedAt: string): Promise<void> {
+  const time = typeof exportedAt === 'string' ? Date.parse(exportedAt) : Number.NaN;
+  if (Number.isNaN(time)) throw new LedgerError('invalid_date', '備份時間格式不正確。');
+  await db.transaction((tx) => writeMeta(tx, LAST_BACKUP, new Date(time).toISOString()));
 }
 
 /** 驗證識別標記、結構版本與完整性，讀出備份的時間。不改動檔案。 */
@@ -203,10 +209,7 @@ export async function restoreBackupFile(
   const current = await readMeta(db, LAST_MODIFIED);
   const info = await inspectBackupFile(available, path, migrations.length, current);
   if (info.olderThanCurrent && !options.allowOlder) {
-    throw new LedgerError(
-      'backup_older',
-      `要匯入的備份（最後修改 ${info.lastModifiedAt ?? '不明'}）比手機上的帳（${current}）舊，匯入會蓋掉之後記的帳。確定要匯入嗎？`,
-    );
+    throw new LedgerError('backup_older', '要匯入的備份比手機上的帳舊，匯入會蓋掉備份之後才記的帳。確定要匯入嗎？');
   }
 
   const stamp = fileStamp(now);
@@ -215,14 +218,15 @@ export async function restoreBackupFile(
   const safetyCopyPath = inDirectory(available, safetyFile);
   const previousSafetyFile = await readMeta(db, SAFETY_COPY);
 
-  // 1. 暫存複本：在複本上遷移，使用者的原檔不動
-  const incoming = await available.open(path);
+  let replaced = false;
   try {
-    await incoming.run('VACUUM INTO ?', [staging]);
-  } finally {
-    await incoming.close();
-  }
-  try {
+    // 1. 暫存複本：在複本上遷移，使用者的原檔不動
+    const incoming = await available.open(path);
+    try {
+      await incoming.run('VACUUM INTO ?', [staging]);
+    } finally {
+      await incoming.close();
+    }
     if (info.schemaVersion < migrations.length) {
       const staged = await available.open(staging);
       try {
@@ -246,34 +250,43 @@ export async function restoreBackupFile(
         const incomingTables = await tx.all<{ name: string }>(
           "SELECT name FROM incoming.sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
         );
-        if (JSON.stringify(tables) !== JSON.stringify(incomingTables)) {
-          throw new LedgerError('backup_corrupt', '這份備份的資料表與這個 App 的帳本不一致，無法匯入。');
-        }
+        if (JSON.stringify(tables) !== JSON.stringify(incomingTables)) throw new LedgerError('backup_corrupt', SCHEMA_MISMATCH);
         for (const { name } of tables) {
-          const quoted = `"${name.replace(/"/g, '""')}"`;
+          const quoted = quoteName(name);
           const columns = (await tx.all<{ name: string }>(`PRAGMA main.table_info(${quoted})`)).map((c) => c.name);
           const incomingColumns = (await tx.all<{ name: string }>(`PRAGMA incoming.table_info(${quoted})`)).map((c) => c.name);
-          if (JSON.stringify(columns) !== JSON.stringify(incomingColumns)) {
-            throw new LedgerError('backup_corrupt', '這份備份的資料表與這個 App 的帳本不一致，無法匯入。');
-          }
-          const list = columns.map((c) => `"${c.replace(/"/g, '""')}"`).join(', ');
+          if (JSON.stringify(columns) !== JSON.stringify(incomingColumns)) throw new LedgerError('backup_corrupt', SCHEMA_MISMATCH);
+          const list = columns.map(quoteName).join(', ');
           await tx.run(`DELETE FROM main.${quoted}`);
           await tx.run(`INSERT INTO main.${quoted} (${list}) SELECT ${list} FROM incoming.${quoted}`);
         }
+        // 另存檔的紀錄與取代同一個交易（備份帶進來的舊紀錄不算數）：取代成功就一定找得到另存檔。
+        await writeMeta(tx, SAFETY_COPY, safetyFile);
       });
+      replaced = true;
     } finally {
-      await db.run('DETACH DATABASE incoming');
+      // 卸載失敗不可蓋掉真正的結果；名稱若還佔著，下一次 ATTACH 會明確報錯。
+      await db.run('DETACH DATABASE incoming').catch(() => undefined);
     }
-  } catch (e) {
-    await available.remove(safetyCopyPath).catch(() => undefined); // 沒有取代成功，另存檔用不到
-    throw e;
   } finally {
     await available.remove(staging).catch(() => undefined);
+    // 沒有取代成功，另存檔用不到；已經取代了就絕不刪。
+    if (!replaced) await available.remove(safetyCopyPath).catch(() => undefined);
   }
-  // 記下另存檔（備份帶進來的舊紀錄不算數），只留最近一份。這不算帳本變動。
-  await db.transaction((tx) => writeMeta(tx, SAFETY_COPY, safetyFile));
+  // 只留最近一份另存檔。
   if (previousSafetyFile !== null && previousSafetyFile !== safetyFile) {
     await available.remove(inDirectory(available, previousSafetyFile)).catch(() => undefined);
   }
   return { safetyCopyPath, schemaVersion: info.schemaVersion };
+}
+
+/** 帳本服務的四個備份指令與一個查詢（還沒排隊）；index.ts 只負責把它們排進同一條隊。 */
+export function backupCommands(db: Database, files: BackupFiles | undefined, migrations: readonly Migration[], now: () => Date) {
+  return {
+    status: () => backupStatus(db, files),
+    export: (path: string) => exportBackupFile(db, files, path, now()),
+    recordDelivered: (exportedAt: string) => recordBackupTime(db, exportedAt),
+    inspect: async (path: string) => inspectBackupFile(files, path, migrations.length, await readMeta(db, LAST_MODIFIED)),
+    restore: (path: string, options: { allowOlder?: boolean } = {}) => restoreBackupFile(db, files, path, migrations, options, now()),
+  };
 }

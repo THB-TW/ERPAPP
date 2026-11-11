@@ -7,27 +7,29 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { BackupStatus } from '../ledger/index.ts';
 import { LedgerError } from '../ledger/index.ts';
 import { discardBackupFile, newBackupPath, pickBackupFile, shareBackupFile } from '../platform/backupTransfer.ts';
-import { describeLastBackup, taipeiDateTime } from '../ui/backupText.ts';
+import { BACKUP_REMINDER_DAYS, describeLastBackup, taipeiDateTime } from '../ui/backupText.ts';
 import { userMessage } from '../ui/format.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
 import { colors } from '../ui/theme.ts';
 
 type Busy = 'export' | 'import' | 'undo' | null;
 
-/** 用系統對話框問一個是非題。 */
-function confirm(title: string, message: string, confirmLabel: string): Promise<boolean> {
+/** 用系統對話框問一個是非題；關掉對話框等於選「否」。 */
+function ask(title: string, message: string, yes: string, no: string, destructive = false): Promise<boolean> {
   return new Promise((resolve) => {
     Alert.alert(
       title,
       message,
       [
-        { text: '取消', style: 'cancel', onPress: () => resolve(false) },
-        { text: confirmLabel, style: 'destructive', onPress: () => resolve(true) },
+        { text: no, style: 'cancel', onPress: () => resolve(false) },
+        { text: yes, style: destructive ? 'destructive' : 'default', onPress: () => resolve(true) },
       ],
       { cancelable: true, onDismiss: () => resolve(false) },
     );
   });
 }
+
+const confirm = (title: string, message: string, confirmLabel: string) => ask(title, message, confirmLabel, '取消', true);
 
 export default function BackupScreen() {
   const ledger = useLedger();
@@ -65,13 +67,22 @@ export default function BackupScreen() {
 
   const exportBackup = () =>
     run('export', async () => {
-      const { path } = await ledger.exportBackup(newBackupPath(new Date()));
+      const { path, exportedAt } = await ledger.exportBackup(newBackupPath(new Date()));
       try {
-        const shared = await shareBackupFile(path);
-        setMessage(shared ? '備份檔已產生。請確認已存到「檔案」、iCloud Drive 或用 AirDrop 傳到別的裝置。' : null);
-        if (!shared) setError('這台裝置無法開啟分享面板，備份檔沒有送出。');
+        if (!(await shareBackupFile(path))) {
+          setError('這台裝置無法開啟分享面板，備份檔沒有送出。');
+          return;
+        }
+        // 分享面板被取消或真的存好了，系統回報都一樣，所以直接問；答「已存好」才記上次備份日期。
+        const saved = await ask('備份檔存好了嗎？', '已存到「檔案」、iCloud Drive 或用 AirDrop 傳到別的裝置，才算備份完成。', '已存好', '沒有存');
+        if (saved) {
+          await ledger.recordBackupDelivered(exportedAt);
+          setMessage('已記下這次備份。');
+        } else {
+          setMessage('這次沒有記成備份。需要時請再按一次「匯出備份檔」。');
+        }
       } finally {
-        await discardBackupFile(path); // 分享面板已把檔案交出去，App 內的暫放檔不留
+        await discardBackupFile(path); // App 內的暫放檔不留
       }
     }, '匯出備份檔失敗，請再試一次。');
 
@@ -132,7 +143,7 @@ export default function BackupScreen() {
           <Text style={{ color: colors.text, fontSize: 18, fontWeight: '600' }}>{last ? last.text : '讀取中…'}</Text>
           {last?.overdue ? (
             <Text style={{ color: colors.expense, fontSize: 13 }}>
-              {status?.lastBackupAt ? '已經超過 35 天沒有備份，建議現在匯出一份。' : '帳只存在這支手機上，建議現在匯出一份備份。'}
+              {status?.lastBackupAt ? `已經超過 ${BACKUP_REMINDER_DAYS} 天沒有備份，建議現在匯出一份。` : '帳只存在這支手機上，建議現在匯出一份備份。'}
             </Text>
           ) : null}
         </View>

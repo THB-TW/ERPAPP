@@ -1,6 +1,6 @@
 import type { Migration } from '../db/migrate.ts';
 import { DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES } from './defaults.ts';
-import { ledgerMetaMigration } from './backup.ts';
+import { BACKUP_APPLICATION_ID } from './backup.ts';
 
 // 帳本的結構遷移。金額為新台幣整數（INTEGER），日期為台北時間的 YYYY-MM-DD 字串（TEXT）。
 export const ledgerMigrations: readonly Migration[] = [
@@ -77,9 +77,25 @@ export const ledgerMigrations: readonly Migration[] = [
     },
   },
   {
-    // 備份檔（票 16）：帳本檔頭寫入識別標記（application_id），並新增 ledger_meta 存最後修改時間與
-    // 上次備份時間。ledger_meta 不放在 settings，是因為舊帳帶入要求 settings 是空的。
+    // 備份檔（票 16）：帳本檔頭寫入識別標記（application_id），並新增 ledger_meta 存最後修改時間、
+    // 上次備份時間與另存檔檔名。ledger_meta 不放在 settings，是因為舊帳帶入要求 settings 是空的。
     version: 4,
-    up: ledgerMetaMigration,
+    async up(tx) {
+      await tx.exec(`
+        CREATE TABLE ledger_meta (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL
+        );
+      `);
+      // 升級前就有帳的帳本：以升級當下當作最後修改時間（格式同 toISOString），
+      // 之後匯入較舊的備份才會警告。全新的帳本不補。
+      await tx.exec(`
+        INSERT INTO ledger_meta (key, value)
+        SELECT 'last_modified_at', strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE EXISTS (SELECT 1 FROM transactions) OR EXISTS (SELECT 1 FROM finance_document);
+      `);
+      // PRAGMA 不能帶參數；值是程式內的常數。
+      await tx.exec(`PRAGMA application_id = ${BACKUP_APPLICATION_ID}`);
+    },
   },
 ];

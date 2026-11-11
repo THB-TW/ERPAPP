@@ -95,7 +95,7 @@ test('帳本有變動才更新最後修改時間；查詢不算變動', async (t
   await ledger.close();
 });
 
-test('匯出的備份檔帶識別標記、結構版本、最後修改時間與匯出時間，並記下上次備份日期', async (t) => {
+test('匯出的備份檔帶識別標記、結構版本、最後修改時間與匯出時間；確認送出後才記下上次備份日期', async (t) => {
   const dir = workspace(t);
   const c = clock('2026-10-31T15:00:00Z');
   const ledger = await sampleLedger(dir, 'ledger.db', c.now);
@@ -104,11 +104,16 @@ test('匯出的備份檔帶識別標記、結構版本、最後修改時間與�
   const out = join(dir, 'export.db');
   const result = await ledger.exportBackup(out);
   assert.deepEqual(result, { path: out, exportedAt: '2026-11-05T12:30:00.000Z' });
+  // 檔案產生了，但還不知道使用者有沒有把它存到別處：上次備份日期先不動
+  assert.equal((await ledger.getBackupStatus()).lastBackupAt, null);
+
+  await ledger.recordBackupDelivered(result.exportedAt);
   assert.deepEqual(await ledger.getBackupStatus(), {
     lastBackupAt: '2026-11-05T12:30:00.000Z',
     lastModifiedAt: '2026-10-31T15:00:00.000Z', // 記下備份日期不算帳本變動
     safetyCopyPath: null,
   });
+  await assert.rejects(ledger.recordBackupDelivered('昨天'), (e) => e instanceof LedgerError && e.code === 'invalid_date');
 
   const raw = openNodeDatabase(out);
   assert.equal((await raw.get<{ application_id: number }>('PRAGMA application_id'))?.application_id, BACKUP_APPLICATION_ID);
@@ -300,6 +305,46 @@ test('完整性檢查不過的備份被拒', async (t) => {
     e instanceof LedgerError && e.code === 'backup_corrupt');
   assert.deepEqual(await snapshot(ledger), before);
   await ledger.close();
+});
+
+test('通過檢查但資料表欄位與帳本不一致的備份：取代整筆還原，帳本不變、不留另存檔與暫存檔', async (t) => {
+  const dir = workspace(t);
+  const ledger = await sampleLedger(dir, 'ledger.db', clock('2026-11-01T00:00:00Z').now);
+  const exported = await ledger.exportBackup(join(dir, 'export.db'));
+  const raw = openNodeDatabase(exported.path);
+  await raw.exec("ALTER TABLE transactions ADD COLUMN stray TEXT NOT NULL DEFAULT ''");
+  await raw.close();
+
+  const before = await snapshot(ledger);
+  await assert.rejects(ledger.restoreBackup(exported.path, { allowOlder: true }), (e) =>
+    e instanceof LedgerError && e.code === 'backup_corrupt');
+  assert.deepEqual(await snapshot(ledger), before);
+  assert.equal((await ledger.getBackupStatus()).safetyCopyPath, null);
+  assert.deepEqual(readdirSync(dir).filter((f) => f.startsWith('before-restore') || f.startsWith('restore-staging')), []);
+
+  // 失敗後沒有殘留的附加資料庫，下一次匯入照常可用
+  const good = await ledger.exportBackup(join(dir, 'good.db'));
+  await ledger.restoreBackup(good.path);
+  assert.deepEqual(await snapshot(ledger), before);
+  await ledger.close();
+});
+
+test('升級前就有帳的帳本：升級時補上最後修改時間，匯入較舊的備份才會警告', async (t) => {
+  const dir = workspace(t);
+  const old = openNodeDatabase(join(dir, 'old-app.db'));
+  await migrate(old, ledgerMigrations.slice(0, 3)); // 票 16 之前的結構
+  await old.run("INSERT INTO transactions (date, category_id, account_id, flow, amount) VALUES ('2026-10-01', 1, 1, 'expense', 100)");
+  await old.close();
+
+  const ledger = await openAt(dir, 'old-app.db', clock('2026-11-01T00:00:00Z').now);
+  const stamped = (await ledger.getBackupStatus()).lastModifiedAt;
+  assert.match(stamped ?? '', /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+  await ledger.close();
+
+  // 全新的帳本沒有帳，不補
+  const fresh = await openAt(dir, 'fresh.db', clock('2026-11-01T00:00:00Z').now);
+  assert.equal((await fresh.getBackupStatus()).lastModifiedAt, null);
+  await fresh.close();
 });
 
 test('結構版本較舊的備份先遷移再取代', async (t) => {
