@@ -1,7 +1,7 @@
 // 預算與月結引擎：「狀態＋指令 → 新狀態」的純函式。
 // 逐行移植自舊系統 Services/Budgeting/BudgetEngine.cs；規則、驗證順序與繁體中文訊息以它為準，不改義。
 // 與 C# 的刻意差異（見 apps/mobile 的票 03 回報）：
-// - 不讀時鐘：時間（ISO 字串）與「尚無任何月結時的開放月份」都由 context 的 time 決定。
+// - 不讀時鐘：時間由 context.time 傳入；尚無月結時優先用 context.openingMonth，未開帳才採用時間所在月份。
 // - 金額溢位：C# 用 32 位元整數加 checked；這裡所有金額是安全整數，超出就丟 kind 'overflow' 的錯，不悄悄失準。
 // - 指令指紋：C# 對指令做 SHA-256；這裡用穩定的正規化字串（只用來判斷「同一操作識別碼是否同一內容」）。
 import { shiftMonth, isValidMonth } from './dates.ts';
@@ -39,6 +39,8 @@ export interface BudgetContext {
   actor: string;
   /** ISO 8601 時間字串，由呼叫端傳入。 */
   time: string;
+  /** 尚無月結時採用的開帳月份；未開帳的舊呼叫端仍採用 time 所在月份。 */
+  openingMonth?: string;
   /** 只有 close 使用：該月每一筆支出（交易分類名稱與正整數金額）。 */
   expenses?: readonly BudgetExpense[];
 }
@@ -98,7 +100,7 @@ export function latestMonth(state: BudgetState): string {
 
 /**
  * 開放月份＝最近一次月結月份的次月。還沒有任何月結時，C# 取今天的月份；
- * 這裡取 fallbackMonth（呼叫端用目前時間換算成台北月份傳入）。開帳月怎麼決定屬於票 18。
+ * 這裡取 fallbackMonth（帳本服務傳開帳月，尚未開帳時才傳目前台北月份）。
  */
 export function openMonth(state: BudgetState, fallbackMonth: string): string {
   const last = latestMonth(state);
@@ -183,7 +185,7 @@ export function applyBudgetCommand(state: BudgetState, input: BudgetCommand, con
   const year = checkMonthFormat(command.month);
   if (year < 1900 || year > 9998) throw argumentError('月份超出範圍。');
 
-  const fallbackMonth = taipeiMonthOf(time);
+  const fallbackMonth = context.openingMonth ?? taipeiMonthOf(time);
   const next = clone(state);
   const amount = command.amount ?? 0;
   const open = () => openMonth(next, fallbackMonth);
@@ -202,7 +204,8 @@ export function applyBudgetCommand(state: BudgetState, input: BudgetCommand, con
     case 'retire': {
       const draft = newRevision(next, command, reason, actor, time, fallbackMonth);
       if (!draft.limits.some((l) => l.categoryId === command.from)) throw argumentError('類別已停用或不存在。');
-      const remaining = own(position(next, latestMonth(next)).balances, command.from) ?? 0;
+      const last = latestMonth(next);
+      const remaining = last ? own(position(next, last).balances, command.from) ?? 0 : 0;
       if (remaining < 0) throw operationError('請先補足負儲備，再移除類別。');
       if (remaining > 0) {
         transfer(next, { operationId: opId, month: latestMonth(next), from: command.from, to: command.to, amount: remaining, reason }, actor, time, fallbackMonth);
@@ -262,6 +265,40 @@ export function applyBudgetCommand(state: BudgetState, input: BudgetCommand, con
       next.categories.push({ id: opId, name, kind });
       draft.limits.push({ categoryId: opId, amount: kind === 'actual' ? 0 : amount });
       put(draft.mapping, name, opId);
+      next.revisions.push(draft);
+      break;
+    }
+    case 'edit': {
+      const draft = newRevision(next, command, reason, actor, time, fallbackMonth);
+      const limit = draft.limits.find((l) => l.categoryId === command.from);
+      if (!limit) throw argumentError('類別已停用或不存在。');
+      const definition = singleCategory(next, limit.categoryId);
+      const oldName = definition.name;
+      const name = (command.name ?? '').trim();
+      // 改組留下的歷史定義可與其後繼類別同名；只禁止其他使用中類別占用名稱。
+      if (name.length < 1 || name.length > 30 || next.categories.some((c) =>
+        c.id !== definition.id && c.name.toUpperCase() === name.toUpperCase() && draft.limits.some((l) => l.categoryId === c.id))) {
+        throw argumentError('請填寫不重複的類別名稱（1～30 字）。');
+      }
+      const kind = command.kind ?? definition.kind;
+      if (!['reserve', 'fixed', 'actual'].includes(kind)) throw argumentError('類別用途不正確。');
+      cap(amount);
+      if (kind === 'actual' && amount !== 0) throw argumentError('照實支類別不設定上限。');
+      if (kind !== definition.kind) {
+        const last = latestMonth(next);
+        if (last && (own(position(next, last).balances, definition.id) ?? 0) !== 0) {
+          throw operationError('請先移轉或補足這個類別的儲備至 0，再更改預算組。');
+        }
+        // 組別是全域定義：建立後繼 ID，讓舊月撤銷重結仍使用原組別。
+        next.categories.push({ id: opId, name, kind });
+        limit.categoryId = opId;
+        for (const key of Object.keys(draft.mapping)) if (draft.mapping[key] === definition.id) put(draft.mapping, key, opId);
+      } else {
+        // 名稱不參與計算；交易分類的歷史名稱由帳本服務另外保留。
+        definition.name = name;
+      }
+      limit.amount = amount;
+      if (name !== oldName) put(draft.mapping, name, limit.categoryId);
       next.revisions.push(draft);
       break;
     }

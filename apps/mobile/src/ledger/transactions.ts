@@ -5,6 +5,7 @@ import type { Flow } from './defaults.ts';
 import { LedgerError } from './errors.ts';
 import { assertDateOpen } from './monthLock.ts';
 import { assertAccountKnown, assertCategoryFlow, assertTransactionShape } from './transactionRules.ts';
+import { categoryAvailability } from './categoryLifecycle.ts';
 
 export interface NewTransaction {
   date: string;
@@ -44,6 +45,13 @@ async function assertValidInput(tx: Queryable, input: NewTransaction): Promise<v
   assertTransactionShape(input);
   const category = await tx.get<{ flow: Flow }>('SELECT flow FROM categories WHERE id = ?', [input.categoryId]);
   assertCategoryFlow(category, input.flow);
+  const availability = await categoryAvailability(tx, input.categoryId, input.date.slice(0, 7));
+  if (availability === 'inactive') {
+    throw new LedgerError('unknown_category', '這個分類已停用，請改選使用中的分類。');
+  }
+  if (availability === 'not_started') {
+    throw new LedgerError('unknown_category', '這個分類在指定月份尚未啟用，請改選當時的分類。');
+  }
   assertAccountKnown(await tx.get('SELECT id FROM accounts WHERE id = ?', [input.accountId]));
   if (input.memberId != null && !(await tx.get('SELECT id FROM members WHERE id = ?', [input.memberId]))) {
     throw new LedgerError('unknown_member', '找不到這位成員。');

@@ -36,7 +36,7 @@ export default function EntryScreen() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [cats, accs, mems] = await Promise.all([ledger.listCategories(), ledger.listAccounts(), ledger.listMembers()]);
+      const [cats, accs, mems] = await Promise.all([ledger.listCategories(monthOf(date)), ledger.listAccounts(), ledger.listMembers()]);
       if (cancelled) return;
       setCategories(cats);
       setAccounts(accs);
@@ -47,8 +47,10 @@ export default function EntryScreen() {
       }
       const t = await ledger.getTransaction(editingId);
       const closed = await ledger.isMonthClosed(monthOf(t.date));
+      const datedCategories = await ledger.listCategories(monthOf(t.date));
       if (cancelled) return;
       setDate(t.date);
+      setCategories(datedCategories);
       setFlow(t.flow);
       setAmountText(String(t.amount));
       setCategoryId(t.categoryId);
