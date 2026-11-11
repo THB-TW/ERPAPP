@@ -65,6 +65,9 @@ import { notificationCommands, type NotificationsLedger } from './notifications.
 export { NotificationSettingsError } from './notifications.ts';
 export type { NotificationKind, NotificationSettings, NotificationPlanInput, PlannedNotification } from './notifications.ts';
 
+import { onboardingStatus, openingBudgetSuggestions, addOpeningCategory, completeOnboarding, type OnboardingLedger } from './onboarding.ts';
+export type { OnboardingStatus, OpeningBudgetKind, OpeningBudgetRow, OpeningBudgetSuggestions, CompleteOnboardingInput } from './onboarding.ts';
+
 export type { AccountKind, Flow } from './defaults.ts';
 export { LedgerError } from './errors.ts';
 export { inspectLedgerFile } from './inspect.ts';
@@ -118,7 +121,7 @@ export interface BudgetCommandResult {
   replayed: boolean;
 }
 
-export interface Ledger extends AccountsLedger, TransfersLedger, InvestmentsLedger, LoansLedger, NotificationsLedger {
+export interface Ledger extends AccountsLedger, TransfersLedger, InvestmentsLedger, LoansLedger, NotificationsLedger, OnboardingLedger {
   getCardReconciliation(month: string): Promise<CardReconciliation>;
   importCardStatement(input: CardStatementRequest): Promise<CardStatementResult>;
   listCardStatements(filter?: CardStatementFilter): Promise<CardStatement[]>;
@@ -242,6 +245,10 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
   }
 
   return {
+    getOnboardingStatus: () => serial(() => onboardingStatus(db, now())),
+    getOpeningBudgetSuggestions: (input) => serial(() => openingBudgetSuggestions(db, now(), input)),
+    addOpeningCategory: (input) => serial(() => db.transaction((tx) => addOpeningCategory(tx, now(), input))),
+    completeOnboarding: (input) => serial(() => db.transaction((tx) => completeOnboarding(tx, now(), input))),
     getCardReconciliation: (month) => serial(() => cardReconciliation(db, month)),
     importCardStatement: (input) => serial(() => db.transaction((tx) => importCardStatement(tx, input))),
     listCardStatements: (filter) => serial(() => listCardStatements(db, filter)),

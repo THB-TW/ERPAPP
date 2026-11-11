@@ -26,3 +26,17 @@ export const DEFAULT_CATEGORIES: readonly { name: string; flow: Flow }[] = [
   { name: '薪資', flow: 'income' },
   { name: '其他收入', flow: 'income' },
 ];
+
+// 新使用者可逐項修改的公開建議表，只有名稱、組別與收入比例；不改 v1 種子、不含交易或金額。
+export const DEFAULT_OPENING_BUDGETS = [
+  { name: '飲食', kind: 'reserve', incomePercent: 20 },
+  { name: '交通', kind: 'reserve', incomePercent: 5 },
+  { name: '娛樂', kind: 'reserve', incomePercent: 5 },
+  { name: '日常用品', kind: 'reserve', incomePercent: 5 },
+  { name: '醫療保健', kind: 'reserve', incomePercent: 3 },
+  { name: '服飾', kind: 'reserve', incomePercent: 3 },
+  { name: '學習', kind: 'reserve', incomePercent: 5 },
+  { name: '電話網路', kind: 'fixed', incomePercent: 3 },
+  { name: '水電瓦斯', kind: 'actual', incomePercent: 0 },
+  { name: '其他', kind: 'reserve', incomePercent: 5 },
+] as const;
