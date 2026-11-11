@@ -47,7 +47,6 @@ import { listAssetChecks, previewAssetCheck, recordAssetCheck, type AssetCheckPr
 export type { AssetCheckPreview, AssetCheckRequest, AssetCheckAccount, AssetCheckMovement, AssetCheckRecord, RecordAssetCheckRequest } from './assetCheck.ts';
 import { completeMonthlyClose, monthlyCloseDraft, monthlyCloseSnapshot, previewMonthlyClose, type CompleteMonthlyCloseRequest, type MonthlyCloseDraft, type MonthlyClosePreview, type MonthlyCloseRequest, type MonthlyCloseSnapshot } from './monthlyClose.ts';
 import { importTransactionsCsv, exportTransactionsCsv, type CsvImportOptions, type CsvImportResult } from './csvTransactions.ts';
-export { CsvFormatError } from './csvTransactions.ts';
 export type { CsvEncoding, CsvImportOptions, CsvImportResult, CsvRowRejection } from './csvTransactions.ts';
 import { backupCommands, trackModifications, type BackupFiles, type BackupInspection, type BackupStatus, type RestoreResult } from './backup.ts';
 import { importCardStatement, listCardStatements, type CardStatementRequest, type CardStatementResult, type CardStatementFilter, type CardStatement } from './cardStatements.ts';

@@ -4,7 +4,7 @@
 
 **Blocked by:** 08 帳戶、轉帳與帳戶餘額、11 月結精靈基本流程
 
-**Status:** done（2026-11-11；iPhone 實機驗收與原生位元組讀檔介面接線待完成，見 Comments）
+**Status:** done（2026-11-11；合併票 15 後已接上手機選檔讀檔，iPhone 實機驗收待完成，見 Comments）
 
 **Owner:** `monthly-close`（見 `docs/agents/team.md`）　**Spec:** [規格](../../finance-product/spec.md)
 
@@ -12,12 +12,23 @@
 - [x] 負數的繳款列不匯入、不計數
 - [x] 匯入先選信用卡帳戶；重複匯入同一份帳單不新增重複列（數量式去重，鍵為日期｜店家｜金額加所屬卡）
 - [x] 核對以「日期＋金額」比較該月該卡的記帳筆數與帳單筆數；不相等時列出日期、金額、兩邊筆數並拒絕完成月結
-- [x] 支援 Big5 與 UTF-8；Big5 解碼器隨 App 打包（服務已驗證；iPhone 選檔的原始位元組 reader 待接）
+- [x] 支援 Big5 與 UTF-8；Big5 解碼器隨 App 打包（服務已驗證；手機選檔已接上共用讀檔流程，待實機驗收）
 - [x] 沒有信用卡的使用者可略過這一步
 - [x] 舊帳轉換程式補上信用卡明細的搬遷，比對工具補上筆數與金額加總的比對
 - [x] 以上有測試，含舊系統「多一筆帳單列就拒絕月結」的案例
 
 ## Comments
+
+2026-11-11 合併票 15 後修正：
+
+- 已重現 `index.ts` 重複匯出 `CsvFormatError` 導致的 TS2300 與測試載入 `SyntaxError`。移除從 `csvTransactions.ts` 的間接匯出，保留從 `csv/records.ts` 的唯一匯出；兩種 CSV 匯入仍使用同一個類別，畫面的 `instanceof` 不變。
+- `csv/cardFilePort.ts` 改成直接重新命名匯出共用 `csvFilePort` 與 `CsvFilePortError`，沿用信用卡畫面既有名稱；移除未再使用的 reader／factory，沒有複製選檔與讀檔實作，也沒有修改票 15 的 `filePort.ts`。共用流程以 `expo-document-picker` 選檔及產生快取副本，再由正式依賴的 `expo-file-system` 讀原始位元組，最後清除本次快取副本；UTF-8／Big5 留給帳本服務解碼。取消選檔回傳 null，讀檔錯誤仍可安全顯示，貼上 CSV 的備援保留。先前「iPhone reader 尚未接上」的限制已解決。
+- 新增真 SQLite 的帳本服務回歸測試，確認信用卡與記帳 CSV 的畸形檔都能用帳本入口的 `CsvFormatError` 識別，且不留下任何帳單或交易。先確認失敗，再修正；兩種 CSV 局部測試 34／34 通過。
+- 最終 `npm test` **406 個通過、0 失敗**；`npm run typecheck` 通過、0 錯誤；`git diff --check` 通過。完整測試的 `TMPDIR` 指向 worktree 內並已清除，未修改既有 legacy-compare 的 macOS `/var`／`/private/var` 路徑別名測試。
+- 本次只修改 `apps/mobile/src/ledger/index.ts`、`apps/mobile/src/csv/cardFilePort.ts`、`apps/mobile/src/ledger/cardStatements.test.ts` 與本票檔。未新增套件或遷移，未改帳務規則或月結數字，未執行任何 Git 寫入指令。
+- 尚待 iPhone 實機驗證：從「檔案」及 iCloud Drive 選 UTF-8／Big5 假帳單、取消選檔、讀檔錯誤後改用貼上備援，以及選檔匯入後重匯去重。此次未進行實機操作。
+
+以下保留首次完成時的實作與驗證紀錄；其中原生讀檔缺口已由上方修正解決。
 
 2026-11-11 完成（程式、自動測試；實機與原生讀檔限制如下）：
 
@@ -54,4 +65,4 @@
 5. 沒有信用卡帳戶可略過；未使用的卡兩邊皆 0 筆不阻擋。停用但有舊交易的卡仍參與核對，須啟用後才能匯入。
 6. 全部核平 → ③預覽 → ④核對實際帳戶餘額 → 明確確認完成，確認備份提醒與已結鎖定；重新開 App 結果仍保存。
 7. 匯出備份、匯入到另一份假帳本，核對卡別、重複筆數、差異與月結快照一致；用取代前另存復原原帳本。
-8. 選檔後取消不匯入；目前原生 reader 未接時顯示貼上備援訊息。reader 接上後，再分別選 UTF-8／Big5 假檔，核對中文不亂碼、日期金額正確，含 Files／iCloud Drive 來源。
+8. 選檔後取消不匯入；分別從「檔案」／iCloud Drive 選 UTF-8／Big5 假檔，核對中文不亂碼、日期金額正確；讀檔失敗時仍可改用貼上 CSV 內容匯入。
