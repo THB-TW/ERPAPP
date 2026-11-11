@@ -13,7 +13,8 @@ test('信用卡明細同筆數同加總時通過，完整報告列金額而摘�
     assert.equal(result.passed, true);
     assert.match(result.summary.join('\n'), /信用卡明細：來源 1 筆、App 1 筆；筆數與金額加總相同/);
     assert.match(readFileSync(result.reportPath, 'utf8'), /信用卡明細金額加總.*999/);
-    assert.ok(!result.summary.join('\n').includes('999'));
+    // 摘要含 SHA-256 雜湊，雜湊裡碰巧出現 999 不算洩漏金額。
+    assert.ok(!result.summary.filter((line) => !line.includes('SHA-256')).join('\n').includes('999'));
   } finally { t.cleanup(); }
 });
 

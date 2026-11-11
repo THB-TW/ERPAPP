@@ -48,6 +48,17 @@ test('建立與修改貸款，提供獨立支出分類並保留已宣告本金',
   assert.equal(updated.monthlyPayment, 250);
 });
 
+/** 精靈完成入口要先有零差額的總資產核對（票 13）：把合成銀行餘額核平後重新預覽。 */
+async function readyToClose(ledger: Ledger, month: string) {
+  const input = { month, hasEntitlement: true };
+  const check = await ledger.previewAssetCheck(input);
+  const bank = check.accounts.find((a) => a.kind === 'bank')!;
+  const balances = [{ accountId: bank.accountId, balance: bank.appBalance - check.difference }];
+  const adjusted = await ledger.previewAssetCheck({ ...input, balances });
+  const record = await ledger.recordAssetCheck({ ...input, balances, checkToken: adjusted.checkToken, operationId: randomUUID() });
+  return { ...await ledger.previewMonthlyClose(input), assetCheckId: record.id };
+}
+
 async function pay(ledger: Ledger, month: string, amount: number) {
   const [loan] = await ledger.listLoans();
   return ledger.addTransaction({ date: `${month}-05`, categoryId: loan.categoryId!,
@@ -68,8 +79,10 @@ test('實際繳款月結才扣儲備與本金，最後一期提撥剩餘本金�
   assert.deepEqual((await ledger.listLoans()).map((l) => [l.remainingPrincipal, l.reserve]), [[1000, 0]]);
   assert.deepEqual(await ledger.getUnmappedExpenseCategories('2026-10'), []);
   assert.deepEqual((await ledger.getBudgetProgress('2026-10')).unmapped, []);
-  const confirmation = { month: '2026-10', hasEntitlement: true, version: preview.version,
-    previewToken: preview.previewToken, operationId: randomUUID() };
+  const ready = await readyToClose(ledger, '2026-10');
+  assert.deepEqual(ready.summary, preview.summary);
+  const confirmation = { month: '2026-10', hasEntitlement: true, version: ready.version,
+    previewToken: ready.previewToken, assetCheckId: ready.assetCheckId, operationId: randomUUID() };
   await ledger.completeMonthlyClose(confirmation);
   assert.equal((await ledger.completeMonthlyClose(confirmation)).replayed, true);
   assert.deepEqual((await ledger.listLoans()).map((l) => [l.remainingPrincipal, l.reserve]), [[700, 0]]);
@@ -121,8 +134,9 @@ test('修改貸款使舊月結預覽失效；撤銷重結恢復本金，舊成�
   const preview = await ledger.previewMonthlyClose({ month: '2026-10', hasEntitlement: true });
   await ledger.updateLoan(id, await request(ledger, { expectedEndMonth: '2027-02' }));
   await assert.rejects(ledger.completeMonthlyClose({ ...preview, operationId: randomUUID(), hasEntitlement: true }), /重新預覽/);
-  const fresh = await ledger.previewMonthlyClose({ month: '2026-10', hasEntitlement: true });
-  const confirmation = { month: fresh.month, version: fresh.version, previewToken: fresh.previewToken, operationId: randomUUID(), hasEntitlement: true };
+  const fresh = await readyToClose(ledger, '2026-10');
+  const confirmation = { month: fresh.month, version: fresh.version, previewToken: fresh.previewToken, assetCheckId: fresh.assetCheckId,
+    operationId: randomUUID(), hasEntitlement: true };
   await ledger.completeMonthlyClose(confirmation);
   await command(ledger, { action: 'rollback', month: '2026-10' });
   assert.deepEqual((await ledger.listLoans()).map((l) => [l.remainingPrincipal, l.reserve]), [[1000, 0]]);

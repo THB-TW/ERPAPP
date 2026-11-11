@@ -52,7 +52,8 @@ test('v5 升 v10 保留合成 58 月全部快照與 17 個歷史差異，學費�
 });
 
 test('舊學費與新貸款只有提撥時，逐月月結數字完全相同', async (t) => {
-  const old = await openLedger(openNodeDatabase(':memory:'), { now: () => NOW, migrations: ledgerMigrations.filter((m) => m.version <= 5) });
+  // 對照組只拿掉貸款的 v10：月結還會讀其他票的資料表（例如信用卡帳單），不能整個停在 v5。
+  const old = await openLedger(openNodeDatabase(':memory:'), { now: () => NOW, migrations: ledgerMigrations.filter((m) => m.version !== 10) });
   const current = await openLedger(openNodeDatabase(':memory:'), { now: () => NOW });
   t.after(async () => { await old.close(); await current.close(); });
   const state = history(1);

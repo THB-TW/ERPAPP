@@ -11,6 +11,8 @@ import { ledgerMigrations } from './migrations.ts';
 import { openLedger, inspectLedgerFile, type Ledger } from './index.ts';
 
 const NOW = new Date('2027-04-11T04:00:00Z');
+// 結構版本是最高的遷移號（之後的票會再往上加），不寫死貸款自己的 v10。
+const SCHEMA_VERSION = ledgerMigrations.at(-1)!.version;
 
 function workspace(t: TestContext) {
   const directory = mkdtempSync(join(process.cwd(), '.loan-backup-test-'));
@@ -39,7 +41,7 @@ function workspace(t: TestContext) {
   };
 }
 
-test('跳號至 v10 的貸款帳本可驗證並完整備份還原', async (t) => {
+test('含跳號遷移的貸款帳本可驗證並完整備份還原', async (t) => {
   const w = workspace(t);
   const { ledger: source, db } = await w.open('source.db');
   const { id } = await source.createLoan({ name: '合成備份分期', totalAmount: 1200, monthlyPayment: 300,
@@ -53,7 +55,7 @@ test('跳號至 v10 的貸款帳本可驗證並完整備份還原', async (t) =>
   assert.equal(revisions.length, 2);
   assert.deepEqual(await inspectLedgerFile(db), { ok: true });
   const backup = await source.exportBackup(join(w.directory, 'export.db'));
-  assert.equal((await source.inspectBackup(backup.path)).schemaVersion, 10);
+  assert.equal((await source.inspectBackup(backup.path)).schemaVersion, SCHEMA_VERSION);
   const { ledger: target } = await w.open('target.db');
   await target.restoreBackup(backup.path);
   assert.deepEqual(await target.listLoans(), before);
@@ -61,7 +63,7 @@ test('跳號至 v10 的貸款帳本可驗證並完整備份還原', async (t) =>
   assert.deepEqual(await target.listCategories(), await source.listCategories());
 });
 
-test('同為 v10 的備份仍會補跑後加入的 v6 遷移', async (t) => {
+test('最高版本相同的備份仍會補跑後加入的 v6 遷移', async (t) => {
   const w = workspace(t);
   const { ledger: source } = await w.open('source.db');
   const backup = await source.exportBackup(join(w.directory, 'export.db'));
@@ -75,7 +77,7 @@ test('同為 v10 的備份仍會補跑後加入的 v6 遷移', async (t) => {
   const { ledger: target } = await w.open('target.db', withMiddle);
   await target.restoreBackup(backup.path);
   assert.equal(await target.getOpeningDate(), '2026-09-01');
-  assert.equal((await source.inspectBackup(backup.path)).schemaVersion, 10);
+  assert.equal((await source.inspectBackup(backup.path)).schemaVersion, SCHEMA_VERSION);
 });
 
 test('匯入 v5 舊備份轉成待補資料的學費貸款，歷史月結與來源檔不改寫', async (t) => {
