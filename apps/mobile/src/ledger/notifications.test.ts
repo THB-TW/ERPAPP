@@ -48,9 +48,16 @@ async function loan(ledger: Ledger, name: string, remainingPrincipal = 900) {
   return ledger.createLoan({ name, totalAmount: 1200, monthlyPayment: 300, remainingPrincipal,
     expectedEndMonth: '2027-06', reason: '合成貸款', hasEntitlement: true, version: (await ledger.getBudgetStatus()).version });
 }
+/** 精靈完成入口要先有零差額的總資產核對（票 13）：把合成銀行餘額核平後才完成月結。 */
 async function closeOctober(ledger: Ledger) {
-  const preview = await ledger.previewMonthlyClose({ month: '2026-10', hasEntitlement: true });
-  await ledger.completeMonthlyClose({ ...preview, operationId: randomUUID(), hasEntitlement: true });
+  const input = { month: '2026-10', hasEntitlement: true };
+  const check = await ledger.previewAssetCheck(input);
+  const bank = check.accounts.find((a) => a.kind === 'bank')!;
+  const balances = [{ accountId: bank.accountId, balance: bank.appBalance - check.difference }];
+  const adjusted = await ledger.previewAssetCheck({ ...input, balances });
+  const record = await ledger.recordAssetCheck({ ...input, balances, checkToken: adjusted.checkToken, operationId: randomUUID() });
+  const preview = await ledger.previewMonthlyClose(input);
+  await ledger.completeMonthlyClose({ ...preview, assetCheckId: record.id, operationId: randomUUID(), hasEntitlement: true });
 }
 
 test('通知預設全部關閉，讀取不寫帳本，也不阻礙之後舊帳匯入', async (t) => {
