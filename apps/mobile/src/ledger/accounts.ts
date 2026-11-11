@@ -3,6 +3,7 @@ import { isValidDate } from '../calc/dates.ts';
 import { ACCOUNT_KINDS, type AccountKind } from './defaults.ts';
 import { LedgerError } from './errors.ts';
 import { INVALID_DATE_MESSAGE } from './transactionRules.ts';
+import { investmentCashFlows } from './investmentCashFlows.ts';
 
 export interface Account {
   id: number;
@@ -76,7 +77,7 @@ async function updateAccount(tx: Queryable, id: number, changes: AccountChanges)
   await tx.run('UPDATE accounts SET name = ?, opening_balance = ?, active = ? WHERE id = ?', [name, openingBalance, active ? 1 : 0, id]);
 }
 
-async function accountBalances(q: Queryable, asOf: string): Promise<AccountBalance[]> {
+export async function accountBalances(q: Queryable, asOf: string): Promise<AccountBalance[]> {
   if (!isValidDate(asOf)) throw new LedgerError('invalid_date', INVALID_DATE_MESSAGE);
   const opening = (await q.get<{ value: string }>("SELECT value FROM settings WHERE key = 'opening_date'"))?.value ?? '0001-01-01';
   // 截止日早於開帳日時，以下日期區間不會納入任何流水，只保留開帳餘額。
@@ -93,6 +94,9 @@ async function accountBalances(q: Queryable, asOf: string): Promise<AccountBalan
   for (const t of transfers) {
     totals.set(t.fromId, totals.get(t.fromId)! - BigInt(t.amount));
     totals.set(t.toId, totals.get(t.toId)! + BigInt(t.amount));
+  }
+  for (const t of await investmentCashFlows(q, opening, asOf)) {
+    totals.set(t.accountId, totals.get(t.accountId)! + BigInt(t.amount) * (t.txType === 'buy' ? -1n : 1n));
   }
   return (await listAccounts(q)).map((a) => {
     const balance = Number(totals.get(a.id)!);

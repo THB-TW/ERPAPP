@@ -52,7 +52,7 @@ test('空帳本整批帶入：交易（含重複列）、分類、帳戶、成�
   const result = await ledger.importLegacyLedger(data());
   assert.deepEqual(result, {
     version: 3, accounts: 2, categories: 2, members: 1, transactions: 3,
-    incomeTotal: 900, expenseTotal: 200, months: 2, monthsWithLegacyDifference: 1,
+    incomeTotal: 900, expenseTotal: 200, cardStatements: 0, cardStatementTotal: 0, months: 2, monthsWithLegacyDifference: 1,
   });
   // 工廠預設的分類與帳戶被舊帳取代，不混在一起
   assert.deepEqual((await ledger.listCategories()).map((c) => [c.name, c.flow]), [['甲儲備', 'expense'], ['乙收入', 'income']]);

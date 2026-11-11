@@ -9,7 +9,7 @@ import { UsageError, main, parseCliArgs } from './cli.ts';
 test('參數解析：兩個位置參數、可重複的 --account 與 --opening、--mixed-flow、--no-prompt', () => {
   const o = parseCliArgs([
     '/p/export', '/p/out.sqlite', '--mixed-flow', 'split', '--account', '現金=cash', '--account', '舊卡=credit_card',
-    '--opening', '現金=1,200', '--opening', '舊卡=-300', '--manifest-sha256', 'ABC123', '--no-prompt',
+    '--opening', '現金=1,200', '--opening', '舊卡=-300', '--card-account', '舊卡', '--manifest-sha256', 'ABC123', '--no-prompt',
   ]);
   assert.equal(o.exportDirectory, '/p/export');
   assert.equal(o.outputPath, '/p/out.sqlite');
@@ -17,6 +17,7 @@ test('參數解析：兩個位置參數、可重複的 --account 與 --opening�
   assert.deepEqual(o.accountKinds, { 現金: 'cash', 舊卡: 'credit_card' });
   assert.deepEqual(o.openingBalances, { 現金: 1200, 舊卡: -300 });
   assert.equal(o.expectedManifestSha256, 'abc123');
+  assert.equal(o.cardStatementAccount, '舊卡');
   assert.equal(o.prompt, false);
   assert.equal(parseCliArgs(['a', 'b']).mixedFlow, 'stop');
   assert.equal(parseCliArgs(['a', 'b']).prompt, true);
@@ -32,7 +33,7 @@ test('參數錯誤一律丟 UsageError', () => {
 const summary: ConvertSummary = {
   outputPath: '/p/out.sqlite', manifestSha256: 'a'.repeat(64), sourceCommit: 'c', sourceDatabase: 'd', cutoffMonth: '2026-10',
   openingDate: '2026-11-01', transactions: 1, accounts: 1, categories: 1, members: 1, months: 1, monthsWithLegacyDifference: 0,
-  documentVersion: 1, incomeTotal: 0, expenseTotal: 5, firstDate: '2026-10-01', lastDate: '2026-10-01',
+  documentVersion: 1, incomeTotal: 0, expenseTotal: 5, cardStatements: 0, cardStatementTotal: 0, firstDate: '2026-10-01', lastDate: '2026-10-01',
   openings: [{ account: '現金', amount: 5, source: '命令列參數' }], legacyAccountBalances: [{ account: '現金', balance: '0.00' }], notMigrated: [{ table: 'dbo.Employee', rows: 3 }], notices: [],
 };
 
@@ -93,4 +94,12 @@ test('互動終端中途關閉輸入（Ctrl-D）：詢問轉成 ConversionStoppe
   }, { out: () => {}, err: (l) => errs.push(l), interactive: true, input });
   assert.equal(code, 2);
   assert.match(errs.join(''), /輸入已關閉/);
+});
+
+test('可重複用 --investment-account 明確指定投資交易編號與帳戶，不接受不明編號或衝突', () => {
+  const parsed = parseCliArgs(['a', 'b', '--investment-account', '15=虛構銀行', '--investment-account', '21=虛構現金']);
+  assert.deepEqual(parsed.investmentAccounts, { '15': '虛構銀行', '21': '虛構現金' });
+  for (const values of [['0=銀行'], ['abc=銀行'], ['1.5=銀行'], ['15=銀行', '15=現金']]) {
+    assert.throws(() => parseCliArgs(['a', 'b', ...values.flatMap((value) => ['--investment-account', value])]), UsageError);
+  }
 });

@@ -5,10 +5,11 @@ import { ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform, Pressable,
 import type { ScrollViewInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BudgetRuleError, LedgerError } from '../ledger/index.ts';
-import type { BudgetCommand, BudgetCommandPreview, BudgetRevision, BudgetStatus } from '../ledger/index.ts';
+import type { AdjustmentPreview, BudgetCommand, BudgetCommandPreview, BudgetRevision, BudgetStatus } from '../ledger/index.ts';
 import { formatAmount, monthTitle } from '../ui/format.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
 import { colors } from '../ui/theme.ts';
+import { hasMonthlyCloseEntitlement } from '../ui/closeEntitlement.ts';
 
 type Mode = 'edit' | 'add' | 'retire' | 'map';
 type Kind = 'reserve' | 'fixed' | 'actual';
@@ -52,7 +53,7 @@ export default function BudgetSettingsScreen() {
   const [sourceName, setSourceName] = useState<string | null>(null);
   const [mapTo, setMapTo] = useState<string | null>(null);
   const [reason, setReason] = useState('');
-  const [preview, setPreview] = useState<{ command: BudgetCommand; result: BudgetCommandPreview } | null>(null);
+  const [preview, setPreview] = useState<{ command: BudgetCommand; result: BudgetCommandPreview | AdjustmentPreview; previewToken?: string } | null>(null);
   const [expandedRevision, setExpandedRevision] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -65,12 +66,15 @@ export default function BudgetSettingsScreen() {
     setLoading(true);
     setError(null);
     setPreview(null);
-    Promise.all([ledger.getBudgetStatus(), ledger.listCategories(), ledger.listBudgetRevisions(), ledger.getUnmappedExpenseCategories()]).then(
-      ([nextStatus, categories, history, unmapped]) => {
+    Promise.all([ledger.getBudgetStatus(), ledger.listCategories(), ledger.listBudgetRevisions(), ledger.getUnmappedExpenseCategories(), ledger.listLoans()]).then(
+      ([nextStatus, categories, history, unmapped, loans]) => {
         if (cancelled) return;
         setStatus(nextStatus);
         // 停用類別的舊交易仍須保留原分類；即使不再供記帳選用，也要能重新指定其歸屬。
-        setSourceCategories([...new Set([...categories.filter((category) => category.flow === 'expense').map((category) => category.name), ...unmapped])]);
+        const loanCategoryIds = new Set(loans.map((loan) => loan.categoryId));
+        const loanNames = new Set(categories.filter((category) => loanCategoryIds.has(category.id)).map((category) => category.name));
+        setSourceCategories([...new Set([...categories.filter((category) => category.flow === 'expense' && !loanCategoryIds.has(category.id)).map((category) => category.name),
+          ...unmapped.filter((name) => !loanNames.has(name))])]);
         setRevisions(history);
         const first = nextStatus.categories.find((category) => category.active);
         setMode(first ? 'edit' : 'add');
@@ -138,7 +142,10 @@ export default function BudgetSettingsScreen() {
       ...(mode === 'map' ? { sourceCategory: sourceName, to: mapTo } : {}),
     };
     try {
-      setPreview({ command, result: await ledger.previewBudgetCommand(command) });
+      if (mode === 'retire') {
+        const result = await ledger.previewAdjustment({ command, hasEntitlement: hasMonthlyCloseEntitlement() });
+        setPreview({ command, result, previewToken: result.previewToken });
+      } else setPreview({ command, result: await ledger.previewBudgetCommand(command) });
     } catch (e) {
       setError(errorMessage(e));
       scroll.current?.scrollTo({ y: 0, animated: true });
@@ -155,7 +162,9 @@ export default function BudgetSettingsScreen() {
     setError(null);
     try {
       // 儲存與預覽使用完全相同的指令，帳本服務仍會重新確認版本與開放月份。
-      await ledger.runBudgetCommand(preview.command);
+      if (preview.command.action === 'retire') {
+        await ledger.confirmAdjustment({ command: preview.command, previewToken: preview.previewToken ?? '', hasEntitlement: hasMonthlyCloseEntitlement() });
+      } else await ledger.runBudgetCommand(preview.command);
       setPreview(null);
       setSuccess('已儲存，並保留這次修改的上限版本與原因。');
       scroll.current?.scrollTo({ y: 0, animated: true });
@@ -227,6 +236,7 @@ export default function BudgetSettingsScreen() {
 
               {mode === 'retire' ? (
                 <View style={styles.field}>
+                  {!hasMonthlyCloseEntitlement() ? <Text style={styles.note}>停用分類需要有效的付費權益；既有資料仍可查閱。</Text> : null}
                   <Text style={styles.note}>停用後不再提供新增交易選用，原本的交易與已結月份仍會保留。</Text>
                   <Text style={styles.label}>剩餘儲備轉入</Text>
                   <View style={styles.chips}>
@@ -263,7 +273,7 @@ export default function BudgetSettingsScreen() {
                 <TextInput value={reason} editable={!disabled} onChangeText={(value) => { invalidatePreview(); setReason(value); }} maxLength={300} multiline placeholder="例如：調整通勤方式，重新分配交通支出" accessibilityLabel="修改原因" style={[styles.input, { minHeight: 88, textAlignVertical: 'top' }]} />
                 <Text style={styles.note}>{reason.length} / 300 字</Text>
               </View>
-              <Button label={busy ? '處理中…' : '預覽變更'} disabled={disabled || !canPreview} onPress={showPreview} />
+              <Button label={busy ? '處理中…' : '預覽變更'} disabled={disabled || !canPreview || (mode === 'retire' && !hasMonthlyCloseEntitlement())} onPress={showPreview} />
 
               {preview ? (
                 <View style={styles.preview} onLayout={(event) => { scroll.current?.scrollTo({ y: Math.max(0, event.nativeEvent.layout.y - 12), animated: true }); }}>
@@ -310,12 +320,23 @@ export default function BudgetSettingsScreen() {
   );
 }
 
-function previewSummary(command: BudgetCommand, result: BudgetCommandPreview): string[] {
+function previewSummary(command: BudgetCommand, result: BudgetCommandPreview | AdjustmentPreview): string[] {
   const { before, after } = result;
   if (command.action === 'map') return [
     `${command.sourceCategory}：${categoryName(before, before.currentRevision?.mapping[command.sourceCategory!])} → ${categoryName(after, after.currentRevision?.mapping[command.sourceCategory!])}`,
   ];
-  if (command.action === 'retire') return [`停用：${categoryName(before, command.from)}`, ...(command.to ? [`剩餘儲備轉入：${categoryName(after, command.to)}`] : [])];
+  if (command.action === 'retire') {
+    const old = 'latestBefore' in result ? result.latestBefore : null;
+    const next = 'latestAfter' in result ? result.latestAfter : null;
+    return [`停用：${categoryName(before, command.from)}`, ...(command.to ? [`剩餘儲備轉入：${categoryName(after, command.to)}`] : []),
+      `分類儲備：${formatAmount(old?.reserves.find((r) => r.categoryId === command.from)?.balance ?? 0)} → ${formatAmount(next?.reserves.find((r) => r.categoryId === command.from)?.balance ?? 0)}`,
+      ...(old && next ? [
+        `可用餘額：${formatAmount(old.spare)} → ${formatAmount(next.spare)}`,
+        `貸款／分期儲備：${formatAmount(old.tuition)} → ${formatAmount(next.tuition)}`,
+        `總儲備金：${formatAmount(old.reserve)} → ${formatAmount(next.reserve)}`,
+        `帳面總資產：${formatAmount(old.total)} → ${formatAmount(next.total)}`,
+      ] : [])];
+  }
   const oldCategory = before.categories.find((category) => category.id === command.from);
   const newCategory = after.categories.find((category) => category.active && (category.id === command.operationId || category.id === command.from));
   const oldCap = before.currentRevision?.limits.find((limit) => limit.categoryId === command.from)?.amount ?? 0;

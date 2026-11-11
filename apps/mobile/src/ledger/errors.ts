@@ -1,4 +1,5 @@
 export type LedgerErrorCode =
+  | 'invalid_investment'
   | 'invalid_date'
   | 'invalid_month'
   | 'invalid_amount'

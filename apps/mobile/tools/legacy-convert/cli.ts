@@ -18,6 +18,8 @@ export const USAGE = `用法：node tools/legacy-convert/cli.ts <匯出目錄> <
                               不加此選項遇到這種分類會停下並列出
   --account 名稱=種類          指定帳戶種類（cash／bank／credit_card／e_wallet），可重複
   --opening 名稱=金額          指定帳戶在搬遷截止月月底的餘額（新台幣整數，信用卡填未繳金額的負數），可重複
+  --investment-account 編號=名稱 開帳日後帳內投資買賣的來源交易編號與帳戶完整名稱，可重複；不猜帳戶
+  --card-account 名稱         舊信用卡明細全部所屬的信用卡帳戶（多卡時必填或執行時回答；混合多卡不自動分配）
   --manifest-sha256 <雜湊>     若給，匯出清冊（manifest.json）的 SHA-256 必須相同
   --no-prompt                 不詢問；需要回答的地方改為停下並列出缺少的項目`;
 
@@ -29,7 +31,7 @@ function pairs(values: string[] | undefined, flag: string): [string, string][] {
   });
 }
 
-export function parseCliArgs(argv: string[]): Pick<ConvertOptions, 'exportDirectory' | 'outputPath' | 'mixedFlow' | 'accountKinds' | 'openingBalances' | 'expectedManifestSha256'> & { prompt: boolean } {
+export function parseCliArgs(argv: string[]): Pick<ConvertOptions, 'exportDirectory' | 'outputPath' | 'mixedFlow' | 'accountKinds' | 'openingBalances' | 'cardStatementAccount' | 'investmentAccounts' | 'expectedManifestSha256'> & { prompt: boolean } {
   let parsed;
   try {
     parsed = parseArgs({
@@ -39,6 +41,8 @@ export function parseCliArgs(argv: string[]): Pick<ConvertOptions, 'exportDirect
         'mixed-flow': { type: 'string' },
         account: { type: 'string', multiple: true },
         opening: { type: 'string', multiple: true },
+        'card-account': { type: 'string' },
+        'investment-account': { type: 'string', multiple: true },
         'manifest-sha256': { type: 'string' },
         'no-prompt': { type: 'boolean' },
       },
@@ -61,6 +65,12 @@ export function parseCliArgs(argv: string[]): Pick<ConvertOptions, 'exportDirect
     if (amount === null) throw new UsageError(`--opening 的金額要是整數，收到：${text}`);
     openingBalances.set(name, amount);
   }
+  const investmentAccounts = new Map<string, string>();
+  for (const [id, account] of pairs(values['investment-account'], '--investment-account')) {
+    if (!/^[1-9]\d*$/.test(id) || !Number.isSafeInteger(Number(id))) throw new UsageError(`--investment-account 的交易編號必須是正安全整數，收到：${id}`);
+    if (investmentAccounts.has(id) && investmentAccounts.get(id) !== account) throw new UsageError(`--investment-account 的交易 #${id} 指向不同帳戶，請保留一個明確對應。`);
+    investmentAccounts.set(id, account);
+  }
   return {
     exportDirectory: positionals[0],
     outputPath: positionals[1],
@@ -68,6 +78,8 @@ export function parseCliArgs(argv: string[]): Pick<ConvertOptions, 'exportDirect
     // fromEntries 會把 '__proto__' 這種名稱也建成自己的屬性
     accountKinds: Object.fromEntries(accountKinds),
     openingBalances: Object.fromEntries(openingBalances),
+    cardStatementAccount: values['card-account'],
+    investmentAccounts: Object.fromEntries(investmentAccounts),
     expectedManifestSha256: values['manifest-sha256']?.toLowerCase(),
     prompt: values['no-prompt'] !== true,
   };

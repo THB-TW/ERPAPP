@@ -1,6 +1,8 @@
 import type { Migration } from '../db/migrate.ts';
 import { DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES } from './defaults.ts';
 import { BACKUP_APPLICATION_ID } from './backup.ts';
+import { parseBudgetDocument } from '../calc/budgetDocument.ts';
+import { initializeLegacyTuition } from './loanMigration.ts';
 
 // 帳本的結構遷移。金額為新台幣整數（INTEGER），日期為台北時間的 YYYY-MM-DD 字串（TEXT）。
 export const ledgerMigrations: readonly Migration[] = [
@@ -114,6 +116,84 @@ export const ledgerMigrations: readonly Migration[] = [
           CHECK (from_account_id <> to_account_id)
         );
         CREATE INDEX transfers_by_date ON transfers(date);
+      `);
+    },
+  },
+  {
+    // 票 19 預先分配 v10；schema_migrations 逐版記錄，v6～v9 日後補入仍會執行。
+    version: 10,
+    async up(tx) {
+      await tx.exec(`
+        CREATE TABLE loans (
+          id INTEGER PRIMARY KEY,
+          category_id INTEGER UNIQUE REFERENCES categories(id),
+          created_month TEXT NOT NULL,
+          legacy INTEGER NOT NULL CHECK (legacy IN (0, 1))
+        );
+        CREATE TABLE loan_terms (
+          id INTEGER PRIMARY KEY,
+          loan_id INTEGER NOT NULL REFERENCES loans(id),
+          month TEXT NOT NULL,
+          name TEXT NOT NULL,
+          total_amount INTEGER,
+          monthly_payment INTEGER,
+          remaining_principal INTEGER,
+          expected_end_month TEXT,
+          reason TEXT NOT NULL,
+          time TEXT NOT NULL
+        );
+        CREATE TABLE loan_closes (
+          close_id TEXT NOT NULL,
+          loan_id INTEGER NOT NULL REFERENCES loans(id),
+          month TEXT NOT NULL,
+          snapshot TEXT NOT NULL,
+          PRIMARY KEY (close_id, loan_id)
+        );
+      `);
+      const row = await tx.get<{ document: string }>('SELECT document FROM finance_document WHERE id = 1');
+      if (row) await initializeLegacyTuition(tx, parseBudgetDocument(row.document));
+    },
+  },
+  {
+    // 票 12 固定使用 v11；中間預留版本由 schema_migrations 各版獨立判斷。
+    version: 11,
+    async up(tx) {
+      await tx.exec(`
+        CREATE TABLE card_statements (
+          id INTEGER PRIMARY KEY,
+          date TEXT NOT NULL,
+          merchant TEXT NOT NULL,
+          amount INTEGER NOT NULL CHECK (amount >= 0),
+          account_id INTEGER NOT NULL REFERENCES accounts(id)
+        );
+        CREATE INDEX card_statements_by_card_date ON card_statements(account_id, date);
+      `);
+    },
+  },
+  {
+    // 票 20 固定 v13；schema_migrations 逐版記錄，之後補入 v6～v12 仍會執行。
+    version: 13,
+    async up(tx) {
+      await tx.exec(`
+        CREATE TABLE investment_holdings (
+          id INTEGER PRIMARY KEY, asset_class TEXT NOT NULL CHECK(asset_class IN ('stock','crypto')),
+          symbol TEXT, name TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1))
+        );
+        CREATE UNIQUE INDEX investment_stock_symbol ON investment_holdings(symbol COLLATE NOCASE) WHERE symbol IS NOT NULL;
+        CREATE UNIQUE INDEX investment_crypto_bucket ON investment_holdings(asset_class) WHERE asset_class='crypto';
+        CREATE TABLE investment_transactions (
+          id INTEGER PRIMARY KEY, holding_id INTEGER NOT NULL REFERENCES investment_holdings(id), date TEXT NOT NULL,
+          tx_type TEXT NOT NULL CHECK(tx_type IN ('opening','buy','sell','dividend')), amount INTEGER NOT NULL CHECK(amount>=0),
+          quantity TEXT, fund_source TEXT NOT NULL CHECK(fund_source IN ('internal','external')),
+          account_id INTEGER REFERENCES accounts(id), note TEXT NOT NULL DEFAULT ''
+        );
+        CREATE INDEX investment_transactions_by_date ON investment_transactions(date,id);
+        CREATE TABLE investment_opening (id INTEGER PRIMARY KEY CHECK(id=1), as_of_month TEXT NOT NULL, net_deployed INTEGER NOT NULL);
+        CREATE TABLE investment_valuations (
+          id INTEGER PRIMARY KEY, holding_id INTEGER NOT NULL REFERENCES investment_holdings(id), as_of TEXT NOT NULL,
+          unit_price TEXT, market_value INTEGER
+        );
+        CREATE INDEX investment_valuations_by_holding ON investment_valuations(holding_id,as_of,id);
       `);
     },
   },

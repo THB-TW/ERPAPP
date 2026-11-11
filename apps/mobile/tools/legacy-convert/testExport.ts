@@ -1,5 +1,5 @@
 // 測試用：依 tools/export-finance-baseline.ps1 的匯出格式，產生一份小型虛構匯出（名稱、金額全是虛構）。
-// 含員工密碼、信用卡明細、投資等「不該搬」的資料表，用來確認它們不會進到輸出。
+// 員工密碼不搬；投資與信用卡明細和交易同樣必須保留。
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { sha256 } from '../../../../tools/lib/verify-export.mjs';
@@ -27,6 +27,8 @@ export interface FictionalExport {
   categories: Row[];
   accounts: Row[];
   members: Row[];
+  cardStatements?: Row[];
+  investments?: { holdings: Row[]; transactions: Row[]; valuations: Row[]; openings: Row[] };
   state: BudgetState;
   /** 直接指定財務文件原文（覆寫 state），用來測試壞文件。 */
   documentText?: string;
@@ -101,8 +103,11 @@ export function writeFictionalExport(privateRoot: string, data: FictionalExport 
     ...(data.projections ? projectionTables(data.projections) : []),
     { name: 'Employee', rows: [{ EmployeeId: 1, Account: 'fictional-user', Password: FICTIONAL_PASSWORD }],
       columns: [['EmployeeId', 'int'], ['Account', 'nvarchar'], ['Password', 'nvarchar']] },
-    { name: 'creditcard', rows: [{ Date: '2026-09-03', Item: '虛構店家', Amount: 999 }], columns: [['Date', 'date'], ['Item', 'nvarchar'], ['Amount', 'int']] },
-    { name: 'InvestmentHolding', rows: [{ Id: 1, Symbol: 'FICT' }], columns: [['Id', 'int'], ['Symbol', 'nvarchar']] },
+    { name: 'creditcard', rows: data.cardStatements ?? [{ Date: '2026-09-03', Item: '虛構店家', Amount: 999 }], columns: [['Date', 'date'], ['Item', 'nvarchar'], ['Amount', 'int']] },
+    { name: 'InvestmentHolding', rows: data.investments?.holdings ?? [], columns: [['Id', 'int'], ['AssetClass', 'nvarchar'], ['Symbol', 'nvarchar', true], ['Name', 'nvarchar'], ['IsActive', 'bit']] },
+    { name: 'InvestmentTransaction', rows: data.investments?.transactions ?? [], columns: [['Id', 'int'], ['HoldingId', 'int'], ['Date', 'date'], ['TxType', 'nvarchar'], ['Quantity', 'decimal', true], ['Amount', 'int'], ['FundSource', 'nvarchar'], ['Note', 'nvarchar', true]] },
+    { name: 'InvestmentValuation', rows: data.investments?.valuations ?? [], columns: [['Id', 'int'], ['HoldingId', 'int'], ['AsOf', 'datetime2'], ['UnitPrice', 'decimal', true], ['MarketValue', 'int', true]] },
+    { name: 'InvestmentOpening', rows: data.investments?.openings ?? [], columns: [['Id', 'int'], ['AsOfMonth', 'date'], ['NetDeployed', 'int']] },
   ];
   const files: { file: string; bytes: number; sha256: string }[] = [];
   const save = (name: string, content: unknown) => {
@@ -128,10 +133,11 @@ export function writeFictionalExport(privateRoot: string, data: FictionalExport 
 export function fictionalBaseline(data: FictionalExport = fictionalExport()): BaselineIdentity {
   return {
     sourceDatabase: 'ERPDB_CloudflareBaseline_FICTIONAL',
-    tables: 8 + (data.projections ? 3 : 0),
-    totalRows: data.transactions.length + data.categories.length + data.accounts.length + data.members.length + 1 + 1 + 1 + 1 +
+    tables: 11 + (data.projections ? 3 : 0),
+    totalRows: data.transactions.length + data.categories.length + data.accounts.length + data.members.length + 1 + 1 + (data.cardStatements?.length ?? 1) + (data.investments ? data.investments.holdings.length + data.investments.transactions.length + data.investments.valuations.length + data.investments.openings.length : 0) +
       (data.projections ? data.projections.property.length + data.projections.budget.length + data.projections.budgetCap.length : 0),
     transactions: data.transactions.length,
+    cardStatements: data.cardStatements?.length ?? 1,
     workspaceMonths: data.state.months.length,
     historicalAssetMismatches: 0,
   };
@@ -236,5 +242,28 @@ export function comparableExport(): FictionalExport {
     ],
     accounts: fictionalExport().accounts,
     members: fictionalExport().members,
+  };
+}
+
+/** 投資規則的獨立小型算例：0.3 股成本 10，賣 0.1 股收 4；幣桶成本可為負。 */
+export function fictionalInvestmentRows(): NonNullable<FictionalExport['investments']> {
+  return {
+    holdings: [
+      { Id: 7, AssetClass: '台股', Symbol: 'FICT', Name: '虛構台股', IsActive: true },
+      { Id: 9, AssetClass: '虛擬貨幣', Symbol: null, Name: '虛構幣桶', IsActive: false },
+    ],
+    transactions: [
+      { Id: 12, HoldingId: 7, Date: '2026-07-01', TxType: '期初', Quantity: '0.3000', Amount: 10, FundSource: '帳內', Note: '虛構期初' },
+      { Id: 15, HoldingId: 7, Date: '2026-08-01', TxType: '賣', Quantity: '0.1000', Amount: 4, FundSource: '帳內', Note: null },
+      { Id: 18, HoldingId: 9, Date: '2026-07-02', TxType: '期初', Quantity: null, Amount: 200, FundSource: '帳外', Note: null },
+      { Id: 20, HoldingId: 9, Date: '2026-08-03', TxType: '賣', Quantity: null, Amount: 250, FundSource: '帳外', Note: null },
+      { Id: 22, HoldingId: 7, Date: '2026-09-01', TxType: '配息', Quantity: null, Amount: 2, FundSource: '帳內', Note: null },
+    ],
+    valuations: [
+      { Id: 3, HoldingId: 7, AsOf: '2026-10-01T12:00:00', UnitPrice: '50.0000', MarketValue: null },
+      { Id: 4, HoldingId: 7, AsOf: '2026-10-01T12:00:00', UnitPrice: '60.0000', MarketValue: null },
+      { Id: 8, HoldingId: 9, AsOf: '2026-10-01T12:00:00', UnitPrice: null, MarketValue: 300 },
+    ],
+    openings: [{ Id: 2, AsOfMonth: '2026-07-01', NetDeployed: 50 }],
   };
 }

@@ -5,7 +5,7 @@ import type { BudgetComparison, Difference, TransactionComparison } from './comp
 import { buildReport, buildSummary, type ReportContext } from './report.ts';
 
 const budget = (differences: Difference[] = []): BudgetComparison => ({
-  differences, checks: { 'Property 資料表': 1, 'budget 資料表': 1, 'BudgetCap 資料表': 1, '來源財務文件': 1, '來源交易表': 0 }, months: ['2026-01'], legacyDifferenceMonths: [],
+  differences, checks: { 'Property 資料表': 1, 'budget 資料表': 1, 'BudgetCap 資料表': 1, '來源財務文件': 1, '來源交易表': 0, '來源信用卡表': 0, '來源投資表': 0 }, months: ['2026-01'], legacyDifferenceMonths: [],
   coverage: {
     propertyMonths: 1, budgetRowMonths: 1, capRowMonths: 1, withoutBudgetRow: [], withoutCapRow: [], withoutPropertyRow: [], orphanBudgetRows: [], orphanCapRows: [], staleCapRows: [],
     cumulativeRowChecked: false, cumulative: { month: null, total: null, categorySum: null, propertyReserve: null }, documentRevisions: 0,
@@ -15,16 +15,16 @@ const budget = (differences: Difference[] = []): BudgetComparison => ({
 const transactions = (differences: Difference[] = []): TransactionComparison => ({ differences, sourceCount: 1, appCount: 1, totals: [], months: 1, mergedNames: [] });
 const ctx = (over: Partial<ReportContext> = {}): ReportContext => ({
   date: '2026-11-12', tool: { commit: 'abc', dirty: false }, manifestSha256: 'f'.repeat(64), sourceDatabase: 'db', sourceCommit: 'c', ledgerSha256: 'e'.repeat(64),
-  budget: budget(), transactions: transactions(), recompute: { months: [] }, ...over,
+  budget: budget(), transactions: transactions(), cardStatements: { differences: [], sourceCount: 1, appCount: 1, sourceSum: 999, appSum: 999 }, investments: { asOf: '2026-10-31', sourceCount: 0, appCount: 0, sourceNetDeployed: 0, appNetDeployed: 0, rows: [], differences: [] }, recompute: { months: [] }, ...over,
 });
 const diff = (i: number): Difference => ({ scope: '2026-01', kind: '當月收入', field: `欄位${i}`, source: '來源財務文件', expected: i, actual: i + 1 });
 
-test('結論只說「已比對範圍」全部通過，並註明尚未涵蓋信用卡明細與投資（摘要與完整報告都有）', () => {
+test('結論包含信用卡明細與投資（摘要與完整報告都有）', () => {
   const summary = buildSummary(ctx()).join('\n');
   const report = buildReport(ctx());
   for (const text of [summary, report]) {
-    assert.match(text, /已比對範圍（逐月數字、交易）全部通過，0 差異/);
-    assert.match(text, /尚未涵蓋：信用卡明細（票 12）、投資（票 20）/);
+    assert.match(text, /已比對範圍（逐月數字、交易、信用卡明細、投資）全部通過，0 差異/);
+    assert.doesNotMatch(text, /尚未涵蓋：投資/);
   }
   assert.doesNotMatch(buildSummary(ctx({ budget: budget([diff(1)]) })).join('\n'), /全部通過/);
 });

@@ -76,16 +76,62 @@ test('端到端：交易（含重複列）、分類、帳戶、成員、財務�
   } finally { t.cleanup(); }
 });
 
-test('不搬員工、密碼、信用卡明細、投資：輸出檔沒有這些資料表，也找不到密碼', async () => {
+test('信用卡明細從舊表搬遷並讀回驗證，保留每筆合法重複列', async () => {
+  const t = setup();
+  try {
+    const data = fictionalExport();
+    data.cardStatements = [
+      { Date: '2026-09-03', Item: '虛構店家', Amount: 999 },
+      { Date: '2026-09-03', Item: '虛構店家', Amount: 999 },
+    ];
+    const summary = await convert({ ...t, data });
+    assert.equal(summary.cardStatements, 2);
+    assert.equal(summary.cardStatementTotal, 1998);
+    assert.ok(!summary.notMigrated.some((table) => table.table.toLowerCase().includes('creditcard')));
+    const ledger = await openLedger(openNodeDatabase(t.out));
+    try {
+      assert.deepEqual((await ledger.listCardStatements()).map((row) => [row.date, row.merchant, row.amount, row.account]), [
+        ['2026-09-03', '虛構店家', 999, '信用卡'], ['2026-09-03', '虛構店家', 999, '信用卡'],
+      ]);
+    } finally { await ledger.close(); }
+  } finally { t.cleanup(); }
+});
+
+test('舊表沒有卡識別：多卡未選卡時停止，明確選卡後才整批歸屬該卡', async () => {
+  const t = setup();
+  try {
+    const data = fictionalExport();
+    data.accounts.push({ AccountId: 4, AccountName: '第二張卡', Balance: '0.00' });
+    const options = { ...t, data, ask: undefined, accountKinds: { 第二張卡: 'credit_card' as const }, openingBalances: { 信用卡: -300, 第二張卡: -20 } };
+    assert.match(await stopped(convert(options)), /沒有卡識別.*--card-account/s);
+    assert.ok(!existsSync(t.out));
+    const result = await convert({ ...options, cardStatementAccount: '第二張卡' });
+    assert.equal(result.cardStatements, 1);
+    const ledger = await openLedger(openNodeDatabase(t.out));
+    try { assert.equal((await ledger.listCardStatements())[0].account, '第二張卡'); }
+    finally { await ledger.close(); }
+  } finally { t.cleanup(); }
+});
+
+test('舊信用卡明細壞列或負數不會悄悄略過，轉換整批停止', async () => {
+  const t = setup();
+  try {
+    const data = fictionalExport();
+    data.cardStatements = [{ Date: '2026-09-03', Item: '虛構繳款列', Amount: -999 }];
+    assert.match(await stopped(convert({ ...t, data })), /信用卡明細第 1 列/);
+    assert.ok(!existsSync(t.out));
+  } finally { t.cleanup(); }
+});
+
+test('不搬員工與密碼，輸出檔保留信用卡並可查詢投資', async () => {
   const t = setup();
   try {
     await convert(t);
-    const db = openNodeDatabase(t.out);
-    const tables = (await db.all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")).map((r) => r.name);
-    assert.deepEqual(tables, ['accounts', 'categories', 'finance_document', 'ledger_meta', 'members', 'schema_migrations', 'settings', 'transactions', 'transfers']);
-    await db.close();
+    const ledger = await openLedger(openNodeDatabase(t.out));
+    assert.deepEqual((await ledger.getInvestmentPortfolio()).positions, []);
+    await ledger.close();
     assert.ok(!readFileSync(t.out).includes(Buffer.from(FICTIONAL_PASSWORD)));
-    assert.ok(!readFileSync(t.out).includes(Buffer.from('虛構店家')));
+    assert.ok(readFileSync(t.out).includes(Buffer.from('虛構店家')));
   } finally { t.cleanup(); }
 });
 
@@ -275,6 +321,7 @@ test('基準身分：預設要求符合 baseline.md 的記錄，虛構匯出不�
     const message = await stopped(convertLegacy(base)); // 沒給預期值 → 用正式的 baseline.md 身分
     assert.match(message, /baseline\.md/);
     assert.match(message, /ERPDB_CloudflareBaseline_20261108_115129/);
+    assert.equal(BASELINE_20261108.cardStatements, 605);
     assert.deepEqual(
       [BASELINE_20261108.tables, BASELINE_20261108.totalRows, BASELINE_20261108.transactions, BASELINE_20261108.workspaceMonths],
       [16, 7823, 7033, 58],
@@ -282,7 +329,7 @@ test('基準身分：預設要求符合 baseline.md 的記錄，虛構匯出不�
     const good = fictionalBaseline();
     for (const [what, over] of [
       ['來源資料庫', { sourceDatabase: 'ERPDB' }], ['資料表張數', { tables: 9 }], ['總列數', { totalRows: 1 }],
-      ['交易筆數', { transactions: 7033 }], ['月結月份數', { workspaceMonths: 58 }], ['歷史資產差異', { historicalAssetMismatches: 1 }],
+      ['交易筆數', { transactions: 7033 }], ['信用卡明細筆數', { cardStatements: 605 }], ['月結月份數', { workspaceMonths: 58 }], ['歷史資產差異', { historicalAssetMismatches: 1 }],
     ] as const) {
       assert.match(await stopped(convertLegacy({ ...base, expectedBaseline: { ...good, ...over } })), new RegExp(what), what);
     }
