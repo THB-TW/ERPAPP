@@ -31,6 +31,8 @@ import { ledgerMigrations } from './migrations.ts';
 
 export type { AccountKind, Flow } from './defaults.ts';
 export { LedgerError } from './errors.ts';
+export { inspectLedgerFile } from './inspect.ts';
+export type { LedgerFileCheck } from './inspect.ts';
 export type { LedgerErrorCode } from './errors.ts';
 export { BudgetRuleError } from '../calc/budgetEngine.ts';
 export type { BudgetCommand } from '../calc/budgetTypes.ts';

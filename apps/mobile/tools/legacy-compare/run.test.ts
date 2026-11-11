@@ -1,48 +1,14 @@
 // 比對工具的端到端測試：虛構匯出 → 轉換 → 比對。資料全部虛構；測試裡直接改帳本檔是「製造壞資料」，不是工具行為。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { sha256 } from '../../../../tools/lib/verify-export.mjs';
-import { openNodeDatabase } from '../../src/db/nodeDriver.ts';
-import { convertLegacy } from '../legacy-convert/convert.ts';
 import { OutputPathError } from '../legacy-convert/output.ts';
 import { ConversionStopped } from '../legacy-convert/source.ts';
-import { comparableExport, fictionalBaseline, writeFictionalExport, type FictionalExport } from '../legacy-convert/testExport.ts';
-import { compareLegacy, summaryPathFor, type CompareOptions } from './run.ts';
-
-const TOOL = { commit: 'abc123def456', dirty: false };
-
-async function setup(data: FictionalExport = comparableExport(), convertOptions: Partial<Parameters<typeof convertLegacy>[0]> = {}) {
-  const root = mkdtempSync(path.join(tmpdir(), 'legacy-compare-'));
-  const priv = path.join(root, '.private');
-  mkdirSync(priv);
-  const exportDirectory = writeFictionalExport(priv, data);
-  const ledgerPath = path.join(priv, 'ledger.sqlite');
-  await convertLegacy({
-    exportDirectory, outputPath: ledgerPath, privateRoot: priv, ask: async () => '-300', log: () => {}, expectedBaseline: fictionalBaseline(data), ...convertOptions,
-  });
-  const run = (over: Partial<CompareOptions> = {}) => compareLegacy({
-    exportDirectory, ledgerPath, reportPath: path.join(priv, 'report.md'), privateRoot: priv, expectedBaseline: fictionalBaseline(data),
-    toolVersion: TOOL, now: () => new Date('2026-11-12T01:00:00Z'), ...over,
-  });
-  /** 直接對帳本檔下 SQL 做壞資料（測試用）。 */
-  const tamper = async (sql: string, params: (string | number)[] = []) => {
-    const db = openNodeDatabase(ledgerPath);
-    await db.run(sql, params);
-    await db.close();
-  };
-  const editDocument = async (edit: (doc: any) => void) => {
-    const db = openNodeDatabase(ledgerPath);
-    const row = await db.get<{ document: string }>('SELECT document FROM finance_document WHERE id = 1');
-    const doc = JSON.parse(row!.document);
-    edit(doc);
-    await db.run('UPDATE finance_document SET document = ? WHERE id = 1', [JSON.stringify(doc)]);
-    await db.close();
-  };
-  return { root, priv, exportDirectory, ledgerPath, run, tamper, editDocument, data, cleanup: () => rmSync(root, { recursive: true, force: true }) };
-}
+import { comparableExport, fictionalBaseline, writeFictionalExport } from '../legacy-convert/testExport.ts';
+import { summaryPathFor } from './run.ts';
+import { setup } from './testSupport.ts';
 
 const NUMBERS = /(?<![0-9A-Za-z])-?\d{1,3}(?:,\d{3})+(?![0-9A-Za-z])|(?<![0-9A-Za-z.-])-?\d{4,}(?![0-9A-Za-z-])/g;
 
@@ -53,11 +19,12 @@ test('虛構匯出轉換後比對：門檻全部 0 差異，歷史差異同額�
     assert.equal(outcome.passed, true, outcome.summary.join('\n'));
     assert.equal(outcome.thresholdDifferences, 0);
     const text = outcome.summary.join('\n');
-    assert.match(text, /結論：門檻項目全部通過，0 差異/);
+    assert.match(text, /結論：已比對範圍（逐月數字、交易）全部通過，0 差異/);
+    assert.match(text, /尚未涵蓋：信用卡明細（票 12）、投資（票 20）/);
     assert.match(text, /4 個月/);
-    assert.match(text, /歷史總資產差異：Property 推得 2 個月、來源財務文件 2 個月、App 2 個月有差異；每月同額：是/);
+    assert.match(text, /歷史總資產差異：資產表推得 2 個月、來源財務文件 2 個月、App 2 個月有差異；每月同額：是；預期 2 個月（相符）/);
     assert.match(text, /來源 15 筆、App 15 筆/);
-    assert.match(text, /Property 4 個月；budget 逐月列 3 個月；budget 累計列已比對；BudgetCap 2 個月/);
+    assert.match(text, /資產表 4 個月；預算表逐月列 3 個月；預算表累計列已比對；上限表 2 個月/);
     assert.match(text, /當月盈餘 1 個、上限快照 2 個、資產欄位 0 個/);
     assert.match(text, /執行日期：2026-11-12/);
     assert.match(text, /commit abc123def456/);
@@ -217,7 +184,8 @@ test('摘要找不到虛構資料的金額與名稱（成功與失敗兩種情�
     const names = ['飲食', '薪資', '電話網路', '其他', '現金', '銀行', '信用卡', '小明', '寵物', '水費'];
     const amounts = [8000, 9000, 9500, 10000, 800, 4700, 750, 400, 4800, 300, 5100, 700, 280, 60, 5000, 1000, 5500, 900, 11500, 14100, 17300, 2500, 2600, 3200, 420];
     const check = (lines: string[]) => {
-      const text = lines.join('\n');
+      // 固定文字「尚未涵蓋：信用卡明細…」裡的「信用卡」是功能名稱，不是帳戶名稱；其餘每一行都要檢查。
+      const text = lines.filter((l) => !l.startsWith('尚未涵蓋：')).join('\n');
       for (const n of names) assert.ok(!text.includes(n), `摘要含有名稱 ${n}`);
       const found = (text.match(NUMBERS) ?? []).map((x) => Number(x.replaceAll(',', '')));
       for (const a of amounts) assert.ok(!found.includes(a), `摘要含有金額 ${a}`);
@@ -249,8 +217,8 @@ test('報告位置把關：私人位置以外拒絕、已存在不覆寫；帳�
     // 帳本檔在私人位置之外 / 不存在
     const outside = path.join(t.root, 'outside.sqlite');
     writeFileSync(outside, 'x');
-    await assert.rejects(t.run({ ledgerPath: outside }), OutputPathError);
-    await assert.rejects(t.run({ ledgerPath: path.join(t.priv, 'nope.sqlite') }), OutputPathError);
+    await assert.rejects(t.run({ ledgerPath: outside }), ConversionStopped);
+    await assert.rejects(t.run({ ledgerPath: path.join(t.priv, 'nope.sqlite') }), ConversionStopped);
   } finally { t.cleanup(); }
 });
 
