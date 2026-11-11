@@ -7,7 +7,8 @@ import type { CsvEncoding } from '../csv/encoding.ts';
 import type { Account, CardReconciliation } from '../ledger/index.ts';
 import { CardStatementCheck } from '../ui/CardStatementCheck.tsx';
 import { cardStatementErrorMessage } from '../ui/cardStatementError.ts';
-import { hasMonthlyCloseEntitlement } from '../ui/closeEntitlement.ts';
+import { useHasPaidAccess } from '../ui/closeEntitlement.ts';
+import { PaidLock } from '../ui/PaidLock.tsx';
 import { monthTitle } from '../ui/format.ts';
 import { syncNotifications } from '../platform/notificationSync.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
@@ -34,7 +35,7 @@ export default function CloseCardStatementScreen() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
-  const entitled = hasMonthlyCloseEntitlement();
+  const entitled = useHasPaidAccess();
 
   useFocusEffect(useCallback(() => {
     let cancelled = false;
@@ -116,7 +117,7 @@ export default function CloseCardStatementScreen() {
         {!loading && cards.length === 0 && check?.hasCards ? <Text style={styles.note}>目前沒有使用中的信用卡帳戶可匯入。若停用卡仍有待核對交易，請先到帳戶設定重新啟用。</Text> : null}
         {check ? <CardStatementCheck result={check} /> : null}
         {!loading ? <CloseButton title="重新核對" disabled={busy} onPress={() => setRetry((n) => n + 1)} /> : null}
-        {!entitled ? <Text style={styles.note}>需要有效的付費權益才能繼續月結；帳單匯入仍可使用。</Text> : null}
+        {!entitled ? <PaidLock feature="monthly_close" note="需要有效的付費權益才能繼續月結；帳單匯入仍可使用。" /> : null}
         <CloseButton title={check && !check.hasCards ? '略過信用卡，進入計算預覽' : '進入計算預覽'}
           disabled={loading || busy || closed || !check?.matched || !entitled}
           onPress={() => router.push({ pathname: '/close-calculation', params: { month } })} />

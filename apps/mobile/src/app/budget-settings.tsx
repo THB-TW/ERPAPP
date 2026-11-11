@@ -10,7 +10,8 @@ import { formatAmount, monthTitle } from '../ui/format.ts';
 import { syncNotifications } from '../platform/notificationSync.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
 import { colors } from '../ui/theme.ts';
-import { hasMonthlyCloseEntitlement } from '../ui/closeEntitlement.ts';
+import { hasMonthlyCloseEntitlement, useHasPaidAccess } from '../ui/closeEntitlement.ts';
+import { PaidLock } from '../ui/PaidLock.tsx';
 
 type Mode = 'edit' | 'add' | 'retire' | 'map';
 type Kind = 'reserve' | 'fixed' | 'actual';
@@ -38,6 +39,7 @@ function errorMessage(error: unknown): string {
 }
 
 export default function BudgetSettingsScreen() {
+  const entitled = useHasPaidAccess();
   const ledger = useLedger();
   const headerHeight = useHeaderHeight();
   const scroll = useRef<ScrollViewInstance>(null);
@@ -238,7 +240,7 @@ export default function BudgetSettingsScreen() {
 
               {mode === 'retire' ? (
                 <View style={styles.field}>
-                  {!hasMonthlyCloseEntitlement() ? <Text style={styles.note}>停用分類需要有效的付費權益；既有資料仍可查閱。</Text> : null}
+                  {!entitled ? <PaidLock feature="adjustments" note="停用分類需要有效的付費權益；既有資料仍可查閱。" /> : null}
                   <Text style={styles.note}>停用後不再提供新增交易選用，原本的交易與已結月份仍會保留。</Text>
                   <Text style={styles.label}>剩餘儲備轉入</Text>
                   <View style={styles.chips}>
@@ -275,7 +277,7 @@ export default function BudgetSettingsScreen() {
                 <TextInput value={reason} editable={!disabled} onChangeText={(value) => { invalidatePreview(); setReason(value); }} maxLength={300} multiline placeholder="例如：調整通勤方式，重新分配交通支出" accessibilityLabel="修改原因" style={[styles.input, { minHeight: 88, textAlignVertical: 'top' }]} />
                 <Text style={styles.note}>{reason.length} / 300 字</Text>
               </View>
-              <Button label={busy ? '處理中…' : '預覽變更'} disabled={disabled || !canPreview || (mode === 'retire' && !hasMonthlyCloseEntitlement())} onPress={showPreview} />
+              <Button label={busy ? '處理中…' : '預覽變更'} disabled={disabled || !canPreview || (mode === 'retire' && !entitled)} onPress={showPreview} />
 
               {preview ? (
                 <View style={styles.preview} onLayout={(event) => { scroll.current?.scrollTo({ y: Math.max(0, event.nativeEvent.layout.y - 12), animated: true }); }}>

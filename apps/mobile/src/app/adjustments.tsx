@@ -6,7 +6,8 @@ import type { ScrollViewInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { shiftMonth } from '../calc/dates.ts';
 import type { AdjustmentPreview, AdjustmentRequest, BudgetAdjustmentView, BudgetMonthSummary, BudgetMonthView, BudgetStatus } from '../ledger/index.ts';
-import { hasMonthlyCloseEntitlement } from '../ui/closeEntitlement.ts';
+import { hasMonthlyCloseEntitlement, useHasPaidAccess } from '../ui/closeEntitlement.ts';
+import { PaidLock } from '../ui/PaidLock.tsx';
 import { formatAmount, monthTitle } from '../ui/format.ts';
 import { syncNotifications } from '../platform/notificationSync.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
@@ -57,7 +58,7 @@ export default function AdjustmentsScreen() {
   const [preview, setPreview] = useState<{ request: AdjustmentRequest; result: AdjustmentPreview } | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [entitled, setEntitled] = useState(hasMonthlyCloseEntitlement());
+  const entitled = useHasPaidAccess();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
@@ -67,7 +68,6 @@ export default function AdjustmentsScreen() {
     setLoading(true);
     setPreview(null);
     setError(null);
-    setEntitled(hasMonthlyCloseEntitlement());
     Promise.all([ledger.getBudgetStatus(), ledger.listBudgetMonths(), ledger.listBudgetAdjustments()]).then(async ([next, closed, adjustments]) => ({
       next, closed, adjustments, snapshot: next.latestMonth ? await ledger.getBudgetMonth(next.latestMonth) : null,
     })).then(({ next, closed, adjustments, snapshot }) => {
@@ -119,7 +119,7 @@ export default function AdjustmentsScreen() {
       setPreview(null); setError(closeErrorMessage(e));
       scroll.current?.scrollTo({ y: 0, animated: true });
     } finally {
-      inFlight.current = false; setBusy(false); setEntitled(hasMonthlyCloseEntitlement());
+      inFlight.current = false; setBusy(false);
     }
   }
 
@@ -139,7 +139,7 @@ export default function AdjustmentsScreen() {
       setPreview(null); setError(closeErrorMessage(e));
       scroll.current?.scrollTo({ y: 0, animated: true });
     } finally {
-      inFlight.current = false; setBusy(false); setEntitled(hasMonthlyCloseEntitlement());
+      inFlight.current = false; setBusy(false);
     }
   }
 
@@ -169,7 +169,7 @@ export default function AdjustmentsScreen() {
             <Text style={styles.heading}>{status.latestMonth ? `最近已結：${monthTitle(status.latestMonth)}` : '尚無已結月份'}</Text>
             {latest ? <><Text style={styles.note}>可用餘額 {amountText(latest.spare)} ／ 總儲備金 {amountText(latest.reserve)}</Text><Text style={styles.note}>帳面總資產 {amountText(latest.total)}</Text></> : <Text style={styles.note}>完成開帳與月結後，才能進行調整。</Text>}
             <Text style={styles.note}>每次調整都必須填寫原因、查看前後金額，再確認生效。調整保留獨立紀錄。</Text>
-            {!entitled ? <Text style={styles.note}>目前付費內容為唯讀，可查看原有調整；需要有效的付費權益才能新增或修改。</Text> : null}
+            {!entitled ? <PaidLock feature="adjustments" note="目前付費內容為唯讀，可查看原有調整；需要有效的付費權益才能新增或修改。" /> : null}
           </View>
           <View style={styles.chips}>{MODES.map((item) => <Chip key={item.id} title={item.title} selected={mode === item.id} disabled={busy || preview !== null} onPress={() => chooseMode(item.id)} />)}</View>
           {(mode === 'transfer' || mode === 'fund') ? <>

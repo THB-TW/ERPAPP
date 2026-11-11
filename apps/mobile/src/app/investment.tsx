@@ -6,7 +6,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { Account, Ledger } from '../ledger/index.ts';
 import { BudgetRuleError } from '../ledger/index.ts';
 import { shiftMonth, taipeiDate } from '../calc/dates.ts';
-import { hasMonthlyCloseEntitlement } from '../ui/closeEntitlement.ts';
+import { hasMonthlyCloseEntitlement, useHasPaidAccess } from '../ui/closeEntitlement.ts';
+import { PaidLock } from '../ui/PaidLock.tsx';
 import { formatAmount, userMessage } from '../ui/format.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
 import { colors } from '../ui/theme.ts';
@@ -31,7 +32,7 @@ export default function InvestmentScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
-  const [hasEntitlement, setHasEntitlement] = useState(false);
+  const hasEntitlement = useHasPaidAccess();
   const [form, setForm] = useState<Form>(null);
   const [historyId, setHistoryId] = useState<number | null>(null);
   const [holdingId, setHoldingId] = useState<number | null>(null);
@@ -70,7 +71,6 @@ export default function InvestmentScreen() {
 
   useFocusEffect(useCallback(() => {
     let cancelled = false;
-    setHasEntitlement(hasMonthlyCloseEntitlement());
     setLoaded(false);
     setError(null);
     load().then((data) => { if (!cancelled) applyLoaded(data); }, (e: unknown) => {
@@ -152,7 +152,7 @@ export default function InvestmentScreen() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={headerHeight}>
         <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" contentContainerStyle={{ padding: 16, gap: 16 }}>
           {!loaded ? <Text style={{ color: colors.muted }}>正在讀取投資…</Text> : null}
-          {loaded && !hasEntitlement ? <Text style={{ color: colors.muted }}>目前為唯讀，可查看投資紀錄；有效訂閱期間可新增與修改。</Text> : null}
+          {loaded && !hasEntitlement ? <PaidLock feature="investment" note="目前為唯讀，可查看投資紀錄；有效訂閱期間可新增與修改。" /> : null}
           {form === null && portfolio ? (
             <>
               <Card title="累計投入淨額">

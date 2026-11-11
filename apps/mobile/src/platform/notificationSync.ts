@@ -2,6 +2,7 @@
 import { AppState } from 'react-native';
 import type { Ledger } from '../ledger/index.ts';
 import { hasMonthlyCloseEntitlement } from '../ui/closeEntitlement.ts';
+import { appSubscription } from './appSubscription.ts';
 import { applyNotificationPlan, type NotificationScheduleResult } from './notificationPort.ts';
 import { managedNotificationId, notificationPlanThrough, notificationRequests } from './notificationSchedule.ts';
 
@@ -34,5 +35,7 @@ export function startNotificationSync(ledger: Ledger): () => void {
   const subscription = AppState.addEventListener('change', (state) => {
     if (state === 'active') refresh();
   });
-  return () => subscription.remove();
+  // 權益變動（購買、到期、退款）時重排：到期就取消月結、帳單與貸款提醒（票 22）。
+  const stopEntitlement = appSubscription.subscribe(refresh);
+  return () => { subscription.remove(); stopEntitlement(); };
 }
