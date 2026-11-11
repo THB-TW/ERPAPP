@@ -80,7 +80,7 @@ test('開帳日含當日收支、排除開帳前交易，截止日排除未來�
   assert.deepEqual(await balances(ledger, '2026-11-01'), [900, 10000, -2000, 100]);
   assert.deepEqual(await balances(ledger, '2026-11-12'), [850, 12000, -2000, 100]);
   await rejects('invalid_date', ledger.listAccountBalances('2026-02-30'));
-  await rejects('invalid_date', ledger.listAccountBalances('2026-10-31'));
+  assert.deepEqual(await balances(ledger, '2026-10-31'), [1000, 10000, -2000, 100]);
 });
 
 test('銀行繳卡費、領現與儲值只改兩端餘額，信用卡負數為未繳', async (t) => {

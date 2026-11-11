@@ -44,6 +44,17 @@ async function command(ledger: Ledger, fields: Partial<BudgetCommand> & { action
     reason: '合成調整', ...fields });
 }
 
+/** 舊月結數字案例保留原值，合成銀行餘額核平後才走精靈完成入口。 */
+async function readyToClose(ledger: Ledger) {
+  const input = { month: '2026-10', hasEntitlement: true };
+  const check = await ledger.previewAssetCheck(input);
+  const bank = check.accounts.find((a) => a.kind === 'bank')!;
+  const balances = [{ accountId: bank.accountId, balance: bank.appBalance - check.difference }];
+  const adjusted = await ledger.previewAssetCheck({ ...input, balances });
+  const record = await ledger.recordAssetCheck({ ...input, balances, checkToken: adjusted.checkToken, operationId: randomUUID() });
+  return { ...await ledger.previewMonthlyClose(input), assetCheckId: record.id };
+}
+
 test('精靈自動選開放月份，只帶入該月收入；尚未結束的月份不可月結', async (t) => {
   const ledger = await setup(t);
   await transaction(ledger, '薪資', 40000);
@@ -82,11 +93,11 @@ test('確認才完成月結、凍結沿用版本並鎖定全部交易異動；�
   const ledger = await setup(t);
   await transaction(ledger, '薪資', 40000);
   const { id } = await transaction(ledger, '飲食', 100);
-  const preview = await ledger.previewMonthlyClose({ month: '2026-10', hasEntitlement: true });
-  const request = { month: preview.month, version: preview.version, previewToken: preview.previewToken,
+  const preview = await readyToClose(ledger);
+  const request = { ...preview,
     operationId: randomUUID(), hasEntitlement: true };
-  assert.deepEqual(await ledger.completeMonthlyClose(request), { version: 5, replayed: false });
-  assert.deepEqual(await ledger.completeMonthlyClose(request), { version: 5, replayed: true });
+  assert.deepEqual(await ledger.completeMonthlyClose(request), { version: 6, replayed: false });
+  assert.deepEqual(await ledger.completeMonthlyClose(request), { version: 6, replayed: true });
   assert.equal((await ledger.listBudgetMonths()).length, 2);
   assert.equal((await ledger.getMonthlyCloseDraft()).month, '2026-11');
   const closed = await ledger.getBudgetMonth('2026-10');
@@ -128,7 +139,7 @@ test('預覽後交易新增、修改、刪除或上限變更都拒絕舊預覽�
   const ledger = await setup(t);
   const income = await transaction(ledger, '薪資', 40000);
   async function request() {
-    const p = await ledger.previewMonthlyClose({ month: '2026-10', hasEntitlement: true });
+    const p = await readyToClose(ledger);
     return { ...p, operationId: randomUUID(), hasEntitlement: true };
   }
   const add = await request();
@@ -157,7 +168,7 @@ test('未歸屬支出由引擎指出分類；拒絕後補歸屬即可完成', as
   await assert.rejects(ledger.previewMonthlyClose({ month: '2026-10', hasEntitlement: true }), /分類「娛樂」尚未設定有效的預算歸屬/);
   assert.equal(await ledger.exportFinanceDocument(), before);
   await command(ledger, { action: 'map', sourceCategory: '娛樂', to: 'other' });
-  const preview = await ledger.previewMonthlyClose({ month: '2026-10', hasEntitlement: true });
+  const preview = await readyToClose(ledger);
   await ledger.completeMonthlyClose({ ...preview, operationId: randomUUID(), hasEntitlement: true });
   assert.equal((await ledger.getBudgetMonth('2026-10')).surplus, -3500);
 });
@@ -166,7 +177,7 @@ test('前期更正與補入儲備經精靈撤銷重結只生效一次，並保�
   const ledger = await setup(t);
   await transaction(ledger, '薪資', 20000);
   await command(ledger, { action: 'correct', amount: -700 });
-  const first = await ledger.previewMonthlyClose({ month: '2026-10', hasEntitlement: true });
+  const first = await readyToClose(ledger);
   const request = { ...first, operationId: randomUUID(), hasEntitlement: true };
   await ledger.completeMonthlyClose(request);
   await command(ledger, { action: 'fund', month: '2026-10', amount: 2000, to: 'learn' });
@@ -177,7 +188,7 @@ test('前期更正與補入儲備經精靈撤銷重結只生效一次，並保�
   // 舊的成功請求重送不會把已撤銷月份再結一次。
   assert.equal((await ledger.completeMonthlyClose(request)).replayed, true);
   assert.equal(await ledger.isMonthClosed('2026-10'), false);
-  const again = await ledger.previewMonthlyClose({ month: '2026-10', hasEntitlement: true });
+  const again = await readyToClose(ledger);
   await ledger.completeMonthlyClose({ ...again, operationId: randomUUID(), hasEntitlement: true });
   const reclosed = await ledger.getBudgetMonth('2026-10');
   assert.deepEqual([reclosed.income, reclosed.surplus, reclosed.spare, reclosed.tuition, reclosed.reserve, reclosed.total],
@@ -191,7 +202,7 @@ test('歷史查詢分開原始月結快照與調整後資產，舊月份不推�
   const ledger = await setup(t);
   await transaction(ledger, '薪資', 20000);
   await transaction(ledger, '學習', 1200);
-  const preview = await ledger.previewMonthlyClose({ month: '2026-10', hasEntitlement: true });
+  const preview = await readyToClose(ledger);
   await ledger.completeMonthlyClose({ ...preview, operationId: randomUUID(), hasEntitlement: true });
   await command(ledger, { action: 'fund', month: '2026-10', amount: 2000, to: 'learn' });
   const snapshot = await ledger.getMonthlyCloseSnapshot('2026-10');
@@ -210,7 +221,7 @@ test('歷史查詢分開原始月結快照與調整後資產，舊月份不推�
 
 test('預覽的暫時識別碼不會與既有成功操作衝突', async (t) => {
   const ledger = await setup(t);
-  const first = await ledger.previewMonthlyClose({ month: '2026-10', hasEntitlement: true });
+  const first = await readyToClose(ledger);
   await ledger.completeMonthlyClose({ ...first, operationId: '11111111-1111-4111-8111-111111111111', hasEntitlement: true });
   await command(ledger, { action: 'rollback', month: '2026-10' });
   const next = await ledger.previewMonthlyClose({ month: '2026-10', hasEntitlement: true });
@@ -269,7 +280,7 @@ test('關閉並重開SQLite後仍保存月結與確認內容，重送只讀回�
     ledger = await openLedger(openNodeDatabase(path), { now: () => NOW });
     await ledger.importFinanceDocument(serializeBudgetDocument(fixture()));
     await transaction(ledger, '薪資', 20000);
-    const preview = await ledger.previewMonthlyClose({ month: '2026-10', hasEntitlement: true });
+    const preview = await readyToClose(ledger);
     const request = { ...preview, operationId: randomUUID(), hasEntitlement: true };
     await ledger.completeMonthlyClose(request);
     const expected = await ledger.getMonthlyCloseSnapshot('2026-10');
