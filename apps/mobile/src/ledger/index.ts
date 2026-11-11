@@ -39,6 +39,9 @@ import { categoryMonthTransactions, monthBreakdown, type MonthBreakdown } from '
 import type { AccountKind, Flow } from './defaults.ts';
 import { LedgerError } from './errors.ts';
 import { ledgerMigrations } from './migrations.ts';
+import { importTransactionsCsv, exportTransactionsCsv, type CsvImportOptions, type CsvImportResult } from './csvTransactions.ts';
+export { CsvFormatError } from './csvTransactions.ts';
+export type { CsvEncoding, CsvImportOptions, CsvImportResult, CsvRowRejection } from './csvTransactions.ts';
 
 export type { AccountKind, Flow } from './defaults.ts';
 export { LedgerError } from './errors.ts';
@@ -90,6 +93,10 @@ export interface BudgetCommandResult {
 }
 
 export interface Ledger {
+  /** 免費 CSV 匯入：只新增通過驗證且數量超出既有筆數的列；拒收與略過分開回報。 */
+  importTransactionsCsv(input: string | Uint8Array, options?: CsvImportOptions): Promise<CsvImportResult>;
+  /** 免費匯出全部交易為 UTF-8（含 BOM）的 CSV。 */
+  exportTransactionsCsv(): Promise<Uint8Array>;
   getMonthCalendar(month: string): Promise<MonthCalendar>;
   addTransaction(input: NewTransaction): Promise<{ id: number }>;
   /** 修改交易的全部欄位。原日期或新日期落在已結月份都會被拒（month_closed）。 */
@@ -165,6 +172,8 @@ export async function openLedger(db: Database, options: LedgerOptions = {}): Pro
   }
 
   return {
+    importTransactionsCsv: (input, csvOptions) => serial(() => db.transaction((tx) => importTransactionsCsv(tx, input, taipeiDate(now()), csvOptions))),
+    exportTransactionsCsv: () => serial(() => exportTransactionsCsv(db)),
     addTransaction: (input) => serial(() => db.transaction((tx) => insertTransaction(tx, input))),
     updateTransaction: (id, input) => serial(() => db.transaction((tx) => updateTransaction(tx, id, input))),
     deleteTransaction: (id) => serial(() => db.transaction((tx) => deleteTransaction(tx, id))),

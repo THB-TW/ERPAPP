@@ -1,6 +1,15 @@
-import { Placeholder } from '../../ui/Placeholder.tsx';
+import { Link } from 'expo-router';
+import { Pressable, Text, View } from 'react-native';
+import { colors } from '../../ui/theme.ts';
 
-// 佔位畫面：由票 14、15、16 等換掉整個檔案。
 export default function Screen() {
-  return <Placeholder title="設定" ticket="票 14、15、16 等" />;
+  return (
+    <View style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
+      <Link href="/csv-import" asChild>
+        <Pressable accessibilityRole="button" style={{ minHeight: 48, padding: 12, borderRadius: 8, backgroundColor: colors.surface }}>
+          <Text style={{ fontSize: 16, color: colors.accent }}>匯入 CSV</Text>
+        </Pressable>
+      </Link>
+    </View>
+  );
 }
