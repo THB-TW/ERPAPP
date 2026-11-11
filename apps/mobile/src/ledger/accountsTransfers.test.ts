@@ -70,6 +70,27 @@ test('帳戶欄位錯誤與重名拒絕，原資料保留', async (t) => {
   assert.deepEqual(await ledger.listAccounts(), before);
 });
 
+test('未來才開帳時，預設今天查詢帳戶餘額仍顯示各帳戶開帳餘額', async (t) => {
+  const ledger = await fresh(false); t.after(() => ledger.close());
+  await ledger.importLegacyLedger({ ...fakeImport(), openingDate: '2026-12-01' });
+  await ledger.addTransaction({ date: '2026-11-11', categoryId: 1, accountId: 1, flow: 'expense', amount: 50 });
+  const { id } = await ledger.addTransfer({ ...transfer, date: '2026-11-11' });
+  await ledger.addTransaction({ date: '2026-12-01', categoryId: 1, accountId: 1, flow: 'expense', amount: 100 });
+  await ledger.addTransfer({ ...transfer, date: '2026-12-01' });
+  await ledger.addTransaction({ date: '2026-12-02', categoryId: 2, accountId: 2, flow: 'income', amount: 2000 });
+
+  const [accounts, openingDate] = await Promise.all([ledger.listAccountBalances(), ledger.getOpeningDate()]);
+  assert.equal(openingDate, '2026-12-01');
+  assert.deepEqual(accounts.map((a) => a.balance), [1000, 10000, -2000, 100]);
+  assert.deepEqual(await balances(ledger, '2026-11-30'), [1000, 10000, -2000, 100]);
+  assert.deepEqual(await balances(ledger, '2026-12-01'), [900, 9500, -1500, 100]);
+  assert.deepEqual((await ledger.getDayTransactions('2026-11-11')).map((x) => x.amount), [50]);
+  assert.deepEqual((await ledger.listTransfers('2026-11-11', '2026-11-11')).map((x) => x.id), [id]);
+  await ledger.updateAccount(1, { name: '改名現金', openingBalance: 1200 });
+  const refreshed = await ledger.listAccountBalances();
+  assert.deepEqual([refreshed[0].name, refreshed[0].balance], ['改名現金', 1200]);
+});
+
 test('開帳日含當日收支、排除開帳前交易，截止日排除未來收支', async (t) => {
   const ledger = await fresh(); t.after(() => ledger.close());
   assert.deepEqual(await balances(ledger), [1000, 10000, -2000, 100]);
@@ -80,7 +101,7 @@ test('開帳日含當日收支、排除開帳前交易，截止日排除未來�
   assert.deepEqual(await balances(ledger, '2026-11-01'), [900, 10000, -2000, 100]);
   assert.deepEqual(await balances(ledger, '2026-11-12'), [850, 12000, -2000, 100]);
   await rejects('invalid_date', ledger.listAccountBalances('2026-02-30'));
-  await rejects('invalid_date', ledger.listAccountBalances('2026-10-31'));
+  assert.deepEqual(await balances(ledger, '2026-10-31'), [1000, 10000, -2000, 100]);
 });
 
 test('銀行繳卡費、領現與儲值只改兩端餘額，信用卡負數為未繳', async (t) => {
@@ -303,6 +324,7 @@ test('非零舊月結與歷史差異在轉帳及帳戶設定後完全相同', as
   const transactions = await ledger.listTransactions('0001-01-01', '9999-12-31');
   await ledger.addTransfer(transfer);
   await ledger.updateAccount(2, { name: '更名銀行', openingBalance: 12345, active: false });
+  assert.deepEqual(await balances(ledger, '2026-10-31'), [1000, 12345, -2000, 100]);
   assert.deepEqual(await ledger.getBudgetMonth('2026-10'), before);
   assert.equal(await ledger.exportFinanceDocument(), doc);
   assert.equal((await ledger.listTransactions('0001-01-01', '9999-12-31')).length, transactions.length);

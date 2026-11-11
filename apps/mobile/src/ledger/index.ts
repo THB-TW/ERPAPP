@@ -44,6 +44,9 @@ import { transferCommands, type TransfersLedger } from './transfers.ts';
 import { LedgerError } from './errors.ts';
 import { ledgerMigrations } from './migrations.ts';
 import { completeMonthlyClose, monthlyCloseDraft, monthlyCloseSnapshot, previewMonthlyClose, type CompleteMonthlyCloseRequest, type MonthlyCloseDraft, type MonthlyClosePreview, type MonthlyCloseRequest, type MonthlyCloseSnapshot } from './monthlyClose.ts';
+import { importTransactionsCsv, exportTransactionsCsv, type CsvImportOptions, type CsvImportResult } from './csvTransactions.ts';
+export { CsvFormatError } from './csvTransactions.ts';
+export type { CsvEncoding, CsvImportOptions, CsvImportResult, CsvRowRejection } from './csvTransactions.ts';
 import { backupCommands, trackModifications, type BackupFiles, type BackupInspection, type BackupStatus, type RestoreResult } from './backup.ts';
 export type { BackupFiles, BackupInspection, BackupStatus, RestoreResult } from './backup.ts';
 
@@ -109,6 +112,10 @@ export interface Ledger extends AccountsLedger, TransfersLedger {
   completeMonthlyClose(input: CompleteMonthlyCloseRequest): Promise<BudgetCommandResult>;
   /** 已結月份的原始計算與調整後資產；不以現在交易重算歷史。 */
   getMonthlyCloseSnapshot(month: string): Promise<MonthlyCloseSnapshot>;
+  /** 免費 CSV 匯入：只新增通過驗證且數量超出既有筆數的列；拒收與略過分開回報。 */
+  importTransactionsCsv(input: string | Uint8Array, options?: CsvImportOptions): Promise<CsvImportResult>;
+  /** 免費匯出全部交易為 UTF-8（含 BOM）的 CSV。 */
+  exportTransactionsCsv(): Promise<Uint8Array>;
   getMonthCalendar(month: string): Promise<MonthCalendar>;
   addTransaction(input: NewTransaction): Promise<{ id: number }>;
   /** 修改交易的全部欄位。原日期或新日期落在已結月份都會被拒（month_closed）。 */
@@ -214,6 +221,8 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
     previewMonthlyClose: (input) => serial(() => previewMonthlyClose(db, input, now())),
     completeMonthlyClose: (input) => serial(() => db.transaction((tx) => completeMonthlyClose(tx, input, now()))),
     getMonthlyCloseSnapshot: (month) => serial(() => monthlyCloseSnapshot(db, month, now())),
+    importTransactionsCsv: (input, csvOptions) => serial(() => db.transaction((tx) => importTransactionsCsv(tx, input, taipeiDate(now()), csvOptions))),
+    exportTransactionsCsv: () => serial(() => exportTransactionsCsv(db)),
     ...accountCommands(db, serial, () => taipeiDate(now())),
     ...transferCommands(db, serial),
     addTransaction: (input) => serial(() => db.transaction((tx) => insertTransaction(tx, input))),
