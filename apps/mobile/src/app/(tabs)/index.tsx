@@ -28,10 +28,12 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      setOpeningChecked(false);
+      // 開帳檢查通過後就不再把整個首頁換成讀取畫面：換日期、換月份或從記帳表單返回時，
+      // 月曆與列表留在原地更新，不閃爍也不丟掉捲動位置。
       ledger.getOnboardingStatus().then(async (status) => {
         if (cancelled) return;
         if (!status.completed) {
+          setOpeningChecked(false); // 例如還原了一本還沒開帳的帳本：先蓋住舊內容再導去開帳
           router.push('/onboarding');
           return;
         }
