@@ -1,5 +1,5 @@
 import type { Database, Queryable } from '../db/driver.ts';
-import { isValidDate, isValidMonth } from '../calc/dates.ts';
+import { isValidDate, isValidMonth, shiftMonth } from '../calc/dates.ts';
 import { computeInvestment, type InvestmentAssetClass, type InvestmentHolding, type InvestmentPosition, type InvestmentTransaction, type InvestmentValuation } from '../calc/investment.ts';
 import { inputDecimal, safeInteger } from '../calc/investmentDecimal.ts';
 import { assertAccountUsable } from './accounts.ts';
@@ -63,7 +63,18 @@ export async function listInvestmentValuations(q: Queryable, holdingId?: number)
     .sort((a, b) => { const x = investmentTime(a.asOf); const y = investmentTime(b.asOf); return x === y ? a.id - b.id : x < y ? -1 : 1; });
 }
 export async function investmentOpening(q: Queryable): Promise<InvestmentOpening | null> {
-  return q.get<InvestmentOpening>('SELECT as_of_month AS asOfMonth, net_deployed AS netDeployed FROM investment_opening WHERE id = 1');
+  const saved = await q.get<InvestmentOpening>('SELECT as_of_month AS asOfMonth, net_deployed AS netDeployed FROM investment_opening WHERE id = 1');
+  if (saved) return saved;
+  // 票 18 既有帳本把期初投入額存在設定。沒有投資模組的明確期初時才採用，
+  // 讓新舊開帳與備份還原都能核對；只轉接讀取，不改舊資料或重複累加兩個宣告值。
+  const opening = await q.get<{ date: string; deployed: string }>(
+    `SELECT d.value AS date, n.value AS deployed FROM settings d JOIN settings n ON n.key = 'opening_deployed'
+      WHERE d.key = 'opening_date'`);
+  if (!opening) return null;
+  if (!isValidDate(opening.date) || !opening.date.endsWith('-01')) bad('開帳日必須是有效月份的 1 號。');
+  const netDeployed = Number(opening.deployed);
+  amount(netDeployed, true, true);
+  return { asOfMonth: shiftMonth(opening.date.slice(0, 7), -1), netDeployed };
 }
 export async function netDeployed(q: Queryable, asOf: string): Promise<number> {
   day(asOf);
