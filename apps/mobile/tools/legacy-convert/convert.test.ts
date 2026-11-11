@@ -123,14 +123,13 @@ test('舊信用卡明細壞列或負數不會悄悄略過，轉換整批停止',
   } finally { t.cleanup(); }
 });
 
-test('不搬員工、密碼、投資：輸出檔沒有這些資料表，也找不到密碼', async () => {
+test('不搬員工與密碼，輸出檔保留信用卡並可查詢投資', async () => {
   const t = setup();
   try {
     await convert(t);
-    const db = openNodeDatabase(t.out);
-    const tables = (await db.all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")).map((r) => r.name);
-    assert.deepEqual(tables, ['accounts', 'card_statements', 'categories', 'finance_document', 'ledger_meta', 'members', 'schema_migrations', 'settings', 'transactions', 'transfers']);
-    await db.close();
+    const ledger = await openLedger(openNodeDatabase(t.out));
+    assert.deepEqual((await ledger.getInvestmentPortfolio()).positions, []);
+    await ledger.close();
     assert.ok(!readFileSync(t.out).includes(Buffer.from(FICTIONAL_PASSWORD)));
     assert.ok(readFileSync(t.out).includes(Buffer.from('虛構店家')));
   } finally { t.cleanup(); }

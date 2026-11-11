@@ -16,6 +16,7 @@ import { assertGitIgnored, assertPrivateOutput, OutputPathError } from '../legac
 import { ConversionStopped, loadVerifiedSource } from '../legacy-convert/source.ts';
 import { compareBudgetMonths, compareTransactions } from './compare.ts';
 import { compareCardStatements } from './cardStatements.ts';
+import { compareInvestments } from './investments.ts';
 import { COMPARE_EXPECTATIONS_20261108, type CompareExpectations } from './expectations.ts';
 import { bucketExpensesByMonth, recomputeMonths, type TransactionsOfMonth } from './recompute.ts';
 import { TEMP_PREFIX, guardTempDir, removeStaleTemps } from './tempCopy.ts';
@@ -160,7 +161,7 @@ export async function compareLegacy(options: CompareOptions): Promise<CompareOut
   const tempDir = mkdtempSync(path.join(realpathSync(privateRoot), TEMP_PREFIX));
   const release = guardTempDir(tempDir); // Ctrl-C／被終止時也要把副本刪掉
   const tempFile = path.join(tempDir, 'ledger-copy.sqlite');
-  let budget, transactions, cardStatements, recompute: ReportContext['recompute'];
+  let budget, transactions, cardStatements, investments, recompute: ReportContext['recompute'];
   try {
     copyFileSync(ledgerFile, tempFile, constants.COPYFILE_EXCL);
     chmodSync(tempFile, 0o600);
@@ -183,6 +184,8 @@ export async function compareLegacy(options: CompareOptions): Promise<CompareOut
       const all = await ledger.listTransactions('0001-01-01', '9999-12-31');
       transactions = compareTransactions(all, legacy.transactions);
       cardStatements = compareCardStatements(await ledger.listCardStatements(), legacy.cardStatements ?? []);
+      if (!legacy.cutoffMonth || !legacy.investments) throw new ConversionStopped('來源缺少投資或搬遷截止月，無法完成驗收比對。');
+      investments = await compareInvestments(ledger, legacy.investments, legacy.cutoffMonth);
 
       log('重算報告（僅供參考）...');
       try {
@@ -215,7 +218,7 @@ export async function compareLegacy(options: CompareOptions): Promise<CompareOut
     sourceDatabase: String(verified.manifest.sourceDatabase ?? ''),
     sourceCommit: String(verified.manifest.sourceCommit ?? ''),
     ledgerSha256: ledgerHashBefore,
-    budget, transactions, cardStatements, recompute,
+    budget, transactions, cardStatements, investments, recompute,
   };
   const count = thresholdDifferences(ctx).length;
   const summary = buildSummary(ctx);

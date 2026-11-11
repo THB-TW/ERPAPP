@@ -133,4 +133,31 @@ export const ledgerMigrations: readonly Migration[] = [
       `);
     },
   },
+  {
+    // 票 20 固定 v13；schema_migrations 逐版記錄，之後補入 v6～v12 仍會執行。
+    version: 13,
+    async up(tx) {
+      await tx.exec(`
+        CREATE TABLE investment_holdings (
+          id INTEGER PRIMARY KEY, asset_class TEXT NOT NULL CHECK(asset_class IN ('stock','crypto')),
+          symbol TEXT, name TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1))
+        );
+        CREATE UNIQUE INDEX investment_stock_symbol ON investment_holdings(symbol COLLATE NOCASE) WHERE symbol IS NOT NULL;
+        CREATE UNIQUE INDEX investment_crypto_bucket ON investment_holdings(asset_class) WHERE asset_class='crypto';
+        CREATE TABLE investment_transactions (
+          id INTEGER PRIMARY KEY, holding_id INTEGER NOT NULL REFERENCES investment_holdings(id), date TEXT NOT NULL,
+          tx_type TEXT NOT NULL CHECK(tx_type IN ('opening','buy','sell','dividend')), amount INTEGER NOT NULL CHECK(amount>=0),
+          quantity TEXT, fund_source TEXT NOT NULL CHECK(fund_source IN ('internal','external')),
+          account_id INTEGER REFERENCES accounts(id), note TEXT NOT NULL DEFAULT ''
+        );
+        CREATE INDEX investment_transactions_by_date ON investment_transactions(date,id);
+        CREATE TABLE investment_opening (id INTEGER PRIMARY KEY CHECK(id=1), as_of_month TEXT NOT NULL, net_deployed INTEGER NOT NULL);
+        CREATE TABLE investment_valuations (
+          id INTEGER PRIMARY KEY, holding_id INTEGER NOT NULL REFERENCES investment_holdings(id), as_of TEXT NOT NULL,
+          unit_price TEXT, market_value INTEGER
+        );
+        CREATE INDEX investment_valuations_by_holding ON investment_valuations(holding_id,as_of,id);
+      `);
+    },
+  },
 ];

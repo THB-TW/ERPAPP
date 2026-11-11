@@ -7,6 +7,7 @@ import { parseImportedDocument, replaceDocument } from './financeDocument.ts';
 import { ACCOUNT_KINDS, DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES, type AccountKind, type Flow } from './defaults.ts';
 import { LedgerError } from './errors.ts';
 import { importLegacyCardStatements, type LegacyCardStatement } from './legacyCardStatements.ts';
+import { importLegacyInvestments, type LegacyInvestments } from './legacyInvestments.ts';
 
 export interface LegacyImportData {
   /** 開帳日：某月 1 號。所有帶入的帳戶共用（舊帳在搬遷截止月的下個月 1 號開帳）。 */
@@ -27,6 +28,8 @@ export interface LegacyImportData {
   cardStatements?: LegacyCardStatement[];
   /** 舊系統格式的財務文件（JSON 字串），經與 importFinanceDocument 相同的驗證後原樣帶入。 */
   document: string;
+  /** 投資原樣帶入；歷史帳內買賣可沒有舊系統未保存的帳戶。 */
+  investments?: LegacyInvestments;
 }
 
 export interface LegacyImportResult {
@@ -66,6 +69,8 @@ async function assertEmptyLedger(tx: Queryable): Promise<void> {
             (SELECT COUNT(*) FROM members) AS m, (SELECT COUNT(*) FROM settings) AS s,
             (SELECT COUNT(*) FROM transfers) AS transfers, (SELECT COUNT(*) FROM card_statements) AS cards`,
   );
+  const investments = await tx.get<{ n: number }>(`SELECT (SELECT COUNT(*) FROM investment_holdings) + (SELECT COUNT(*) FROM investment_transactions) + (SELECT COUNT(*) FROM investment_valuations) + (SELECT COUNT(*) FROM investment_opening) AS n`);
+  if ((investments?.n ?? 0) > 0) notEmpty();
   if (!counts || counts.t > 0 || counts.d > 0 || counts.m > 0 || counts.s > 0 || counts.transfers > 0 || counts.cards > 0) notEmpty();
   const accounts = await tx.all<{ name: string; kind: string; opening_balance: number; active: number }>(
     'SELECT name, kind, opening_balance, active FROM accounts ORDER BY sort_order',
@@ -138,6 +143,7 @@ export async function importLegacy(tx: Queryable, data: LegacyImportData): Promi
   }
 
   await importLegacyCardStatements(tx, data.cardStatements ?? []);
+  await importLegacyInvestments(tx, data.investments, data.openingDate);
   await replaceDocument(tx, state);
 
   const sums = await tx.get<{ n: number; income: number; expense: number }>(

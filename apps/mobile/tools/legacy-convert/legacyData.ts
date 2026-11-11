@@ -1,6 +1,7 @@
 // 從已驗證的匯出讀出交易、信用卡明細、分類、帳戶、成員、財務文件（含核對紀錄）。
-// 這裡只讀出原始值，不判斷對錯；員工、密碼、權限、投資等其他資料表不讀。
+// 這裡只讀出原始值，不判斷對錯；員工、密碼、權限等其他資料表不讀。
 import type { ExportTable, ExportValue, VerifiedExport } from '../../../../tools/lib/verify-export.mjs';
+import { readInvestmentExport, type RawInvestments } from './investments.ts';
 
 export class LegacyExportError extends Error {
   constructor(message: string) {
@@ -39,6 +40,7 @@ export type RawCheck = Record<string, unknown>;
 export interface LegacyData {
   transactions: RawTransaction[];
   cardStatements?: RawCardStatement[];
+  investments?: RawInvestments;
   categories: RawNamed[];
   accounts: RawNamed[];
   members: RawNamed[];
@@ -127,7 +129,7 @@ export function readLegacyExport(verified: VerifiedExport): LegacyData {
   if (months.some((m) => typeof m !== 'object' || m === null)) throw new LegacyExportError('財務文件的月結清單含有不是物件的項目。');
   const monthNames = (months as { Month?: unknown }[]).map((m) => m.Month).filter((m): m is string => typeof m === 'string').sort();
   return {
-    transactions, cardStatements, categories, accounts, members, document,
+    transactions, cardStatements, investments: readInvestmentExport(verified), categories, accounts, members, document,
     cutoffMonth: monthNames.length ? monthNames[monthNames.length - 1] : null,
     months: months.length,
     checks: Array.isArray(doc.Checks) ? (doc.Checks as unknown[]).filter((c): c is RawCheck => typeof c === 'object' && c !== null) : [],

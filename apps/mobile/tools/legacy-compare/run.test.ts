@@ -19,8 +19,8 @@ test('虛構匯出轉換後比對：門檻全部 0 差異，歷史差異同額�
     assert.equal(outcome.passed, true, outcome.summary.join('\n'));
     assert.equal(outcome.thresholdDifferences, 0);
     const text = outcome.summary.join('\n');
-    assert.match(text, /結論：已比對範圍（逐月數字、交易、信用卡明細）全部通過，0 差異/);
-    assert.match(text, /尚未涵蓋：投資（票 20）/);
+    assert.match(text, /結論：已比對範圍（逐月數字、交易、信用卡明細、投資）全部通過，0 差異/);
+    assert.doesNotMatch(text, /尚未涵蓋：投資/);
     assert.match(text, /4 個月/);
     assert.match(text, /歷史總資產差異：資產表推得 2 個月、來源財務文件 2 個月、App 2 個月有差異；每月同額：是；預期 2 個月（相符）/);
     assert.match(text, /來源 15 筆、App 15 筆/);

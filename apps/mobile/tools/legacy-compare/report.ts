@@ -2,6 +2,7 @@
 import { thousands } from '../common.ts';
 import type { BudgetComparison, Difference, TransactionComparison } from './compare.ts';
 import type { CardStatementComparison } from './cardStatements.ts';
+import type { InvestmentComparison } from './investments.ts';
 import { NOT_RECOMPUTABLE_TEXT, type NotRecomputableCode, type RecomputeMonth } from './recompute.ts';
 
 export interface ReportContext {
@@ -15,6 +16,7 @@ export interface ReportContext {
   budget: BudgetComparison;
   transactions: TransactionComparison;
   cardStatements: CardStatementComparison;
+  investments: InvestmentComparison;
   /** 重算結果；重算本身出錯時是 { error }。 */
   recompute: { months: RecomputeMonth[] } | { error: string };
 }
@@ -23,14 +25,13 @@ const yen = thousands;
 const count = (n: number) => thousands(n);
 
 /** 結論行（摘要與完整報告共用）：只說「已比對範圍」，不說整個搬遷都通過。 */
-const PASS_TEXT = '已比對範圍（逐月數字、交易、信用卡明細）全部通過，0 差異';
-const NOT_COVERED_TEXT = '尚未涵蓋：投資（票 20）';
+const PASS_TEXT = '已比對範圍（逐月數字、交易、信用卡明細、投資）全部通過，0 差異';
 /** 摘要檔只放這一句（摘要檔不放操作指示）；完整報告再加上怎麼處理。 */
 const NOT_SAME_EXPORT_TEXT = '帳本檔可能不是由這份匯出轉出：月份清單與來源不同。';
 const NOT_SAME_EXPORT_ADVICE = '請確認用的是轉換時同一份匯出，並加 --manifest-sha256（用轉換摘要印出的值）。';
 
 export function thresholdDifferences(ctx: ReportContext): Difference[] {
-  return [...ctx.budget.differences, ...ctx.transactions.differences, ...ctx.cardStatements.differences];
+  return [...ctx.budget.differences, ...ctx.transactions.differences, ...ctx.cardStatements.differences, ...ctx.investments.differences];
 }
 
 function legacyDifferenceVerdict(b: BudgetComparison) {
@@ -69,7 +70,6 @@ export function buildSummary(ctx: ReportContext): string[] {
     `來源：匯出清冊 SHA-256 ${ctx.manifestSha256}；資料庫 ${ctx.sourceDatabase}；舊系統程式 commit ${ctx.sourceCommit}`,
     `帳本檔：SHA-256 ${ctx.ledgerSha256}（比對前後相同，原檔未被改動）`,
     `結論：${diffs.length === 0 ? PASS_TEXT : `門檻項目未通過，共 ${count(diffs.length)} 項差異`}`,
-    NOT_COVERED_TEXT,
     ...(b.monthListDiffers ? [NOT_SAME_EXPORT_TEXT] : []),
     `獨立舊表沒有資料、只能與來源財務文件比對的月份數（不算失敗）：當月盈餘 ${count(b.coverage.withoutBudgetRow.length)} 個、上限快照 ${count(b.coverage.withoutCapRow.length)} 個、資產欄位 ${count(b.coverage.withoutPropertyRow.length)} 個`,
     `上限表的列已過時（舊網站不回寫）、因此沒有拿來比對的月份數（不算失敗）：${count(b.coverage.staleCapRows.length)} 個`,
@@ -80,6 +80,7 @@ export function buildSummary(ctx: ReportContext): string[] {
     `  歷史總資產差異：資產表推得 ${count(v.property)} 個月、來源財務文件 ${count(v.document)} 個月、App ${count(v.ledger)} 個月有差異；每月同額：${v.sameAmount ? '是' : '否'}；預期 ${count(b.legacyDifferenceMonthCount.expected)} 個月（${b.legacyDifferenceMonthCount.expected === b.legacyDifferenceMonthCount.actual ? '相符' : '不符，列入差異'}）`,
     `二、交易：來源 ${count(t.sourceCount)} 筆、App ${count(t.appCount)} 筆（涵蓋 ${count(t.months)} 個月）；筆數與金額加總（總計、收入、支出、分月、分類、帳戶、逐筆）${t.differences.length === 0 ? '相同' : `有 ${count(t.differences.length)} 項差異`}`,
     `  信用卡明細：來源 ${count(ctx.cardStatements.sourceCount)} 筆、App ${count(ctx.cardStatements.appCount)} 筆；筆數與金額加總${ctx.cardStatements.differences.length === 0 ? '相同' : `有 ${count(ctx.cardStatements.differences.length)} 項差異`}`,
+    `  投資：來源 ${count(ctx.investments.sourceCount)} 個標的、App ${count(ctx.investments.appCount)} 個標的；成本、市值、累計投入淨額與原貌${ctx.investments.differences.length === 0 ? '相同' : `有 ${count(ctx.investments.differences.length)} 項差異`}`,
   ];
   if ('error' in ctx.recompute) {
     lines.push('三、重算報告（僅供參考，不影響結論）：重算過程發生錯誤，沒有結果（詳見完整報告）');
@@ -148,9 +149,8 @@ export function buildReport(ctx: ReportContext): string {
     '',
     '## 結論',
     '',
-    diffs.length === 0 ? `**${PASS_TEXT}。**` : `**門檻項目未通過：共 ${count(diffs.length)} 項差異**（逐月 ${count(b.differences.length)} 項、交易 ${count(t.differences.length)} 項、信用卡明細 ${count(ctx.cardStatements.differences.length)} 項），見下方差異清單。`,
+    diffs.length === 0 ? `**${PASS_TEXT}。**` : `**門檻項目未通過：共 ${count(diffs.length)} 項差異**（逐月 ${count(b.differences.length)} 項、交易 ${count(t.differences.length)} 項、信用卡明細 ${count(ctx.cardStatements.differences.length)} 項、投資 ${count(ctx.investments.differences.length)} 項），見下方差異清單。`,
     '',
-    NOT_COVERED_TEXT,
     '',
     ...(b.monthListDiffers ? [`**${NOT_SAME_EXPORT_TEXT}${NOT_SAME_EXPORT_ADVICE}**`, ''] : []),
     `- 獨立舊表沒有資料、只能與來源財務文件比對的月份數（不算失敗）：當月盈餘 ${count(b.coverage.withoutBudgetRow.length)} 個、上限快照 ${count(b.coverage.withoutCapRow.length)} 個、資產欄位 ${count(b.coverage.withoutPropertyRow.length)} 個`,
@@ -215,6 +215,16 @@ export function buildReport(ctx: ReportContext): string {
     '舊 dbo.creditcard 沒有卡識別；此處只比對來源能證明的日期、店家、金額與數量。轉換時所選卡帳戶另經輸出檔讀回驗證；混合多卡的舊表需先人工確認歸屬。',
     '',
     ...differenceTable(ctx.cardStatements.differences),
+    '',
+    '### 投資比對',
+    '',
+    `以 ${ctx.investments.asOf} 為上界；來源算法獨立於 App 投資計算器。停用標的、全部交易與市值歷史亦逐筆比對。`,
+    '',
+    ...table(['標的', '來源成本', 'App 成本', '來源最新市值', 'App 最新市值'], ctx.investments.rows.map((r) => [r.name, yen(r.sourceCost), r.appCost === null ? '缺少' : yen(r.appCost), yen(r.sourceMarketValue), r.appMarketValue === null ? '缺少' : yen(r.appMarketValue)])),
+    '',
+    ...table(['欄位', '來源值', 'App 值'], [['累計投入淨額', yen(ctx.investments.sourceNetDeployed), yen(ctx.investments.appNetDeployed)]]),
+    '',
+    ...differenceTable(ctx.investments.differences),
     '',
     '## 三、重算報告（僅供參考，不影響成功或失敗）',
     '',

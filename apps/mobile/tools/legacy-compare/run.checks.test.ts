@@ -346,8 +346,8 @@ test('獨立舊表整張沒有資料：不算失敗，但摘要在結論旁寫�
     const outcome = await t.run();
     assert.equal(outcome.passed, true, outcome.summary.join('\n'));
     const lines = outcome.summary;
-    const conclusion = lines.findIndex((l) => l.startsWith('結論：'));
-    assert.match(lines[conclusion + 2], /獨立舊表沒有資料、只能與來源財務文件比對的月份數（不算失敗）：當月盈餘 4 個、上限快照 4 個、資產欄位 0 個/);
+    const note = lines.find((l) => l.startsWith('獨立舊表沒有資料'))!;
+    assert.match(note, /獨立舊表沒有資料、只能與來源財務文件比對的月份數（不算失敗）：當月盈餘 4 個、上限快照 4 個、資產欄位 0 個/);
   } finally { t.cleanup(); }
 });
 

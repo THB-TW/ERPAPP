@@ -40,6 +40,8 @@ import {
 import { categoryMonthTransactions, monthBreakdown, type MonthBreakdown } from './report.ts';
 import type { Flow } from './defaults.ts';
 import { accountCommands, type AccountsLedger } from './accounts.ts';
+import { investmentCommands, type InvestmentsLedger } from './investment.ts';
+export type { InvestmentAccess, InvestmentOpening, NewInvestmentHolding, NewInvestmentTransaction, NewInvestmentValuation, InvestmentPortfolio, InvestmentHolding, InvestmentPosition, InvestmentTransaction, InvestmentValuation } from './investment.ts';
 import { transferCommands, type TransfersLedger } from './transfers.ts';
 import { LedgerError } from './errors.ts';
 import { ledgerMigrations } from './migrations.ts';
@@ -109,7 +111,7 @@ export interface BudgetCommandResult {
   replayed: boolean;
 }
 
-export interface Ledger extends AccountsLedger, TransfersLedger {
+export interface Ledger extends AccountsLedger, TransfersLedger, InvestmentsLedger {
   getCardReconciliation(month: string): Promise<CardReconciliation>;
   importCardStatement(input: CardStatementRequest): Promise<CardStatementResult>;
   listCardStatements(filter?: CardStatementFilter): Promise<CardStatement[]>;
@@ -243,6 +245,7 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
     importTransactionsCsv: (input, csvOptions) => serial(() => db.transaction((tx) => importTransactionsCsv(tx, input, taipeiDate(now()), csvOptions))),
     exportTransactionsCsv: () => serial(() => exportTransactionsCsv(db)),
     ...accountCommands(db, serial, () => taipeiDate(now())),
+    ...investmentCommands(db, serial, () => taipeiDate(now())),
     ...transferCommands(db, serial),
     addTransaction: (input) => serial(() => db.transaction((tx) => insertTransaction(tx, input))),
     updateTransaction: (id, input) => serial(() => db.transaction((tx) => updateTransaction(tx, id, input))),
