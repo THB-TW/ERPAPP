@@ -2,7 +2,10 @@
 param(
     [Parameter(Mandatory)][string]$SnapshotDatabase,
     [Parameter(Mandatory)][string]$OutputDirectory,
-    [string]$Server = '.\SQLEXPRESS'
+    [string]$Server = '.\SQLEXPRESS',
+    # Optional SQL login for restoring and exporting outside Windows (for example SQL Server in a Linux container).
+    # The password is read from the ERPAPP_SQL_PASSWORD environment variable so it never appears on the command line.
+    [string]$SqlUser
 )
 
 $ErrorActionPreference = 'Stop'
@@ -23,7 +26,12 @@ if (Test-Path -LiteralPath $outputRoot) { throw 'Output directory already exists
 $builder = [System.Data.SqlClient.SqlConnectionStringBuilder]::new()
 $builder['Data Source'] = $Server
 $builder['Initial Catalog'] = $SnapshotDatabase
-$builder['Integrated Security'] = $true
+if ($SqlUser) {
+    if ([string]::IsNullOrEmpty($env:ERPAPP_SQL_PASSWORD)) { throw 'Set ERPAPP_SQL_PASSWORD when using -SqlUser.' }
+    $builder['User ID'] = $SqlUser
+    $builder['Password'] = $env:ERPAPP_SQL_PASSWORD
+}
+else { $builder['Integrated Security'] = $true }
 $builder['Encrypt'] = $true
 $builder['TrustServerCertificate'] = $true
 $builder['Application Name'] = 'ERPAPP Read-only Baseline Export'

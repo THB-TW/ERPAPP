@@ -1,6 +1,6 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { monthGrid } from '../../calc/calendarGrid.ts';
 import { monthOf, shiftMonth, taipeiDate } from '../../calc/dates.ts';
@@ -21,24 +21,39 @@ export default function HomeScreen() {
   const [transfers, setTransfers] = useState<TransferDetail[]>([]);
   const [locked, setLocked] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [openingChecked, setOpeningChecked] = useState(false);
+  const [openingRetry, setOpeningRetry] = useState(0);
 
   // 每次回到首頁（含從記帳表單返回）都重新查，月曆與當日列表才會包含剛存的那筆。
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      Promise.all([
-        ledger.getMonthCalendar(month),
-        ledger.getDayTransactions(selected),
-        ledger.isMonthClosed(monthOf(selected)),
-        ledger.listTransfers(selected, selected),
-      ]).then(
-        ([calendar, transactions, closed, dayTransfers]) => {
+      // 開帳檢查通過後就不再把整個首頁換成讀取畫面：換日期、換月份或從記帳表單返回時，
+      // 月曆與列表留在原地更新，不閃爍也不丟掉捲動位置。
+      ledger.getOnboardingStatus().then(async (status) => {
+        if (cancelled) return;
+        if (!status.completed) {
+          setOpeningChecked(false); // 例如還原了一本還沒開帳的帳本：先蓋住舊內容再導去開帳
+          router.push('/onboarding');
+          return;
+        }
+        return Promise.all([
+          ledger.getMonthCalendar(month),
+          ledger.getDayTransactions(selected),
+          ledger.isMonthClosed(monthOf(selected)),
+          ledger.listTransfers(selected, selected),
+        ]);
+      }).then(
+        (result) => {
+          if (!result) return;
+          const [calendar, transactions, closed, dayTransfers] = result;
           if (cancelled) return;
           setDays(Object.fromEntries(calendar.days.map((d) => [d.date, d])));
           setList(transactions);
           setTransfers(dayTransfers);
           setLocked(closed);
           setError(null);
+          setOpeningChecked(true);
         },
         (e: unknown) => {
           if (!cancelled) setError(userMessage(e, '讀取失敗，請再試一次。'));
@@ -47,7 +62,7 @@ export default function HomeScreen() {
       return () => {
         cancelled = true;
       };
-    }, [ledger, month, selected]),
+    }, [ledger, month, selected, openingRetry]),
   );
 
   // App 放到隔天才回到前景時，「今天」要跟著換日。原本選在舊的今天就一起移到新的今天，
@@ -74,6 +89,19 @@ export default function HomeScreen() {
     setMonth(next);
     setSelected(next === monthOf(today) ? today : `${next}-01`);
   }
+
+  if (!openingChecked) return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, gap: 12, backgroundColor: colors.background }}>
+      {error ? (
+        <>
+          <Text style={{ color: colors.expense }}>{error}</Text>
+          <Pressable onPress={() => { setError(null); setOpeningRetry((value) => value + 1); }} accessibilityRole="button" style={{ padding: 12 }}>
+            <Text style={{ color: colors.accent }}>重新讀取</Text>
+          </Pressable>
+        </>
+      ) : <ActivityIndicator accessibilityLabel="正在讀取帳本" />}
+    </View>
+  );
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={[]}>

@@ -4,7 +4,7 @@
 
 **Blocked by:** 05 58 個月比對工具與報告
 
-**Status:** ready-for-human
+**Status:** done（2026-11-11）
 
 **Owner:** `legacy-migration`（見 `docs/agents/team.md`）　**Spec:** [規格](../../finance-product/spec.md)
 
@@ -16,3 +16,12 @@
 ## Comments
 
 2026-11-11（票 04 完成後）：照 `docs/legacy-migration.md` 做。第一次成功後請回報摘要印出的「來源清冊 SHA-256」，補記進 `docs/cloudflare/baseline.md`。工具若停下（分類收支混用、不合規定的列、名稱只差大小寫），把清單回報，由翰陞決定，不手改匯出檔。信用卡、一卡通在 2026-10 月底的餘額要自己填（信用卡填未繳金額的負數）。
+
+2026-11-11 第一次實跑（由 Claude 在雲端工作環境執行，翰陞上傳原生備份檔）：
+- 翰陞上傳的是原生備份 `.bak`（SHA-256 與 baseline.md 相符），不是 JSON 匯出。改在 Linux 容器還原成唯讀副本、用 `tools/export-finance-baseline.ps1`（新增 `-SqlUser`）重新匯出；紀錄在 `docs/cloudflare/baseline.md` 末段，清冊雜湊 `636041ca…ded0`。
+- 轉換成功：交易 7,033 筆、信用卡明細 605 筆、58 個月、17 個月歷史差異；沒有分類收支混用、沒有不合規定的列。
+- 比對通過、0 差異：摘要在 `docs/legacy-acceptance/2026-11-11-imported-58-months.md`。
+- **還缺**：現金、銀行、信用卡在 2026-10 月底的餘額（財務文件沒有可用的核對紀錄）。拿到後重新轉換出正式帳本檔，再交給票 17。
+- 提醒並行期：2026-11 的支出分類有 1 個尚未歸屬到預算類別，App 第一次月結前要先歸屬（舊系統也是同樣規則）。
+
+2026-11-11 結案：翰陞提供 2026-10 月底現金、銀行餘額，信用卡確認為 0（10 月卡費已扣繳）。用 xdtlp5 c76385f 重新轉換並比對，通過、0 差異。正式帳本檔 SHA-256 `bf224155…f06d5f`，放在專案私人檔案區 `legacy-ledger/ledger-20261111.sqlite`，含金額的完整報告在同一處；票 17 用這個檔匯入 iPhone。雲端工作環境的備份檔與匯出已刪除，之後有 PR 改到預算引擎或月結而要重跑比對時，需請翰陞再上傳原生備份檔（做法記在 `docs/cloudflare/baseline.md` 末段）。
