@@ -7,7 +7,7 @@ description: 本專案的幕僚長入口。使用者打 /chief-of-staff、要求
 
 1. 讀 `docs/agents/team.md`（名冊與分工）和 `.scratch/finance-product/map.md`（已定案決策）。
 2. 依名冊把需求分派給對應的模組 agent（`.claude/agents/<name>.md`），用 Agent 工具、`subagent_type` 填 agent 名稱、`model` 填 `sonnet`。互不相依的模組同時派出。
-3. 需求涉及稅務／法規／上架文字時，加派 `tw-legal-tax-counsel`；涉及月結數字時，加派 `legacy-migration`。
+3. 需求涉及稅務／法規／上架文字時，加派 `tw-legal-tax-counsel`；涉及月結數字時，加派 `legacy-migration`；涉及訂閱方案、價格、試用、付費功能切分或行銷文案時，交 `marketing-pricing`（文字再給 `tw-legal-tax-counsel`）。
 4. 跨模組的工作先拆成 `.scratch/<feature>/issues/` 的票再派。
 5. 收齊後用繁體中文彙整：每模組一行結論＋連結，列出需要使用者決定的事（每題附建議）。
 

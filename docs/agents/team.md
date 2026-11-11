@@ -13,12 +13,14 @@
 | `local-notifications` | 本機通知（記帳、月結、備份提醒） | 任何提醒 |
 | `subscription-iap` | 訂閱、StoreKit 2、試用、到期、付費牆 | 訂閱與權益 |
 | `legacy-migration` | 舊帳轉換程式、58 個月 0 元誤差驗收、舊系統退役 | 舊帳與驗收 |
+| `marketing-pricing` | 行銷／定價：方案切分、月費年費、試用、到期、優惠代碼、競品定價、抽成後實收、上架文案草稿 | 收多少錢、哪些功能收費、怎麼讓人付費 |
 | `tw-legal-tax-counsel` | 台灣稅務、營業登記、公司設立、App Store 審查、個資／消保法、上架文字 | 稅務法規與任何對外文字 |
 
 ## 固定交叉審核
 
 - 稅務、法規、App Store 文案、審查備註、隱私權政策、服務條款、付費牆 → `tw-legal-tax-counsel`
 - 影響八項月結數字或交易／信用卡／投資總量 → `legacy-migration`
+- 訂閱方案、價格、試用、付費功能切分 → `marketing-pricing` 提案，`subscription-iap` 落實，文字再交 `tw-legal-tax-counsel`
 - 備份檔格式變更 → `import-export-backup` 與 `legacy-migration` 同時確認
 
 ## 注意
