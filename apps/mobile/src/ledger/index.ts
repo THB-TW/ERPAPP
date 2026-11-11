@@ -1,6 +1,6 @@
 // 帳本服務：唯一的測試切入點。畫面只能透過這裡的指令與查詢碰資料。
 import type { Database, Queryable } from '../db/driver.ts';
-import { migrate } from '../db/migrate.ts';
+import { migrate, type Migration } from '../db/migrate.ts';
 import { isValidDate, isValidMonth, taipeiDate } from '../calc/dates.ts';
 import {
   BUDGET_ACTOR,
@@ -13,8 +13,18 @@ import { serializeBudgetDocument } from '../calc/budgetDocument.ts';
 import type { BudgetCommand, BudgetExpense } from '../calc/budgetTypes.ts';
 import { parseImportedDocument, readStoredDocument, replaceDocument, writeState } from './financeDocument.ts';
 import { importLegacy, type LegacyImportData, type LegacyImportResult } from './legacyImport.ts';
-import { assertDateOpen } from './monthLock.ts';
-import { INVALID_DATE_MESSAGE, assertAccountKnown, assertCategoryFlow, assertTransactionShape } from './transactionRules.ts';
+import { isMonthClosed } from './monthLock.ts';
+import { INVALID_DATE_MESSAGE } from './transactionRules.ts';
+import {
+  deleteTransaction,
+  getTransaction,
+  insertTransaction,
+  transactionsBetween,
+  updateTransaction,
+  type DayTransaction,
+  type NewTransaction,
+  type TransactionDetail,
+} from './transactions.ts';
 import {
   budgetAdjustments,
   budgetMonth,
@@ -25,9 +35,14 @@ import {
   type BudgetMonthView,
   type BudgetStatus,
 } from './budgetViews.ts';
-import type { AccountKind, Flow } from './defaults.ts';
+import { categoryMonthTransactions, monthBreakdown, type MonthBreakdown } from './report.ts';
+import type { Flow } from './defaults.ts';
+import { accountCommands, type AccountsLedger } from './accounts.ts';
+import { transferCommands, type TransfersLedger } from './transfers.ts';
 import { LedgerError } from './errors.ts';
 import { ledgerMigrations } from './migrations.ts';
+import { backupCommands, trackModifications, type BackupFiles, type BackupInspection, type BackupStatus, type RestoreResult } from './backup.ts';
+export type { BackupFiles, BackupInspection, BackupStatus, RestoreResult } from './backup.ts';
 
 export type { AccountKind, Flow } from './defaults.ts';
 export { LedgerError } from './errors.ts';
@@ -40,39 +55,15 @@ export type {
   BudgetAdjustmentView, BudgetMonthSummary, BudgetMonthView, BudgetReserveView, BudgetStatus,
 } from './budgetViews.ts';
 
+export type { CategoryShare, MonthBreakdown } from './report.ts';
+
 export interface Category { id: number; name: string; flow: Flow }
-export interface Account {
-  id: number;
-  name: string;
-  kind: AccountKind;
-  /** 開帳日當天的餘額（新台幣整數；信用卡為未繳金額的負數）。 */
-  openingBalance: number;
-}
+export type { Account, AccountBalance, NewAccount, AccountChanges } from './accounts.ts';
+export type { NewTransfer, TransferDetail } from './transfers.ts';
 export interface Member { id: number; name: string }
 export type { LegacyImportData, LegacyImportResult } from './legacyImport.ts';
 
-export interface NewTransaction {
-  date: string;
-  categoryId: number;
-  accountId: number;
-  flow: Flow;
-  amount: number;
-  note?: string;
-}
-
-export interface DayTransaction {
-  id: number;
-  date: string;
-  flow: Flow;
-  amount: number;
-  note: string;
-  categoryId: number;
-  categoryName: string;
-  accountId: number;
-  accountName: string;
-  /** 沒有指定成員為 null。 */
-  memberName: string | null;
-}
+export type { DayTransaction, NewTransaction, TransactionDetail } from './transactions.ts';
 
 export interface CalendarDay {
   date: string;
@@ -90,6 +81,10 @@ export interface MonthCalendar {
 export interface LedgerOptions {
   /** 目前時間。預設為系統時鐘；測試傳固定值。時間由這裡傳給純計算，引擎不讀時鐘。 */
   now?: () => Date;
+  /** 備份檔的存放位置與開檔能力（票 16）；沒有接上時備份指令丟 LedgerError('backup_unavailable')。 */
+  backupFiles?: BackupFiles;
+  /** 只給測試模擬「之後的 App 版本」用；預設為帳本的遷移清單。 */
+  migrations?: readonly Migration[];
 }
 
 export interface BudgetCommandResult {
@@ -99,17 +94,30 @@ export interface BudgetCommandResult {
   replayed: boolean;
 }
 
-export interface Ledger {
+export interface Ledger extends AccountsLedger, TransfersLedger {
   getMonthCalendar(month: string): Promise<MonthCalendar>;
   addTransaction(input: NewTransaction): Promise<{ id: number }>;
+  /** 修改交易的全部欄位。原日期或新日期落在已結月份都會被拒（month_closed）。 */
+  updateTransaction(id: number, input: NewTransaction): Promise<void>;
+  /** 刪除交易。已結月份的交易不能刪（month_closed）。 */
+  deleteTransaction(id: number): Promise<void>;
+  /** 單筆交易（修改表單用）；不存在丟 LedgerError('unknown_transaction')。 */
+  getTransaction(id: number): Promise<TransactionDetail>;
+  /** 該月是否已月結（含期初基準月）。畫面用來把交易標成鎖定。 */
+  isMonthClosed(month: string): Promise<boolean>;
   getDayTransactions(date: string): Promise<DayTransaction[]>;
   listCategories(): Promise<Category[]>;
-  listAccounts(): Promise<Account[]>;
   listMembers(): Promise<Member[]>;
   /** 全域設定的開帳日（某月 1 號，YYYY-MM-DD）；尚未設定為 null。開帳日以前的交易不計入帳戶餘額（票 08）。 */
   getOpeningDate(): Promise<string | null>;
   /** 日期區間內（含兩端）的全部交易，依日期、編號排序。給讀回核對與匯出用。 */
   listTransactions(from: string, to: string): Promise<DayTransaction[]>;
+
+  // ---- 明細（票 09）----
+  /** 該月某收支別的分類彙總與占比（圓餅圖與類別列表）。轉帳不計入。 */
+  getMonthBreakdown(month: string, flow: Flow): Promise<MonthBreakdown>;
+  /** 某分類在該月的交易，日期新的在前。 */
+  getCategoryMonthTransactions(month: string, categoryId: number): Promise<DayTransaction[]>;
 
   // ---- 預算與月結（票 03）----
   /**
@@ -141,14 +149,33 @@ export interface Ledger {
   /** 以舊系統格式輸出目前的財務文件（尚無文件時為空狀態）。 */
   exportFinanceDocument(): Promise<string>;
 
+  // ---- 備份與還原（票 16，免費與到期後都可用）----
+  /** 上次備份時間與帳本最後修改時間（ISO 8601，UTC）。 */
+  getBackupStatus(): Promise<BackupStatus>;
+  /** 把整本帳匯出成 path 的備份檔（不覆寫既有檔案）。上次備份時間要等 recordBackupDelivered 才記。 */
+  exportBackup(path: string): Promise<{ path: string; exportedAt: string }>;
+  /** 備份檔確定送出（存到檔案、iCloud Drive 或 AirDrop）後，記下上次備份時間；傳 exportBackup 回傳的 exportedAt。 */
+  recordBackupDelivered(exportedAt: string): Promise<void>;
+  /** 驗證備份檔（識別標記、結構版本、完整性）並讀出時間；不合格丟 LedgerError。 */
+  inspectBackup(path: string): Promise<BackupInspection>;
+  /**
+   * 匯入備份檔：整本取代、不合併。取代前自動另存目前的帳（回傳路徑，可再用來復原）。
+   * 備份比目前的帳舊時丟 LedgerError('backup_older')，使用者確認後帶 allowOlder: true 再呼叫。
+   */
+  restoreBackup(path: string, options?: { allowOlder?: boolean }): Promise<RestoreResult>;
+
   close(): Promise<void>;
 }
 
 const MONTH_MESSAGE = '月份格式不正確，請用 YYYY-MM。';
 
-export async function openLedger(db: Database, options: LedgerOptions = {}): Promise<Ledger> {
-  await migrate(db, ledgerMigrations);
+export async function openLedger(rawDb: Database, options: LedgerOptions = {}): Promise<Ledger> {
+  const migrations = options.migrations ?? ledgerMigrations;
+  await migrate(rawDb, migrations);
   const now = options.now ?? (() => new Date());
+  // 所有寫入交易自動記下帳本最後修改時間（備份檔的「最後修改時間」）；備份指令本身用 rawDb，不算變動。
+  const db = trackModifications(rawDb, now);
+  const backup = backupCommands(rawDb, options.backupFiles, migrations, now);
   const fallbackMonth = () => taipeiDate(now()).slice(0, 7);
 
   // 所有指令與查詢排成一條隊：寫入交易進行中，不會有別的查詢插進來（expo-sqlite 的交易會把
@@ -161,24 +188,17 @@ export async function openLedger(db: Database, options: LedgerOptions = {}): Pro
   }
 
   return {
-    addTransaction: (input) =>
-      serial(() =>
-        db.transaction(async (tx) => {
-          assertTransactionShape(input);
-          await assertDateOpen(tx, input.date); // 已結月份鎖定的唯一檢查點
-          const category = await tx.get<{ flow: Flow }>('SELECT flow FROM categories WHERE id = ?', [
-            input.categoryId,
-          ]);
-          assertCategoryFlow(category, input.flow);
-          const account = await tx.get('SELECT id FROM accounts WHERE id = ?', [input.accountId]);
-          assertAccountKnown(account);
-          const result = await tx.run(
-            'INSERT INTO transactions (date, category_id, account_id, flow, amount, note) VALUES (?, ?, ?, ?, ?, ?)',
-            [input.date, input.categoryId, input.accountId, input.flow, input.amount, input.note ?? ''],
-          );
-          return { id: result.lastInsertRowId };
-        }),
-      ),
+    ...accountCommands(db, serial, () => taipeiDate(now())),
+    ...transferCommands(db, serial),
+    addTransaction: (input) => serial(() => db.transaction((tx) => insertTransaction(tx, input))),
+    updateTransaction: (id, input) => serial(() => db.transaction((tx) => updateTransaction(tx, id, input))),
+    deleteTransaction: (id) => serial(() => db.transaction((tx) => deleteTransaction(tx, id))),
+    getTransaction: (id) => serial(() => getTransaction(db, id)),
+    isMonthClosed: (month) =>
+      serial(async () => {
+        if (!isValidMonth(month)) throw new LedgerError('invalid_month', MONTH_MESSAGE);
+        return isMonthClosed(db, month);
+      }),
 
     getMonthCalendar: (month) =>
       serial(async () => {
@@ -209,17 +229,14 @@ export async function openLedger(db: Database, options: LedgerOptions = {}): Pro
         return transactionsBetween(db, from, to);
       }),
 
+    getMonthBreakdown: (month, flow) => serial(() => monthBreakdown(db, month, flow)),
+    getCategoryMonthTransactions: (month, categoryId) => serial(() => categoryMonthTransactions(db, month, categoryId)),
+
     getOpeningDate: () =>
       serial(async () => (await db.get<{ value: string }>("SELECT value FROM settings WHERE key = 'opening_date'"))?.value ?? null),
 
     listCategories: () =>
       serial(() => db.all<Category>('SELECT id, name, flow FROM categories ORDER BY sort_order')),
-    listAccounts: () =>
-      serial(() =>
-        db.all<Account>(
-          'SELECT id, name, kind, opening_balance AS openingBalance FROM accounts ORDER BY sort_order',
-        ),
-      ),
     listMembers: () => serial(() => db.all<Member>('SELECT id, name FROM members ORDER BY sort_order')),
 
     importLegacyLedger: (data) => serial(() => db.transaction((tx) => importLegacy(tx, data))),
@@ -301,6 +318,12 @@ export async function openLedger(db: Database, options: LedgerOptions = {}): Pro
     exportFinanceDocument: () =>
       serial(async () => serializeBudgetDocument((await readStoredDocument(db)).state)),
 
+    getBackupStatus: () => serial(backup.status),
+    exportBackup: (path) => serial(() => backup.export(path)),
+    recordBackupDelivered: (exportedAt) => serial(() => backup.recordDelivered(exportedAt)),
+    inspectBackup: (path) => serial(() => backup.inspect(path)),
+    restoreBackup: (path, restoreOptions) => serial(() => backup.restore(path, restoreOptions)),
+
     close: () => serial(() => db.close()),
   };
 }
@@ -339,19 +362,4 @@ async function monthExpenses(tx: Queryable, month: string): Promise<BudgetExpens
     [month],
   );
   return rows;
-}
-
-function transactionsBetween(q: Queryable, from: string, to: string): Promise<DayTransaction[]> {
-  return q.all<DayTransaction>(
-    `SELECT t.id, t.date, t.flow, t.amount, t.note,
-            t.category_id AS categoryId, c.name AS categoryName,
-            t.account_id AS accountId, a.name AS accountName,
-            m.name AS memberName
-       FROM transactions t
-       JOIN categories c ON c.id = t.category_id
-       JOIN accounts a ON a.id = t.account_id
-       LEFT JOIN members m ON m.id = t.member_id
-      WHERE t.date >= ? AND t.date <= ? ORDER BY t.date, t.id`,
-    [from, to],
-  );
 }

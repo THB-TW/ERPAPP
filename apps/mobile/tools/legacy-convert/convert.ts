@@ -252,7 +252,7 @@ async function verifyReopened(file: string, data: LegacyImportData, legacy: Lega
       throw new Error(`重新開啟輸出檔讀回的${what}與要寫入的不同，已停止，沒有產生輸出。`);
     };
     const version = await db.get<{ user_version: number }>('PRAGMA user_version');
-    if (version?.user_version !== ledgerMigrations.length) fail('結構版本');
+    if (version?.user_version !== Math.max(...ledgerMigrations.map((migration) => migration.version))) fail('結構版本');
     const integrity = await db.get<{ integrity_check: string }>('PRAGMA integrity_check');
     if (integrity?.integrity_check !== 'ok' || (await db.all('PRAGMA foreign_key_check')).length > 0) fail('完整性檢查結果');
     const same = (a: unknown, b: unknown) => {

@@ -130,10 +130,10 @@ test('既有的記帳不受成員欄位影響：不指定成員時為空', async
   assert.deepEqual(await ledger.listMembers(), []);
 });
 
-test('開帳日是全域設定：新帳本沒有開帳日；帳戶只有開帳餘額', async () => {
+test('開帳日是全域設定：新帳本沒有開帳日；預設帳戶開帳餘額為零且使用中', async () => {
   const ledger = await fresh();
   assert.equal(await ledger.getOpeningDate(), null);
-  assert.deepEqual(Object.keys((await ledger.listAccounts())[0]).sort(), ['id', 'kind', 'name', 'openingBalance']);
+  assert.ok((await ledger.listAccounts()).every((a) => a.openingBalance === 0 && a.active));
 });
 
 test('依日期區間列出交易，供讀回核對：含重複列、依日期與編號排序', async () => {
