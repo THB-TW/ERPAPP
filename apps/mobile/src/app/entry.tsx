@@ -14,14 +14,15 @@ import { colors } from '../ui/theme.ts';
 export default function EntryScreen() {
   const ledger = useLedger();
   const headerHeight = useHeaderHeight(); // 鍵盤避讓要扣掉上方標題列的高度，「儲存」才不會被鍵盤蓋住
-  const params = useLocalSearchParams<{ date?: string; id?: string }>();
+  const params = useLocalSearchParams<{ date?: string; id?: string; flow?: string }>();
   const editingId = params.id ? Number(params.id) : null;
 
   const [date, setDate] = useState(params.date ?? taipeiDate(new Date()));
   const [categories, setCategories] = useState<Category[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
-  const [flow, setFlow] = useState<Flow>('expense');
+  const [flow, setFlow] = useState<Flow>(params.flow === 'income' ? 'income' : 'expense');
+  const [originalAccountId, setOriginalAccountId] = useState<number | null>(null);
   const [amountText, setAmountText] = useState('');
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [accountId, setAccountId] = useState<number | null>(null);
@@ -42,7 +43,7 @@ export default function EntryScreen() {
       setAccounts(accs);
       setMembers(mems);
       if (editingId === null) {
-        setAccountId((current) => current ?? accs[0]?.id ?? null); // 預設排在最前面的帳戶，少點一下
+        setAccountId((current) => current ?? accs.find((a) => a.active)?.id ?? null); // 預設排在最前面的使用中帳戶
         return;
       }
       const t = await ledger.getTransaction(editingId);
@@ -53,6 +54,7 @@ export default function EntryScreen() {
       setAmountText(String(t.amount));
       setCategoryId(t.categoryId);
       setAccountId(t.accountId);
+      setOriginalAccountId(t.accountId);
       setMemberId(t.memberId);
       setShowMember(t.memberId !== null);
       setNote(t.note);
@@ -88,7 +90,7 @@ export default function EntryScreen() {
       categoryId,
       accountId,
       flow,
-      amount: amountText === '' ? 0 : Number(amountText),
+      amount: /^\d+$/.test(amountText) ? Number(amountText) : NaN,
       note,
       memberId,
     };
@@ -147,11 +149,12 @@ export default function EntryScreen() {
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <Chip label="支出" active={flow === 'expense'} disabled={readOnly} onPress={() => chooseFlow('expense')} />
             <Chip label="收入" active={flow === 'income'} disabled={readOnly} onPress={() => chooseFlow('income')} />
+            {editingId === null ? <Chip label="轉帳" active={false} disabled={readOnly || saving} onPress={() => router.replace({ pathname: '/transfer', params: { date } })} /> : null}
           </View>
 
           <TextInput
             value={amountText}
-            onChangeText={(text) => setAmountText(text.replace(/\D/g, ''))}
+            onChangeText={setAmountText}
             keyboardType="number-pad"
             placeholder="金額"
             autoFocus={editingId === null}
@@ -171,8 +174,8 @@ export default function EntryScreen() {
 
           <Text style={{ color: colors.muted }}>帳戶</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-            {accounts.map((a) => (
-              <Chip key={a.id} label={a.name} active={a.id === accountId} disabled={readOnly} onPress={() => setAccountId(a.id)} />
+            {accounts.filter((a) => a.active || a.id === originalAccountId).map((a) => (
+              <Chip key={a.id} label={`${a.name}${a.active ? '' : '（已停用）'}`} active={a.id === accountId} disabled={readOnly} onPress={() => setAccountId(a.id)} />
             ))}
           </View>
 
