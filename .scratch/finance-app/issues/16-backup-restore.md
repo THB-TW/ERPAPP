@@ -24,10 +24,12 @@
 - **備份檔格式（定案）**：就是帳本的 SQLite 檔，用 `VACUUM INTO` 產生單一一致的檔案。識別標記＝SQLite 檔頭 `application_id = 0x45525041`（ASCII「ERPA」）；結構版本＝`PRAGMA user_version`；時間在新資料表 `ledger_meta`（`last_modified_at` 帳本最後變動、`last_backup_at` 匯出時間）。標記由遷移 v4 寫入，所以**帳本檔本身與舊帳轉換程式的輸出都已是合格的備份檔**，轉換程式不用改；`convert.test.ts` 已加一條「輸出檔用匯入備份檔在全新手機還原，內容相同」。
 - **最後修改時間**：帳本服務的每個寫入交易結束前，若真的改了資料就記一次（`trackModifications`，之後新增的指令自動算進來）。升級前就有帳的帳本在遷移 v4 以升級當下補記。
 - **匯入**：驗證（標記、版本、`integrity_check`、`foreign_key_check`）→ 複製成暫存檔（原檔不動，較舊結構在暫存檔上遷移）→ 目前的帳另存 `before-restore-*.db` → 單一交易內逐表取代 → 清暫存。另存檔只留最近一次，檔名記在 `ledger_meta`，重開 App 仍可在備份頁「復原到匯入前」。
-- **上次備份日期**：iOS 分享面板被取消與存好了回報相同，所以面板關閉後問一句「備份檔存好了嗎？」，答已存好才記（`recordBackupDelivered`）。
+- **上次備份日期**：iOS 分享面板被取消與存好了回報相同，所以面板關閉後問一句「備份檔存好了嗎？」，答已存好才記（`recordBackupDelivered`）。匯出時間只寫進備份檔本身，匯出過程不碰手機上的帳。
 - 帳本服務新增：`getBackupStatus`、`exportBackup`、`recordBackupDelivered`、`inspectBackup`、`restoreBackup`；錯誤碼 `invalid_backup`、`backup_too_new`、`backup_corrupt`、`backup_older`、`backup_failed`、`backup_unavailable`。邏輯在 `src/ledger/backup.ts`，畫面 `src/app/settings-backup.tsx`（路徑 `/settings-backup`），原生能力 `src/platform/backupTransfer.ts`。
 - 新增套件（翰陞同意）：`expo-sharing ~58.0.22`、`expo-document-picker ~58.0.4`。雲端連不到 api.expo.dev，是用 npm 指定 SDK 58 的版本裝的；到 Mac 上請跑一次 `npx expo install --check` 確認。
 - `legacy-migration` 確認：對月結數字影響為 0（沒碰 `src/calc`、財務文件與舊帳帶入）。
+- 修正後複查：逐步注入失敗（開檔、複製暫存、遷移、另存、掛載、取代中途、提交時外鍵違規、卸載、清暫存）實驗證實匯入「要嘛全成、要嘛帳本不動」。
+- 後續（不擋這張票）：(c) App 在匯出／匯入途中被系統終止時，`ledger-backup-*`、`restore-staging-*` 或沒被記錄的 `before-restore-*` 會留在 Documents/SQLite，需要一個「啟動時清掃」（檔案介面要多一個列出檔案的能力）；(d) 另存檔若被外力刪掉，「復原到匯入前」按鈕仍在，按了會說不是備份檔。
 - 審查後留著沒改、交給之後決定的：(a) 六個錯誤碼沒有合併（測試靠它區分情境）；(b) 設定頁的「超過 35 天」紅字是規格外加的，常數 `BACKUP_REMINDER_DAYS` 在 `src/ui/backupText.ts`，票 21 做通知時共用。
 
 **待真機實測（票 02 之後）**
@@ -40,3 +42,6 @@
 - [ ] 選檔器複製進暫存區的檔案用完有刪掉、分享完的暫放檔有刪掉（App 佔用空間不長大）
 - [ ] 七千多筆交易的帳，匯出與匯入各花多久
 - [ ] 舊帳轉換程式的輸出 AirDrop 到 iPhone 後能匯入（票 17）
+- [ ] 分享面板關閉後「備份檔存好了嗎？」對話框一定會出現、按鈕不會卡在轉圈（目前等 0.6 秒再跳）；選檔後的確認對話框同樣
+- [ ] 大檔 AirDrop 到 Mac、存到 iCloud Drive 完成後內容完整（暫放檔是面板關閉後才刪，確認沒有刪太早）
+- [ ] 匯出或匯入到一半把 App 滑掉，重開後帳本正常（殘留檔清掃是後續項目）

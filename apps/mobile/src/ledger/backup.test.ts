@@ -1,7 +1,7 @@
 // 備份檔匯出與匯入還原（票 16）：真的 SQLite 暫存檔，只經由帳本服務下指令、查結果。資料全部虛構。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openNodeDatabase } from '../db/nodeDriver.ts';
@@ -107,6 +107,7 @@ test('匯出的備份檔帶識別標記、結構版本、最後修改時間與�
   // 檔案產生了，但還不知道使用者有沒有把它存到別處：上次備份日期先不動
   assert.equal((await ledger.getBackupStatus()).lastBackupAt, null);
 
+  assert.deepEqual(readdirSync(dir).sort(), ['export.db', 'ledger.db']); // 單一檔案，沒有日誌檔
   await ledger.recordBackupDelivered(result.exportedAt);
   assert.deepEqual(await ledger.getBackupStatus(), {
     lastBackupAt: '2026-11-05T12:30:00.000Z',
@@ -137,6 +138,7 @@ test('不覆寫已存在的檔案；匯出失敗時上次備份日期不變', as
   writeFileSync(out, '別人的檔案');
   await assert.rejects(ledger.exportBackup(out), (e) => e instanceof LedgerError && e.code === 'backup_failed');
   assert.equal((await ledger.getBackupStatus()).lastBackupAt, null);
+  assert.equal(readFileSync(out, 'utf8'), '別人的檔案'); // 別人的檔案原封不動
   await ledger.close();
 });
 

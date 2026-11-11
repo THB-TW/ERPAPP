@@ -68,10 +68,6 @@ async function writeMeta(q: Queryable, key: string, value: string): Promise<void
   );
 }
 
-async function deleteMeta(q: Queryable, key: string): Promise<void> {
-  await q.run('DELETE FROM ledger_meta WHERE key = ?', [key]);
-}
-
 /**
  * 包一層資料庫：每個交易結束前，若這個交易真的改了資料（total_changes 有變），就在同一個交易內
  * 記下最後修改時間。帳本服務的寫入全部走 transaction，所以之後新增的指令也自動算進來。
@@ -90,7 +86,7 @@ export function trackModifications(db: Database, now: () => Date): Database {
   };
 }
 
-export async function backupStatus(q: Queryable, files: BackupFiles | undefined): Promise<BackupStatus> {
+async function backupStatus(q: Queryable, files: BackupFiles | undefined): Promise<BackupStatus> {
   const safetyFile = await readMeta(q, SAFETY_COPY);
   return {
     lastBackupAt: await readMeta(q, LAST_BACKUP),
@@ -116,30 +112,38 @@ function fileStamp(now: Date): string {
 }
 
 /**
- * 把整本帳寫成 path（不可已存在）。備份檔裡帶著自己的匯出時間；手機上的「上次備份時間」這裡不記，
+ * 把整本帳寫成 path（不可已存在）。匯出時間只寫進備份檔，不碰手機上的帳：手機上的「上次備份時間」
  * 等畫面確認檔案真的送出去之後才用 recordBackupTime 記（分享面板被取消時分不出來，要問使用者）。
  */
-export async function exportBackupFile(db: Database, files: BackupFiles | undefined, path: string, now: Date) {
-  filesOrThrow(files);
+async function exportBackupFile(db: Database, files: BackupFiles | undefined, path: string, now: Date) {
+  const available = filesOrThrow(files);
   const exportedAt = now.toISOString();
-  const previous = await readMeta(db, LAST_BACKUP);
-  const setLastBackup = (value: string | null) =>
-    db.transaction((tx) => (value === null ? deleteMeta(tx, LAST_BACKUP) : writeMeta(tx, LAST_BACKUP, value)));
-  // 匯出時間先寫進帳本，VACUUM INTO 複製出去的檔案就帶著它；複製完（或失敗）一律改回原值。
-  await setLastBackup(exportedAt);
-  try {
-    await db.run('VACUUM INTO ?', [path]);
-  } catch (e) {
+  const failed = (e: unknown) => {
     const reason = e instanceof Error ? e.message : String(e);
-    throw new LedgerError('backup_failed', `備份檔沒有產生（${reason}）。請換一個檔名或位置再試一次。`);
-  } finally {
-    await setLastBackup(previous);
+    return new LedgerError('backup_failed', `備份檔沒有產生（${reason}）。請換一個檔名或位置再試一次。`);
+  };
+  try {
+    await db.run('VACUUM INTO ?', [path]); // 目標已存在會失敗；那不是我們的檔案，不刪
+  } catch (e) {
+    throw failed(e);
+  }
+  // VACUUM INTO 產生的複本是一般（非 WAL）模式的單一檔案；在複本上寫入匯出時間後仍是單一檔案。
+  try {
+    const copy = await available.open(path);
+    try {
+      await copy.transaction((tx) => writeMeta(tx, LAST_BACKUP, exportedAt));
+    } finally {
+      await copy.close();
+    }
+  } catch (e) {
+    await available.remove(path).catch(() => undefined); // 這個檔案是剛才自己產生的半成品
+    throw failed(e);
   }
   return { path, exportedAt };
 }
 
 /** 記下上次備份時間（備份檔確定送出後呼叫）。這不算帳本變動。 */
-export async function recordBackupTime(db: Database, exportedAt: string): Promise<void> {
+async function recordBackupTime(db: Database, exportedAt: string): Promise<void> {
   const time = typeof exportedAt === 'string' ? Date.parse(exportedAt) : Number.NaN;
   if (Number.isNaN(time)) throw new LedgerError('invalid_date', '備份時間格式不正確。');
   await db.transaction((tx) => writeMeta(tx, LAST_BACKUP, new Date(time).toISOString()));
@@ -197,7 +201,7 @@ export async function inspectBackupFile(
  * 整本取代。呼叫端（帳本服務）保證期間沒有別的查詢插進來。
  * 使用者選的檔案不會被改動：先複製成暫存檔，較舊的結構只在暫存檔上遷移。
  */
-export async function restoreBackupFile(
+async function restoreBackupFile(
   db: Database,
   files: BackupFiles | undefined,
   path: string,
@@ -219,6 +223,7 @@ export async function restoreBackupFile(
   const previousSafetyFile = await readMeta(db, SAFETY_COPY);
 
   let replaced = false;
+  let safetyCreated = false;
   try {
     // 1. 暫存複本：在複本上遷移，使用者的原檔不動
     const incoming = await available.open(path);
@@ -238,8 +243,10 @@ export async function restoreBackupFile(
 
     // 2. 取代前另存：目前的帳本身就是合格的備份檔
     await db.run('VACUUM INTO ?', [safetyCopyPath]);
+    safetyCreated = true;
 
-    // 3. 單一交易內整本取代（外鍵延到提交時才檢查）
+    // 3. 單一交易內整本取代（外鍵延到提交時才檢查）。上一次若沒卸載乾淨，先卸掉再掛。
+    await db.run('DETACH DATABASE incoming').catch(() => undefined);
     await db.run('ATTACH DATABASE ? AS incoming', [staging]);
     try {
       await db.transaction(async (tx) => {
@@ -265,13 +272,13 @@ export async function restoreBackupFile(
       });
       replaced = true;
     } finally {
-      // 卸載失敗不可蓋掉真正的結果；名稱若還佔著，下一次 ATTACH 會明確報錯。
+      // 卸載失敗不可蓋掉真正的結果；名稱若還佔著，下一次匯入會先卸掉。
       await db.run('DETACH DATABASE incoming').catch(() => undefined);
     }
   } finally {
     await available.remove(staging).catch(() => undefined);
-    // 沒有取代成功，另存檔用不到；已經取代了就絕不刪。
-    if (!replaced) await available.remove(safetyCopyPath).catch(() => undefined);
+    // 沒有取代成功，這次產生的另存檔用不到；已經取代了、或檔案不是這次產生的，就絕不刪。
+    if (safetyCreated && !replaced) await available.remove(safetyCopyPath).catch(() => undefined);
   }
   // 只留最近一份另存檔。
   if (previousSafetyFile !== null && previousSafetyFile !== safetyFile) {

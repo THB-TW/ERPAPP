@@ -14,6 +14,9 @@ import { colors } from '../ui/theme.ts';
 
 type Busy = 'export' | 'import' | 'undo' | null;
 
+/** 分享面板或選檔器關閉後，等它收合完再跳系統對話框。 */
+const SHEET_DISMISS_MS = 600;
+
 /** 用系統對話框問一個是非題；關掉對話框等於選「否」。 */
 function ask(title: string, message: string, yes: string, no: string, destructive = false): Promise<boolean> {
   return new Promise((resolve) => {
@@ -67,13 +70,16 @@ export default function BackupScreen() {
 
   const exportBackup = () =>
     run('export', async () => {
-      const { path, exportedAt } = await ledger.exportBackup(newBackupPath(new Date()));
+      const path = newBackupPath(new Date());
       try {
+        const { exportedAt } = await ledger.exportBackup(path);
         if (!(await shareBackupFile(path))) {
           setError('這台裝置無法開啟分享面板，備份檔沒有送出。');
           return;
         }
         // 分享面板被取消或真的存好了，系統回報都一樣，所以直接問；答「已存好」才記上次備份日期。
+        // 等面板收合的動畫結束再跳對話框，否則 iOS 可能不顯示（待真機確認）。
+        await new Promise((resolve) => setTimeout(resolve, SHEET_DISMISS_MS));
         const saved = await ask('備份檔存好了嗎？', '已存到「檔案」、iCloud Drive 或用 AirDrop 傳到別的裝置，才算備份完成。', '已存好', '沒有存');
         if (saved) {
           await ledger.recordBackupDelivered(exportedAt);
@@ -82,7 +88,7 @@ export default function BackupScreen() {
           setMessage('這次沒有記成備份。需要時請再按一次「匯出備份檔」。');
         }
       } finally {
-        await discardBackupFile(path); // App 內的暫放檔不留
+        await discardBackupFile(path); // App 內的暫放檔不留（匯出失敗的半成品也清掉）
       }
     }, '匯出備份檔失敗，請再試一次。');
 
@@ -119,6 +125,7 @@ export default function BackupScreen() {
       const path = await pickBackupFile();
       if (path === null) return;
       try {
+        await new Promise((resolve) => setTimeout(resolve, SHEET_DISMISS_MS));
         if (await restoreFrom(path, '這份備份')) setMessage('已匯入備份，整本帳已取代。原本的帳已另存，可用下方「復原到匯入前」找回。');
       } finally {
         await discardBackupFile(path); // 選檔器複製進暫存區的複本
