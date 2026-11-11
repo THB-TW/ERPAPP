@@ -23,7 +23,8 @@
     },
     "scheme": "mobile",
     "plugins": [
-      "expo-router"
+      "expo-router",
+      ["expo-notifications", { "enableRemoteNotifications": false }]
     ]
   }
 }

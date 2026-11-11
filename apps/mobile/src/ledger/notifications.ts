@@ -51,11 +51,18 @@ export interface NotificationsLedger {
   getNotificationSettings(): Promise<NotificationSettings>;
   saveNotificationSettings(settings: NotificationSettings): Promise<void>;
   getNotificationPlan(input: NotificationPlanInput): Promise<PlannedNotification[]>;
+  /** 原生層受理紀錄；不代表已確認鎖定畫面送達。 */
+  getNotificationDispatches(): Promise<NotificationDispatch[]>;
+  /** 成功取代排程後保存；已到時的紀錄保留，尚未到時的紀錄依完整清單替換。 */
+  recordNotificationDispatches(notifications: readonly NotificationDispatch[]): Promise<void>;
 }
+
+interface NotificationDispatch { id: string; fireAt: string }
 
 const SETTINGS_KEY = 'notification_settings';
 // 首次儲存後固定，不因設定或交易編輯往後延。從未備份時，由此起算 35 天。
 const BACKUP_START_KEY = 'notification_backup_started_at';
+const DISPATCHES_KEY = 'notification_dispatches';
 const DAY = 86_400_000;
 const KINDS: readonly NotificationKind[] = ['entry', 'budgetOverrun', 'backupAfterClose', 'backupOverdue',
   'monthlyClose', 'creditCardStatement', 'loanPayment'];
@@ -111,6 +118,32 @@ async function readSettings(q: Queryable): Promise<NotificationSettings> {
   try { return validateSettings(JSON.parse(stored) as NotificationSettings); }
   catch { throw new NotificationSettingsError('通知設定無法讀取，請重新儲存通知設定。'); }
 }
+function validateDispatches(rows: readonly NotificationDispatch[]): NotificationDispatch[] {
+  if (!Array.isArray(rows) || rows.some((row) => !row || typeof row.id !== 'string'
+    || !KINDS.some((kind) => row.id.startsWith(`${kind}:`) && row.id.length > kind.length + 1))) {
+    throw new NotificationSettingsError('通知識別碼不正確。');
+  }
+  if (rows.some((row) => typeof row.fireAt !== 'string' || !Number.isFinite(new Date(row.fireAt).getTime()))) {
+    throw new NotificationSettingsError('通知受理時間不正確。');
+  }
+  return rows.map(({ id, fireAt }) => ({ id, fireAt: new Date(fireAt).toISOString() }));
+}
+async function dispatches(q: Queryable): Promise<NotificationDispatch[]> {
+  const value = await setting(q, DISPATCHES_KEY);
+  if (value === null) return [];
+  try { return validateDispatches(JSON.parse(value) as NotificationDispatch[]); }
+  catch { throw new NotificationSettingsError('通知受理紀錄無法讀取。'); }
+}
+async function recordDispatches(q: Queryable, rows: readonly NotificationDispatch[], now: Date): Promise<void> {
+  const validated = validateDispatches(rows);
+  const previous = await dispatches(q);
+  const next = new Map(previous.filter((row) => new Date(row.fireAt) <= now).map((row) => [row.id, row]));
+  for (const row of validated) next.set(row.id, row);
+  const ordered = [...next.values()].sort((a, b) => a.id.localeCompare(b.id));
+  if (JSON.stringify(ordered) === JSON.stringify(previous)) return;
+  await q.run('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+    [DISPATCHES_KEY, JSON.stringify(ordered)]);
+}
 async function saveSettings(q: Queryable, input: NotificationSettings, now: Date): Promise<void> {
   const validated = validateSettings(input);
   await q.run('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
@@ -146,7 +179,10 @@ async function notificationPlan(q: Queryable, input: NotificationPlanInput): Pro
   const endMonth = lastDate.slice(0, 7);
   if (!isValidMonth(month) || !isValidMonth(endMonth)) throw new NotificationSettingsError('通知查詢時間超出可用年份。');
   const config = input.settings ? validateSettings(input.settings) : await readSettings(q);
-  const delivered = new Set(input.deliveredIds ?? []);
+  const delivered = new Set([
+    ...(await dispatches(q)).filter((row) => new Date(row.fireAt) <= now).map((row) => row.id),
+    ...(input.deliveredIds ?? []),
+  ]);
   const result: PlannedNotification[] = [];
   const add = (kind: NotificationKind, key: string, at: Date, title: string, body: string) => {
     const id = `${kind}:${key}`;
@@ -242,5 +278,7 @@ export function notificationCommands(db: Database, serial: <T>(task: () => Promi
     getNotificationSettings: () => serial(() => readSettings(db)),
     saveNotificationSettings: (input) => serial(() => db.transaction((tx) => saveSettings(tx, input, now()))),
     getNotificationPlan: (input) => serial(() => notificationPlan(db, input)),
+    getNotificationDispatches: () => serial(() => dispatches(db)),
+    recordNotificationDispatches: (rows) => serial(() => db.transaction((tx) => recordDispatches(tx, rows, now()))),
   };
 }
