@@ -7,6 +7,7 @@ export type LedgerErrorCode =
   | 'unknown_category'
   | 'unknown_account'
   | 'unknown_member'
+  | 'unknown_transaction'
   | 'month_closed'
   | 'month_not_closed'
   | 'category_name_conflict'
