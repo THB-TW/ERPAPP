@@ -50,6 +50,9 @@ export type { LoanInput, LoanWriteRequest, LoanView, LoanRevision } from './loan
 import { completeMonthlyClose, monthlyCloseDraft, monthlyCloseSnapshot, previewMonthlyClose, type CompleteMonthlyCloseRequest, type MonthlyCloseDraft, type MonthlyClosePreview, type MonthlyCloseRequest, type MonthlyCloseSnapshot } from './monthlyClose.ts';
 import { backupCommands, trackModifications, type BackupFiles, type BackupInspection, type BackupStatus, type RestoreResult } from './backup.ts';
 export type { BackupFiles, BackupInspection, BackupStatus, RestoreResult } from './backup.ts';
+import { notificationCommands, type NotificationsLedger } from './notifications.ts';
+export { NotificationSettingsError } from './notifications.ts';
+export type { NotificationKind, NotificationSettings, NotificationPlanInput, PlannedNotification } from './notifications.ts';
 
 export type { AccountKind, Flow } from './defaults.ts';
 export { LedgerError } from './errors.ts';
@@ -104,7 +107,7 @@ export interface BudgetCommandResult {
   replayed: boolean;
 }
 
-export interface Ledger extends AccountsLedger, TransfersLedger, LoansLedger {
+export interface Ledger extends AccountsLedger, TransfersLedger, LoansLedger, NotificationsLedger {
   /** 調整先看完整金額預覽；確認時核對原指令與預覽，並重新驗權益。 */
   previewAdjustment(input: AdjustmentRequest): Promise<AdjustmentPreview>;
   confirmAdjustment(input: ConfirmAdjustmentRequest): Promise<BudgetCommandResult>;
@@ -226,6 +229,7 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
     ...accountCommands(db, serial, () => taipeiDate(now())),
     ...transferCommands(db, serial),
     ...loanCommands(db, serial, fallbackMonth, now),
+    ...notificationCommands(db, serial, now),
     addTransaction: (input) => serial(() => db.transaction((tx) => insertTransaction(tx, input))),
     updateTransaction: (id, input) => serial(() => db.transaction((tx) => updateTransaction(tx, id, input))),
     deleteTransaction: (id) => serial(() => db.transaction((tx) => deleteTransaction(tx, id))),

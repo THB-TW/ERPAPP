@@ -9,6 +9,7 @@ const ROWS: { title: string; hint: string; href: Href }[] = [
   { title: '帳戶管理與餘額', hint: '新增、改名、停用帳戶，開帳餘額與目前餘額', href: '/accounts' }, // 票 08
   { title: '貸款／分期', hint: '每月提撥、累積儲備與剩餘本金', href: '/loans' }, // 票 19
   { title: '備份與還原', hint: '匯出備份檔、匯入備份檔、上次備份日期', href: '/settings-backup' }, // 票 16
+  { title: '提醒設定', hint: '個別提醒開關、記帳時間、發薪日與信用卡結帳日', href: '/settings-notifications' }, // 票 21
 ];
 
 export default function SettingsScreen() {
