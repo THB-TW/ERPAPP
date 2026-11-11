@@ -272,13 +272,17 @@ async function notificationPlan(q: Queryable, input: NotificationPlanInput): Pro
   return result.sort((a, b) => a.fireAt.localeCompare(b.fireAt) || a.id.localeCompare(b.id));
 }
 
-/** index.ts 只接入同一條序列；設定寫入使用 openLedger 已追蹤修改時間的 db.transaction。 */
-export function notificationCommands(db: Database, serial: <T>(task: () => Promise<T>) => Promise<T>, now: () => Date): NotificationsLedger {
+/**
+ * index.ts 只接入同一條序列；設定寫入使用 openLedger 已追蹤修改時間的 db.transaction。
+ * 已受理紀錄是自動重排（啟動、回前景）留下的簿記，不是使用者改帳：寫在不追蹤修改時間的 untracked，
+ * 否則剛匯出的備份隔天就會被當成「比手機舊」而跳出覆寫警告。
+ */
+export function notificationCommands(db: Database, serial: <T>(task: () => Promise<T>) => Promise<T>, now: () => Date, untracked: Database = db): NotificationsLedger {
   return {
     getNotificationSettings: () => serial(() => readSettings(db)),
     saveNotificationSettings: (input) => serial(() => db.transaction((tx) => saveSettings(tx, input, now()))),
     getNotificationPlan: (input) => serial(() => notificationPlan(db, input)),
     getNotificationDispatches: () => serial(() => dispatches(db)),
-    recordNotificationDispatches: (rows) => serial(() => db.transaction((tx) => recordDispatches(tx, rows, now()))),
+    recordNotificationDispatches: (rows) => serial(() => untracked.transaction((tx) => recordDispatches(tx, rows, now()))),
   };
 }

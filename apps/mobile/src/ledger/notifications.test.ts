@@ -380,6 +380,31 @@ test('通知設定關機重開、整本備份還原及取代前另存皆完整�
   assert.deepEqual(await target.getNotificationDispatches(), []);
 });
 
+test('記下已受理的通知不算帳本修改：剛匯出的備份不會被當成比手機舊', async (t) => {
+  const directory = mkdtempSync(join(process.cwd(), '.notification-backup-test-'));
+  let current = new Date('2026-11-11T04:00:00Z');
+  const files = { directory, open: async (path: string) => openNodeDatabase(path), remove: async (path: string) => { rmSync(path, { force: true }); } };
+  const ledger = await openLedger(openNodeDatabase(join(directory, 'ledger.db')), { now: () => current, backupFiles: files });
+  t.after(async () => {
+    try { await ledger.close(); }
+    finally { rmSync(directory, { recursive: true, force: true }); }
+  });
+  await ledger.importFinanceDocument(serializeBudgetDocument(fixture()));
+  await spend(ledger, '飲食', 50);
+  const modified = (await ledger.getBackupStatus()).lastModifiedAt;
+  assert.ok(modified);
+  const out = await ledger.exportBackup(join(directory, 'out.db'));
+
+  // 隔天回到前景，自動重排只記下「系統已受理哪些提醒」，沒有任何帳務變動
+  current = new Date('2026-11-12T04:00:00Z');
+  const receipt = { id: 'entry:2026-11-12', fireAt: '2026-11-12T13:00:00.000Z' };
+  await ledger.recordNotificationDispatches([receipt]);
+
+  assert.deepEqual(await ledger.getNotificationDispatches(), [receipt]);
+  assert.equal((await ledger.getBackupStatus()).lastModifiedAt, modified);
+  assert.equal((await ledger.inspectBackup(out.path)).olderThanCurrent, false);
+});
+
 test('已受理即時提醒保存後不因前景重查而重發，也不改月結與交易總量', async (t) => {
   const ledger = await setup(t);
   await spend(ledger, '飲食', 101);
