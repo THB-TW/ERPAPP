@@ -22,7 +22,8 @@ export default function ReportScreen() {
   const [flow, setFlow] = useState<Flow>('expense');
   const [breakdown, setBreakdown] = useState<MonthBreakdown | null>(null);
   const [openKey, setOpenKey] = useState<string | null>(null);
-  const [openList, setOpenList] = useState<DayTransaction[]>([]);
+  // 展開的類別的交易，連同它屬於哪個月份、哪個類別一起存；對不上目前展開的那一列就不顯示。
+  const [openList, setOpenList] = useState<{ month: string; key: string; rows: DayTransaction[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // 每次回到這一頁（含從記帳表單返回）都重新查，剛記或剛改的帳才會反映在圖上。
@@ -30,15 +31,10 @@ export default function ReportScreen() {
     useCallback(() => {
       let cancelled = false;
       setThisMonth(monthOf(taipeiDate(new Date())));
-      const openCategoryId = openKey !== null && openKey !== REST_SLICE_KEY ? Number(openKey) : null;
-      Promise.all([
-        ledger.getMonthBreakdown(month, flow),
-        openCategoryId === null ? Promise.resolve([]) : ledger.getCategoryMonthTransactions(month, openCategoryId),
-      ]).then(
-        ([result, transactions]) => {
+      ledger.getMonthBreakdown(month, flow).then(
+        (result) => {
           if (cancelled) return;
           setBreakdown(result);
-          setOpenList(transactions);
           setError(null);
         },
         (e: unknown) => {
@@ -48,7 +44,26 @@ export default function ReportScreen() {
       return () => {
         cancelled = true;
       };
-    }, [ledger, month, flow, openKey]),
+    }, [ledger, month, flow]),
+  );
+
+  // 展開某個類別時查它當月的交易（合併的「其他分類」只列分類，不用查）。
+  useFocusEffect(
+    useCallback(() => {
+      if (openKey === null || openKey === REST_SLICE_KEY) return;
+      let cancelled = false;
+      ledger.getCategoryMonthTransactions(month, Number(openKey)).then(
+        (rows) => {
+          if (!cancelled) setOpenList({ month, key: openKey, rows });
+        },
+        (e: unknown) => {
+          if (!cancelled) setError(userMessage(e, '讀取失敗，請再試一次。'));
+        },
+      );
+      return () => {
+        cancelled = true;
+      };
+    }, [ledger, month, openKey]),
   );
 
   function changeMonth(delta: number) {
@@ -186,8 +201,8 @@ export default function ReportScreen() {
                     <SubRow key={c.categoryId} label={`${c.categoryName}・${formatPermille(c.permille)}`} amount={c.amount} />
                   ))
               : null}
-            {open && slice.key !== REST_SLICE_KEY
-              ? openList.map((t) => (
+            {open && slice.key !== REST_SLICE_KEY && openList?.key === slice.key && openList.month === month
+              ? openList.rows.map((t) => (
                   <SubRow
                     key={t.id}
                     label={`${Number(t.date.slice(5, 7))}/${Number(t.date.slice(8))}・${t.accountName}${t.note ? `・${t.note}` : ''}`}
