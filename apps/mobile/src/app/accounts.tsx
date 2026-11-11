@@ -98,7 +98,7 @@ export default function AccountsScreen() {
       >
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 16 }}>
           <Text style={{ color: colors.muted }}>
-            {loaded ? openingDate ? `開帳日：${openingDate}；以下為截至今日的帳戶餘額。` : '尚未設定開帳日，目前餘額暫計全部交易。' : '正在讀取帳戶…'}
+            {loaded ? openingDate ? `開帳日：${openingDate}；開帳前顯示開帳餘額，開帳後顯示截至今日的帳戶餘額。` : '尚未設定開帳日，目前餘額暫計全部交易。' : '正在讀取帳戶…'}
           </Text>
           {!formOpen ? accounts.map((account) => (
             <Pressable
