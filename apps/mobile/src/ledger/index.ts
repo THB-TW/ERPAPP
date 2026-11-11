@@ -272,7 +272,7 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
     ...investmentCommands(db, serial, () => taipeiDate(now())),
     ...transferCommands(db, serial),
     ...loanCommands(db, serial, fallbackMonth, now),
-    ...notificationCommands(db, serial, now),
+    ...notificationCommands(db, serial, now, rawDb),
     addTransaction: (input) => serial(() => db.transaction((tx) => insertTransaction(tx, input))),
     updateTransaction: (id, input) => serial(() => db.transaction((tx) => updateTransaction(tx, id, input))),
     deleteTransaction: (id) => serial(() => db.transaction((tx) => deleteTransaction(tx, id))),

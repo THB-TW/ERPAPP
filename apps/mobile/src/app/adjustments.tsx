@@ -8,6 +8,7 @@ import { shiftMonth } from '../calc/dates.ts';
 import type { AdjustmentPreview, AdjustmentRequest, BudgetAdjustmentView, BudgetMonthSummary, BudgetMonthView, BudgetStatus } from '../ledger/index.ts';
 import { hasMonthlyCloseEntitlement } from '../ui/closeEntitlement.ts';
 import { formatAmount, monthTitle } from '../ui/format.ts';
+import { syncNotifications } from '../platform/notificationSync.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
 import { closeErrorMessage } from '../ui/MonthlyCloseSummary.tsx';
 import { colors } from '../ui/theme.ts';
@@ -127,6 +128,7 @@ export default function AdjustmentsScreen() {
     inFlight.current = true; setBusy(true); setError(null);
     try {
       await ledger.confirmAdjustment({ ...preview.request, previewToken: preview.result.previewToken, hasEntitlement: hasMonthlyCloseEntitlement() });
+      void syncNotifications(ledger).catch(() => {});
       setPreview(null);
       setSuccess(preview.request.command.action === 'rollback'
         ? '已撤銷最近一次月結。該月交易已解鎖；請修改後回月結精靈重新月結，待重結調整會恢復一次影響。'

@@ -6,7 +6,7 @@ import { ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform, Pressable,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { Account, LoanView, NotificationSettings, PlannedNotification } from '../ledger/index.ts';
 import { NotificationSettingsError } from '../ledger/index.ts';
-import { applyNotificationPlan } from '../platform/notificationPort.ts';
+import { syncNotifications } from '../platform/notificationSync.ts';
 import { taipeiDateTime } from '../ui/backupText.ts';
 import { hasMonthlyCloseEntitlement } from '../ui/closeEntitlement.ts';
 import { userMessage } from '../ui/format.ts';
@@ -125,8 +125,8 @@ export default function NotificationsScreen() {
       });
       setPlan(notifications);
       if (action === 'save') {
-        const result = await applyNotificationPlan(notifications, { requestPermission: true });
-        if (result.permission === 'unsupported') setMessage('設定已儲存。目前尚未支援系統通知，不會發送通知。');
+        const result = await syncNotifications(ledger, { requestPermission: true });
+        if (result.permission === 'unsupported') setMessage('設定已儲存。此裝置目前無法使用系統通知。');
         else if (result.permission === 'denied') setMessage('設定已儲存。系統通知權限未開啟，App 仍可正常使用。');
         else if (result.permission === 'undetermined') setMessage('設定已儲存。目前沒有待排通知，尚未要求系統通知權限。');
         else setMessage(`設定已儲存，已套用 ${result.scheduled} 則待排通知。`);
@@ -145,8 +145,8 @@ export default function NotificationsScreen() {
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={headerHeight}>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
         <View style={styles.card}>
-          <Text style={styles.heading}>目前尚未支援系統通知</Text>
-          <Text style={styles.note}>設定仍會保存在帳本，可預覽接下來的提醒。此版本不會要求通知權限，也不會發送系統通知。</Text>
+          <Text style={styles.heading}>本機通知</Text>
+          <Text style={styles.note}>儲存並套用時，若有待排提醒才會要求通知權限；拒絕後仍可正常記帳。回到 App 時會更新接下來的排程。</Text>
           <Text style={styles.note}>通知內容不顯示金額、帳戶名稱或貸款名稱。</Text>
         </View>
         {loading ? <ActivityIndicator accessibilityLabel="讀取提醒設定中" /> : null}
@@ -202,7 +202,7 @@ export default function NotificationsScreen() {
           </Pressable>
           {plan !== null ? <View style={styles.card}>
             <Text style={styles.heading}>待排提醒（{plan.length} 則）</Text>
-            <Text style={styles.note}>這是依目前設定與帳本狀態計算的清單，尚未送入系統排程。</Text>
+            <Text style={styles.note}>這是依目前設定與帳本狀態計算的清單；實際送達以系統權限與套用結果為準。</Text>
             {plan.length ? plan.map((notification) => <View key={notification.id} style={{ gap: 2, paddingVertical: 8 }}>
               <Text style={styles.label}>{notification.title}</Text>
               <Text style={styles.note}>{taipeiDateTime(notification.fireAt)}（台北時間）</Text>

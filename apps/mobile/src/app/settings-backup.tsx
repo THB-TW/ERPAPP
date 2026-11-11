@@ -9,6 +9,7 @@ import { LedgerError } from '../ledger/index.ts';
 import { discardBackupFile, newBackupPath, pickBackupFile, shareBackupFile } from '../platform/backupTransfer.ts';
 import { BACKUP_REMINDER_DAYS, describeLastBackup, taipeiDateTime } from '../ui/backupText.ts';
 import { userMessage } from '../ui/format.ts';
+import { syncNotifications } from '../platform/notificationSync.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
 import { colors } from '../ui/theme.ts';
 
@@ -83,6 +84,7 @@ export default function BackupScreen() {
         const saved = await ask('備份檔存好了嗎？', '已存到「檔案」、iCloud Drive 或用 AirDrop 傳到別的裝置，才算備份完成。', '已存好', '沒有存');
         if (saved) {
           await ledger.recordBackupDelivered(exportedAt);
+          void syncNotifications(ledger).catch(() => {});
           setMessage('已記下這次備份。');
         } else {
           setMessage('這次沒有記成備份。需要時請再按一次「匯出備份檔」。');
@@ -112,6 +114,7 @@ export default function BackupScreen() {
     }
     try {
       await ledger.restoreBackup(path, { allowOlder: info.olderThanCurrent });
+      void syncNotifications(ledger).catch(() => {});
     } catch (e) {
       // 兩次確認之間帳本又有變動，備份變成較舊的：請使用者重來一次，不默默蓋掉
       if (e instanceof LedgerError && e.code === 'backup_older') throw new LedgerError(e.code, '手機上的帳剛剛有變動，請再按一次匯入並重新確認。');

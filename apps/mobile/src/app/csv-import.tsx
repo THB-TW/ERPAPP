@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { taipeiDate } from '../calc/dates.ts';
 import { csvFilePort, CsvFilePortError, type CsvFile } from '../csv/filePort.ts';
 import { CsvFormatError, LedgerError, type CsvImportResult } from '../ledger/index.ts';
+import { syncNotifications } from '../platform/notificationSync.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
 import { hasMonthlyCloseEntitlement } from '../ui/closeEntitlement.ts';
 import { colors } from '../ui/theme.ts';
@@ -69,6 +70,7 @@ export default function CsvImportScreen() {
     void perform(async () => {
       clearResult();
       const imported = await ledger.importTransactionsCsv(file?.bytes ?? text);
+      void syncNotifications(ledger).catch(() => {});
       if (mounted.current) setResult(imported);
     }, '匯入失敗，沒有完成這次匯入，請再試一次。');
   }

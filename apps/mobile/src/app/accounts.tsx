@@ -5,6 +5,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { AccountBalance, AccountKind } from '../ledger/index.ts';
 import { formatAmount, userMessage } from '../ui/format.ts';
+import { syncNotifications } from '../platform/notificationSync.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
 import { colors } from '../ui/theme.ts';
 
@@ -73,6 +74,7 @@ export default function AccountsScreen() {
       const openingBalance = /^\d+$/.test(amountText) ? Number(amountText) * (negative ? -1 : 1) : NaN;
       if (editingId === null) await ledger.addAccount({ name, kind, openingBalance });
       else await ledger.updateAccount(editingId, { name, openingBalance, active });
+      void syncNotifications(ledger).catch(() => {});
       saved = true;
       setFormOpen(false);
       setLoaded(false);

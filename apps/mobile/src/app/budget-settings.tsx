@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BudgetRuleError, LedgerError } from '../ledger/index.ts';
 import type { AdjustmentPreview, BudgetCommand, BudgetCommandPreview, BudgetRevision, BudgetStatus } from '../ledger/index.ts';
 import { formatAmount, monthTitle } from '../ui/format.ts';
+import { syncNotifications } from '../platform/notificationSync.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
 import { colors } from '../ui/theme.ts';
 import { hasMonthlyCloseEntitlement } from '../ui/closeEntitlement.ts';
@@ -165,6 +166,7 @@ export default function BudgetSettingsScreen() {
       if (preview.command.action === 'retire') {
         await ledger.confirmAdjustment({ command: preview.command, previewToken: preview.previewToken ?? '', hasEntitlement: hasMonthlyCloseEntitlement() });
       } else await ledger.runBudgetCommand(preview.command);
+      void syncNotifications(ledger).catch(() => {});
       setPreview(null);
       setSuccess('已儲存，並保留這次修改的上限版本與原因。');
       scroll.current?.scrollTo({ y: 0, animated: true });
