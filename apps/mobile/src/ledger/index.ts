@@ -325,11 +325,11 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
     exportFinanceDocument: () =>
       serial(async () => serializeBudgetDocument((await readStoredDocument(db)).state)),
 
-    getBackupStatus: () => serial(() => backupStatus(rawDb)),
+    getBackupStatus: () => serial(() => backupStatus(rawDb, options.backupFiles)),
     exportBackup: (path) => serial(() => exportBackupFile(rawDb, options.backupFiles, path, now())),
     inspectBackup: (path) =>
       serial(async () =>
-        inspectBackupFile(options.backupFiles, path, migrations.length, (await backupStatus(rawDb)).lastModifiedAt)),
+        inspectBackupFile(options.backupFiles, path, migrations.length, (await backupStatus(rawDb, options.backupFiles)).lastModifiedAt)),
     restoreBackup: (path, restoreOptions = {}) =>
       serial(() => restoreBackupFile(rawDb, options.backupFiles, path, migrations, restoreOptions, now())),
 

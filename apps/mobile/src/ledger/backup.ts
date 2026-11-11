@@ -30,6 +30,8 @@ export interface BackupStatus {
   lastBackupAt: string | null;
   /** 帳本最後一次有資料變動的時間；還沒有任何變動為 null。 */
   lastModifiedAt: string | null;
+  /** 最近一次匯入備份前自動另存的檔案（只留最近一份）；沒有，或這個環境沒有檔案位置時為 null。 */
+  safetyCopyPath: string | null;
 }
 
 export interface BackupInspection {
@@ -48,6 +50,8 @@ export interface RestoreResult {
 
 const LAST_MODIFIED = 'last_modified_at';
 const LAST_BACKUP = 'last_backup_at';
+// 只存檔名：iOS 更新 App 後容器路徑會變，絕對路徑不能存。
+const SAFETY_COPY = 'safety_copy_file';
 
 const NOT_A_BACKUP = '這個檔案不是這個 App 的備份檔，無法匯入。請選擇用「匯出備份檔」產生的檔案。';
 
@@ -95,8 +99,13 @@ export function trackModifications(db: Database, now: () => Date): Database {
   };
 }
 
-export async function backupStatus(q: Queryable): Promise<BackupStatus> {
-  return { lastBackupAt: await readMeta(q, LAST_BACKUP), lastModifiedAt: await readMeta(q, LAST_MODIFIED) };
+export async function backupStatus(q: Queryable, files: BackupFiles | undefined): Promise<BackupStatus> {
+  const safetyFile = await readMeta(q, SAFETY_COPY);
+  return {
+    lastBackupAt: await readMeta(q, LAST_BACKUP),
+    lastModifiedAt: await readMeta(q, LAST_MODIFIED),
+    safetyCopyPath: files && safetyFile !== null ? inDirectory(files, safetyFile) : null,
+  };
 }
 
 function filesOrThrow(files: BackupFiles | undefined): BackupFiles {
@@ -202,7 +211,9 @@ export async function restoreBackupFile(
 
   const stamp = fileStamp(now);
   const staging = inDirectory(available, `restore-staging-${stamp}.db`);
-  const safetyCopyPath = inDirectory(available, `before-restore-${stamp}.db`);
+  const safetyFile = `before-restore-${stamp}.db`;
+  const safetyCopyPath = inDirectory(available, safetyFile);
+  const previousSafetyFile = await readMeta(db, SAFETY_COPY);
 
   // 1. 暫存複本：在複本上遷移，使用者的原檔不動
   const incoming = await available.open(path);
@@ -253,8 +264,16 @@ export async function restoreBackupFile(
     } finally {
       await db.run('DETACH DATABASE incoming');
     }
+  } catch (e) {
+    await available.remove(safetyCopyPath).catch(() => undefined); // 沒有取代成功，另存檔用不到
+    throw e;
   } finally {
-    await available.remove(staging);
+    await available.remove(staging).catch(() => undefined);
+  }
+  // 記下另存檔（備份帶進來的舊紀錄不算數），只留最近一份。這不算帳本變動。
+  await db.transaction((tx) => writeMeta(tx, SAFETY_COPY, safetyFile));
+  if (previousSafetyFile !== null && previousSafetyFile !== safetyFile) {
+    await available.remove(inDirectory(available, previousSafetyFile)).catch(() => undefined);
   }
   return { safetyCopyPath, schemaVersion: info.schemaVersion };
 }

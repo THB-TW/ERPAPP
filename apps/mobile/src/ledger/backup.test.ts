@@ -1,7 +1,7 @@
 // 備份檔匯出與匯入還原（票 16）：真的 SQLite 暫存檔，只經由帳本服務下指令、查結果。資料全部虛構。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openNodeDatabase } from '../db/nodeDriver.ts';
@@ -79,7 +79,7 @@ test('帳本有變動才更新最後修改時間；查詢不算變動', async (t
   const dir = workspace(t);
   const c = clock('2026-11-01T01:00:00Z');
   const ledger = await openAt(dir, 'ledger.db', c.now);
-  assert.deepEqual(await ledger.getBackupStatus(), { lastBackupAt: null, lastModifiedAt: null });
+  assert.deepEqual(await ledger.getBackupStatus(), { lastBackupAt: null, lastModifiedAt: null, safetyCopyPath: null });
 
   await spend(ledger, '2026-11-01', '飲食', 90);
   assert.equal((await ledger.getBackupStatus()).lastModifiedAt, '2026-11-01T01:00:00.000Z');
@@ -107,6 +107,7 @@ test('匯出的備份檔帶識別標記、結構版本、最後修改時間與�
   assert.deepEqual(await ledger.getBackupStatus(), {
     lastBackupAt: '2026-11-05T12:30:00.000Z',
     lastModifiedAt: '2026-10-31T15:00:00.000Z', // 記下備份日期不算帳本變動
+    safetyCopyPath: null,
   });
 
   const raw = openNodeDatabase(out);
@@ -154,6 +155,7 @@ test('在另一支手機匯入備份檔：整本取代，所有查詢結果與�
   assert.deepEqual(await target.getBackupStatus(), {
     lastBackupAt: '2026-11-02T00:00:00.000Z', // 這份備份本身就是一份備份
     lastModifiedAt: '2026-11-01T00:00:00.000Z',
+    safetyCopyPath: result.safetyCopyPath,
   });
   assert.equal(result.schemaVersion, ledgerMigrations.length);
 
@@ -185,6 +187,31 @@ test('取代前自動把目前的帳另存一份，選錯時可以用它復原',
   const undo = await target.restoreBackup(result.safetyCopyPath, { allowOlder: true });
   assert.deepEqual(await snapshot(target), mine);
   assert.notEqual(undo.safetyCopyPath, result.safetyCopyPath);
+  await target.close();
+});
+
+test('另存檔只留最近一份，關掉 App 再開仍找得到；復原後舊的另存檔會清掉', async (t) => {
+  const dir = workspace(t);
+  const c = clock('2026-11-01T00:00:00Z');
+  const source = await sampleLedger(dir, 'a.db', c.now);
+  const exported = await source.exportBackup(join(dir, 'export.db'));
+  await source.close();
+
+  c.set('2026-11-05T00:00:00Z');
+  let target = await openAt(dir, 'b.db', c.now);
+  await spend(target, '2026-11-05', '娛樂', 777, '手機上原本的帳');
+  const first = await target.restoreBackup(exported.path, { allowOlder: true });
+  await target.close();
+
+  target = await openAt(dir, 'b.db', c.now); // 重開 App
+  assert.equal((await target.getBackupStatus()).safetyCopyPath, first.safetyCopyPath);
+
+  c.set('2026-11-06T00:00:00Z');
+  const second = await target.restoreBackup(first.safetyCopyPath, { allowOlder: true });
+  assert.equal((await target.getBackupStatus()).safetyCopyPath, second.safetyCopyPath);
+  assert.ok(existsSync(second.safetyCopyPath));
+  assert.ok(!existsSync(first.safetyCopyPath), '上一份另存檔應該已清掉');
+  assert.deepEqual(readdirSync(dir).filter((f) => f.startsWith('restore-staging')), [], '暫存檔不殘留');
   await target.close();
 });
 
