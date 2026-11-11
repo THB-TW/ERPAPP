@@ -4,7 +4,8 @@ import type { Queryable, SqlValue } from '../db/driver.ts';
 import type { Flow } from './defaults.ts';
 import { LedgerError } from './errors.ts';
 import { assertDateOpen } from './monthLock.ts';
-import { assertAccountKnown, assertCategoryFlow, assertTransactionShape } from './transactionRules.ts';
+import { assertCategoryFlow, assertTransactionShape } from './transactionRules.ts';
+import { assertAccountUsable } from './accounts.ts';
 
 export interface NewTransaction {
   date: string;
@@ -40,11 +41,11 @@ export interface TransactionDetail extends DayTransaction {
 const NOT_FOUND_MESSAGE = '找不到這筆交易，可能已被刪除。';
 
 /** 欄位、分類、帳戶、成員的檢查（不含月份鎖定）。新增與修改共用。 */
-async function assertValidInput(tx: Queryable, input: NewTransaction): Promise<void> {
+async function assertValidInput(tx: Queryable, input: NewTransaction, originalAccountId?: number): Promise<void> {
   assertTransactionShape(input);
   const category = await tx.get<{ flow: Flow }>('SELECT flow FROM categories WHERE id = ?', [input.categoryId]);
   assertCategoryFlow(category, input.flow);
-  assertAccountKnown(await tx.get('SELECT id FROM accounts WHERE id = ?', [input.accountId]));
+  await assertAccountUsable(tx, input.accountId, originalAccountId);
   if (input.memberId != null && !(await tx.get('SELECT id FROM members WHERE id = ?', [input.memberId]))) {
     throw new LedgerError('unknown_member', '找不到這位成員。');
   }
@@ -72,7 +73,8 @@ export async function updateTransaction(tx: Queryable, id: number, input: NewTra
   await assertDateOpen(tx, original); // 原本在已結月份：不能改
   assertTransactionShape(input);
   await assertDateOpen(tx, input.date); // 改進已結月份：也不行
-  await assertValidInput(tx, input);
+  const originalAccount = await tx.get<{ account_id: number }>('SELECT account_id FROM transactions WHERE id = ?', [id]);
+  await assertValidInput(tx, input, originalAccount!.account_id);
   await tx.run(
     `UPDATE transactions SET date = ?, category_id = ?, account_id = ?, flow = ?, amount = ?, note = ?, member_id = ?
       WHERE id = ?`,

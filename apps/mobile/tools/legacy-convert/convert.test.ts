@@ -82,7 +82,7 @@ test('不搬員工、密碼、信用卡明細、投資：輸出檔沒有這些�
     await convert(t);
     const db = openNodeDatabase(t.out);
     const tables = (await db.all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")).map((r) => r.name);
-    assert.deepEqual(tables, ['accounts', 'categories', 'finance_document', 'members', 'settings', 'transactions']);
+    assert.deepEqual(tables, ['accounts', 'categories', 'finance_document', 'members', 'schema_migrations', 'settings', 'transactions', 'transfers']);
     await db.close();
     assert.ok(!readFileSync(t.out).includes(Buffer.from(FICTIONAL_PASSWORD)));
     assert.ok(!readFileSync(t.out).includes(Buffer.from('虛構店家')));

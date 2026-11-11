@@ -36,7 +36,9 @@ import {
   type BudgetStatus,
 } from './budgetViews.ts';
 import { categoryMonthTransactions, monthBreakdown, type MonthBreakdown } from './report.ts';
-import type { AccountKind, Flow } from './defaults.ts';
+import type { Flow } from './defaults.ts';
+import { accountCommands, type AccountsLedger } from './accounts.ts';
+import { transferCommands, type TransfersLedger } from './transfers.ts';
 import { LedgerError } from './errors.ts';
 import { ledgerMigrations } from './migrations.ts';
 
@@ -52,13 +54,8 @@ export type {
 export type { CategoryShare, MonthBreakdown } from './report.ts';
 
 export interface Category { id: number; name: string; flow: Flow }
-export interface Account {
-  id: number;
-  name: string;
-  kind: AccountKind;
-  /** 開帳日當天的餘額（新台幣整數；信用卡為未繳金額的負數）。 */
-  openingBalance: number;
-}
+export type { Account, AccountBalance, NewAccount, AccountChanges } from './accounts.ts';
+export type { NewTransfer, TransferDetail } from './transfers.ts';
 export interface Member { id: number; name: string }
 export type { LegacyImportData, LegacyImportResult } from './legacyImport.ts';
 
@@ -89,7 +86,7 @@ export interface BudgetCommandResult {
   replayed: boolean;
 }
 
-export interface Ledger {
+export interface Ledger extends AccountsLedger, TransfersLedger {
   getMonthCalendar(month: string): Promise<MonthCalendar>;
   addTransaction(input: NewTransaction): Promise<{ id: number }>;
   /** 修改交易的全部欄位。原日期或新日期落在已結月份都會被拒（month_closed）。 */
@@ -102,7 +99,6 @@ export interface Ledger {
   isMonthClosed(month: string): Promise<boolean>;
   getDayTransactions(date: string): Promise<DayTransaction[]>;
   listCategories(): Promise<Category[]>;
-  listAccounts(): Promise<Account[]>;
   listMembers(): Promise<Member[]>;
   /** 全域設定的開帳日（某月 1 號，YYYY-MM-DD）；尚未設定為 null。開帳日以前的交易不計入帳戶餘額（票 08）。 */
   getOpeningDate(): Promise<string | null>;
@@ -165,6 +161,8 @@ export async function openLedger(db: Database, options: LedgerOptions = {}): Pro
   }
 
   return {
+    ...accountCommands(db, serial, () => taipeiDate(now())),
+    ...transferCommands(db, serial),
     addTransaction: (input) => serial(() => db.transaction((tx) => insertTransaction(tx, input))),
     updateTransaction: (id, input) => serial(() => db.transaction((tx) => updateTransaction(tx, id, input))),
     deleteTransaction: (id) => serial(() => db.transaction((tx) => deleteTransaction(tx, id))),
@@ -212,12 +210,6 @@ export async function openLedger(db: Database, options: LedgerOptions = {}): Pro
 
     listCategories: () =>
       serial(() => db.all<Category>('SELECT id, name, flow FROM categories ORDER BY sort_order')),
-    listAccounts: () =>
-      serial(() =>
-        db.all<Account>(
-          'SELECT id, name, kind, opening_balance AS openingBalance FROM accounts ORDER BY sort_order',
-        ),
-      ),
     listMembers: () => serial(() => db.all<Member>('SELECT id, name FROM members ORDER BY sort_order')),
 
     importLegacyLedger: (data) => serial(() => db.transaction((tx) => importLegacy(tx, data))),
