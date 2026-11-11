@@ -20,7 +20,7 @@ export interface AccountsLedger {
   listAccounts(): Promise<Account[]>;
   addAccount(input: NewAccount): Promise<{ id: number }>;
   updateAccount(id: number, changes: AccountChanges): Promise<void>;
-  /** 含截止日，預設今天。開帳日前只回開帳餘額；未設定全域開帳日時暫計全部交易。 */
+  /** 含截止日，預設今天。早於開帳日回傳開帳餘額；未設定全域開帳日時暫計全部交易。 */
   listAccountBalances(asOf?: string): Promise<AccountBalance[]>;
 }
 type Serial = <T>(task: () => Promise<T>) => Promise<T>;
@@ -79,6 +79,7 @@ async function updateAccount(tx: Queryable, id: number, changes: AccountChanges)
 export async function accountBalances(q: Queryable, asOf: string): Promise<AccountBalance[]> {
   if (!isValidDate(asOf)) throw new LedgerError('invalid_date', INVALID_DATE_MESSAGE);
   const opening = (await q.get<{ value: string }>("SELECT value FROM settings WHERE key = 'opening_date'"))?.value ?? '0001-01-01';
+  // 截止日早於開帳日時，以下日期區間不會納入任何流水，只保留開帳餘額。
   // 逐筆以 BigInt 加總，避免 SQL SUM 溢位或 JS 浮點捨入後誤報餘額。
   const totals = new Map<number, bigint>();
   for (const a of await listAccounts(q)) totals.set(a.id, BigInt(a.openingBalance));
