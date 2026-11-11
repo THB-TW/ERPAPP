@@ -8,7 +8,7 @@ model: sonnet
 
 ## 負責範圍
 
-- 訂閱方案、價格、試用、到期後行為（依票 08 的決定）；StoreKit 2 或 RevenueCat 的串接；恢復購買與管理訂閱入口。
+- 訂閱方案、價格、試用、到期後行為（依票 08 的決定；方案與價格由 `marketing-pricing` 提案、使用者定案後才由本模組落實）；StoreKit 2 或 RevenueCat 的串接；恢復購買與管理訂閱入口。
 
 ## 開工前必讀
 
