@@ -47,6 +47,8 @@ import { LedgerError } from './errors.ts';
 import { ledgerMigrations } from './migrations.ts';
 import { listAssetChecks, previewAssetCheck, recordAssetCheck, type AssetCheckPreview, type AssetCheckRequest, type AssetCheckRecord, type RecordAssetCheckRequest } from './assetCheck.ts';
 export type { AssetCheckPreview, AssetCheckRequest, AssetCheckAccount, AssetCheckMovement, AssetCheckRecord, RecordAssetCheckRequest } from './assetCheck.ts';
+import { loanCategoryNames, loanCommands, type LoansLedger } from './loans.ts';
+export type { LoanInput, LoanWriteRequest, LoanView, LoanRevision } from './loans.ts';
 import { completeMonthlyClose, monthlyCloseDraft, monthlyCloseSnapshot, previewMonthlyClose, type CompleteMonthlyCloseRequest, type MonthlyCloseDraft, type MonthlyClosePreview, type MonthlyCloseRequest, type MonthlyCloseSnapshot } from './monthlyClose.ts';
 import { importTransactionsCsv, exportTransactionsCsv, type CsvImportOptions, type CsvImportResult } from './csvTransactions.ts';
 export type { CsvEncoding, CsvImportOptions, CsvImportResult, CsvRowRejection } from './csvTransactions.ts';
@@ -111,7 +113,7 @@ export interface BudgetCommandResult {
   replayed: boolean;
 }
 
-export interface Ledger extends AccountsLedger, TransfersLedger, InvestmentsLedger {
+export interface Ledger extends AccountsLedger, TransfersLedger, InvestmentsLedger, LoansLedger {
   getCardReconciliation(month: string): Promise<CardReconciliation>;
   importCardStatement(input: CardStatementRequest): Promise<CardStatementResult>;
   listCardStatements(filter?: CardStatementFilter): Promise<CardStatement[]>;
@@ -247,6 +249,7 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
     ...accountCommands(db, serial, () => taipeiDate(now())),
     ...investmentCommands(db, serial, () => taipeiDate(now())),
     ...transferCommands(db, serial),
+    ...loanCommands(db, serial, fallbackMonth, now),
     addTransaction: (input) => serial(() => db.transaction((tx) => insertTransaction(tx, input))),
     updateTransaction: (id, input) => serial(() => db.transaction((tx) => updateTransaction(tx, id, input))),
     deleteTransaction: (id) => serial(() => db.transaction((tx) => deleteTransaction(tx, id))),
@@ -338,6 +341,7 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
         const target = month ?? openMonth(state, await fallbackMonth());
         if (!isValidMonth(target)) throw new LedgerError('invalid_month', MONTH_MESSAGE);
         const revision = effectiveRevision(state, target);
+        const loans = await loanCategoryNames(db, target);
         const rows = await db.all<{ name: string }>(
           `SELECT DISTINCT c.name AS name FROM transactions t JOIN categories c ON c.id = t.category_id
             WHERE t.flow = 'expense' AND substr(t.date, 1, 7) = ?`,
@@ -345,7 +349,7 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
         );
         return rows
           .map((r) => r.name)
-          .filter((name) => !revision || mappedBudgetCategory(revision, name) === undefined)
+          .filter((name) => !loans.has(name) && (!revision || mappedBudgetCategory(revision, name) === undefined))
           .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
       }),
 

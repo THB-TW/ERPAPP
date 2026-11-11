@@ -4,17 +4,19 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import type { NativeScrollEvent, NativeSyntheticEvent, ScrollViewInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { monthOf, shiftMonth, taipeiDate } from '../../calc/dates.ts';
-import type { BudgetMonthView, BudgetProgress, BudgetProgressRow } from '../../ledger/index.ts';
+import type { BudgetMonthView, BudgetProgress, BudgetProgressRow, LoanView } from '../../ledger/index.ts';
 import { formatAmount, monthTitle, userMessage } from '../../ui/format.ts';
 import { useLedger } from '../../ui/LedgerProvider.tsx';
 import { colors } from '../../ui/theme.ts';
 import { MonthlyCloseSummary } from '../../ui/MonthlyCloseSummary.tsx';
+import { LoanCards } from '../../ui/LoanCards.tsx';
 
 const SECTIONS = [
   { id: 'overview', label: '總覽', color: colors.muted },
   { id: 'reserve', label: '儲備類', color: colors.accent },
   { id: 'fixed', label: '固定支出', color: '#b45309' },
   { id: 'actual', label: '照實支', color: colors.income },
+  { id: 'loan', label: '貸款', color: '#7a5ea8' },
 ] as const;
 type SectionId = (typeof SECTIONS)[number]['id'];
 const GROUP_NOTES = {
@@ -28,6 +30,7 @@ export default function BudgetScreen() {
   const [month, setMonth] = useState(() => monthOf(taipeiDate(new Date())));
   const [progress, setProgress] = useState<BudgetProgress | null>(null);
   const [closed, setClosed] = useState<BudgetMonthView | null>(null);
+  const [loans, setLoans] = useState<LoanView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
@@ -42,21 +45,23 @@ export default function BudgetScreen() {
     setError(null);
     setActiveSection('overview');
     sectionY.current = {};
-    Promise.all([ledger.getBudgetProgress(month), ledger.listBudgetMonths()]).then(async ([result, months]) => {
+    Promise.all([ledger.getBudgetProgress(month), ledger.listBudgetMonths(), ledger.listLoans(month)]).then(async ([result, months, loanRows]) => {
       // 已結月份用自己快照；未結月份只顯示不晚於所選月份的最近已結結果。
       const latest = months.filter((item) => item.month <= month).at(-1);
-      return { result, snapshot: latest ? await ledger.getBudgetMonth(latest.month) : null };
+      return { result, loanRows, snapshot: latest ? await ledger.getBudgetMonth(latest.month) : null };
     }).then(
-      ({ result, snapshot }) => {
+      ({ result, snapshot, loanRows }) => {
         if (cancelled) return;
         setProgress(result);
         setClosed(snapshot);
+        setLoans(loanRows);
         setLoading(false);
       },
       (e: unknown) => {
         if (cancelled) return;
         setProgress(null);
         setClosed(null);
+        setLoans([]);
         setError(userMessage(e, '讀取預算失敗，請再試一次。'));
         setLoading(false);
       },
@@ -85,9 +90,9 @@ export default function BudgetScreen() {
       const y = sectionY.current[section.id];
       if (y !== undefined && y <= contentOffset.y + 16) current = section.id;
     }
-    // 最後一區可能太短，標題無法捲到頂端；到頁底仍應標示照實支。
+    // 最後一區可能太短，標題無法捲到頂端；到頁底仍應標示貸款。
     if (contentSize.height > layoutMeasurement.height &&
-        contentOffset.y + layoutMeasurement.height >= contentSize.height - 2) current = 'actual';
+        contentOffset.y + layoutMeasurement.height >= contentSize.height - 2) current = 'loan';
     setActiveSection(current);
   }
 
@@ -192,7 +197,7 @@ export default function BudgetScreen() {
             ) : null}
           </View>
 
-          {SECTIONS.filter((section) => section.id !== 'overview').map((section) => {
+          {SECTIONS.filter((section) => section.id !== 'overview' && section.id !== 'loan').map((section) => {
             const kind = section.id as BudgetProgressRow['kind'];
             const rows = progress.rows.filter((row) => row.kind === kind);
             return (
@@ -207,6 +212,18 @@ export default function BudgetScreen() {
               </View>
             );
           })}
+
+          <View style={{ gap: 10 }} onLayout={(event) => { sectionY.current.loan = event.nativeEvent.layout.y; }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: '#7a5ea8' }} />
+              <Text style={styles.heading}>貸款／分期</Text>
+            </View>
+            <Text style={styles.note}>月結時提撥每月繳款；實際繳款選這筆貸款分類，月結後扣減儲備與剩餘本金。未結月份尚未計入新的提撥與繳款。</Text>
+            <LoanCards loans={loans} />
+            <Pressable onPress={() => router.push('/loans')} accessibilityRole="button" style={{ paddingVertical: 8 }}>
+              <Text style={styles.link}>到設定管理貸款／分期 ›</Text>
+            </Pressable>
+          </View>
 
           <Pressable onPress={() => router.navigate('/(tabs)/settings')} accessibilityRole="button" style={{ paddingVertical: 8 }}>
             <Text style={styles.link}>到設定修改預算與分類 ›</Text>
