@@ -30,6 +30,8 @@ Cleared: 2026-11-11（所有決策票已結案，交給 /to-spec）
 - 研究成果放在 `research/`（本 repo 只允許推指定分支，因此不另開 `research/<name>` 分支）。
 - 雲端作業：不在使用者 Windows 電腦上執行；成果推 GitHub。`.private/` 私人備份不在 Git，需要時請使用者提供，絕不提交。
 
+- 2026-11-11 地圖走完後已整理成[規格](spec.md)；寫規格時修正了票 14 的驗收門檻、補了貸款繳款與轉帳（見票 14、09 的 Comments）。
+
 ## Decisions so far
 
 <!-- 每張結案票一行 -->
