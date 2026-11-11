@@ -12,6 +12,8 @@ import type { BudgetCommand, BudgetRevision } from '../calc/budgetTypes.ts';
 import { parseImportedDocument, readStoredDocument, replaceDocument } from './financeDocument.ts';
 import { budgetFallbackMonth, executeBudgetCommand, type BudgetCommandAccess, type BudgetCommandPreview } from './budgetCommands.ts';
 import { getBudgetProgress } from './budgetPage.ts';
+import { confirmAdjustment, previewAdjustment, type AdjustmentPreview, type AdjustmentRequest, type ConfirmAdjustmentRequest } from './adjustments.ts';
+export type { AdjustmentAction, AdjustmentPreview, AdjustmentRequest, ConfirmAdjustmentRequest } from './adjustments.ts';
 import type { BudgetProgress } from './budgetViews.ts';
 import { listActiveCategories } from './categoryLifecycle.ts';
 import { importLegacy, type LegacyImportData, type LegacyImportResult } from './legacyImport.ts';
@@ -120,6 +122,9 @@ export interface Ledger extends AccountsLedger, TransfersLedger, InvestmentsLedg
   previewAssetCheck(input: AssetCheckRequest): Promise<AssetCheckPreview>;
   recordAssetCheck(input: RecordAssetCheckRequest): Promise<AssetCheckRecord>;
   listAssetChecks(month?: string): Promise<AssetCheckRecord[]>;
+  /** 調整先看完整金額預覽；確認時核對原指令與預覽，並重新驗權益。 */
+  previewAdjustment(input: AdjustmentRequest): Promise<AdjustmentPreview>;
+  confirmAdjustment(input: ConfirmAdjustmentRequest): Promise<BudgetCommandResult>;
   /** 月結精靈的開放月份與唯讀收入；當月尚未結束時不能完成。 */
   getMonthlyCloseDraft(): Promise<MonthlyCloseDraft>;
   /** 讀當月收入並立即試算，不寫入月結或快照。 */
@@ -240,6 +245,8 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
     previewAssetCheck: (input) => serial(() => previewAssetCheck(db, input, now())),
     recordAssetCheck: (input) => serial(() => db.transaction((tx) => recordAssetCheck(tx, input, now()))),
     listAssetChecks: (month) => serial(() => listAssetChecks(db, month)),
+    previewAdjustment: (input) => serial(() => previewAdjustment(db, input, now())),
+    confirmAdjustment: (input) => serial(() => db.transaction((tx) => confirmAdjustment(tx, input, now()))),
     getMonthlyCloseDraft: () => serial(() => monthlyCloseDraft(db, now())),
     previewMonthlyClose: (input) => serial(() => previewMonthlyClose(db, input, now())),
     completeMonthlyClose: (input) => serial(() => db.transaction((tx) => completeMonthlyClose(tx, input, now()))),

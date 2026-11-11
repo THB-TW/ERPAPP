@@ -172,6 +172,10 @@ export default function BudgetScreen() {
               <Text style={styles.heading}>{monthTitle(closed.month)}已結資產</Text>
               <MonthlyCloseSummary summary={closed} />
               <Text style={styles.note}>以下累積儲備截至{monthTitle(closed.month)}，包含已生效調整；尚未包含未結月份的預估變動。</Text>
+              <View style={styles.rowTitle}>
+                <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/adjustments', params: { action: 'transfer' } })}><Text style={styles.link}>挪用儲備 ›</Text></Pressable>
+                <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/adjustments', params: { action: 'fund' } })}><Text style={styles.link}>可用餘額補入儲備 ›</Text></Pressable>
+              </View>
               {closed.reserves.map((reserve) => <View key={reserve.categoryId} style={styles.rowTitle}>
                 <Text style={{ color: colors.text, flex: 1 }}>{reserve.name}累積儲備</Text>
                 <Text style={{ color: reserve.balance < 0 ? colors.expense : colors.text }}>{formatAmount(reserve.balance)}</Text>
