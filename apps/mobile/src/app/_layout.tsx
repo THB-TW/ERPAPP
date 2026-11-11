@@ -10,7 +10,7 @@ export default function RootLayout() {
       <StatusBar style="auto" />
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="entry" options={{ title: '新增帳目', headerBackTitle: '返回' }} />
+        <Stack.Screen name="entry" options={{ title: '新增交易', headerBackTitle: '返回' }} />
       </Stack>
     </LedgerProvider>
   );

@@ -134,14 +134,14 @@ export default function HomeScreen() {
       <ScrollView style={{ flex: 1 }}>
         {error ? <Text style={{ color: colors.expense, padding: 12 }}>{error}</Text> : null}
         {list.length === 0 && !error ? (
-          <Text style={{ color: colors.muted, padding: 12 }}>這天還沒有帳目</Text>
+          <Text style={{ color: colors.muted, padding: 12 }}>這天還沒有交易</Text>
         ) : null}
         {list.map((t) => (
           <Pressable
             key={t.id}
             onPress={() => router.push({ pathname: '/entry', params: { id: String(t.id) } })}
             accessibilityRole="button"
-            accessibilityHint={locked ? '已月結，只能檢視' : '修改或刪除這筆帳目'}
+            accessibilityHint={locked ? '已月結，只能檢視' : '修改或刪除這筆交易'}
             style={{
               flexDirection: 'row',
               justifyContent: 'space-between',

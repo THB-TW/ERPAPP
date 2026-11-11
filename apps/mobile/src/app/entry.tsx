@@ -1,4 +1,5 @@
 import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useEffect, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,6 +13,7 @@ import { colors } from '../ui/theme.ts';
 // 已結月份的交易以唯讀顯示並說明原因；真正的鎖定檢查在帳本服務，這裡只是提早告知。
 export default function EntryScreen() {
   const ledger = useLedger();
+  const headerHeight = useHeaderHeight(); // 鍵盤避讓要扣掉上方標題列的高度，「儲存」才不會被鍵盤蓋住
   const params = useLocalSearchParams<{ date?: string; id?: string }>();
   const editingId = params.id ? Number(params.id) : null;
 
@@ -57,7 +59,7 @@ export default function EntryScreen() {
       setLocked(closed);
       setLoaded(true);
     })().catch((e: unknown) => {
-      if (!cancelled) setError(userMessage(e, '讀取帳目失敗，請返回後再試一次。'));
+      if (!cancelled) setError(userMessage(e, '讀取交易失敗，請返回後再試一次。'));
     });
     return () => {
       cancelled = true;
@@ -102,7 +104,7 @@ export default function EntryScreen() {
 
   function confirmDelete() {
     if (editingId === null) return;
-    Alert.alert('刪除這筆帳目？', '刪除後無法復原。', [
+    Alert.alert('刪除這筆交易？', '刪除後無法復原。', [
       { text: '取消', style: 'cancel' },
       {
         text: '刪除',
@@ -123,18 +125,22 @@ export default function EntryScreen() {
 
   const shownCategories = categories.filter((c) => c.flow === flow);
   const readOnly = locked || !loaded;
-  const title = editingId === null ? '新增帳目' : locked ? '檢視帳目' : '修改帳目';
+  const title = editingId === null ? '新增交易' : locked ? '檢視交易' : '修改交易';
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['bottom']}>
       <Stack.Screen options={{ title }} />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={headerHeight}
+      >
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 16 }}>
           <Text style={{ color: colors.muted }}>{dayTitle(date)}</Text>
 
           {locked ? (
             <Text style={{ color: colors.text, backgroundColor: colors.surface, padding: 12, borderRadius: 8 }}>
-              🔒 {monthTitle(monthOf(date))}已月結，這筆帳目已鎖定，不能修改或刪除。要更改請先撤銷該月的月結，或做前期更正。
+              🔒 {monthTitle(monthOf(date))}已月結，這筆交易已鎖定，不能修改或刪除。要更改請先撤銷該月的月結，或做前期更正。
             </Text>
           ) : null}
 
@@ -199,7 +205,7 @@ export default function EntryScreen() {
 
           {editingId !== null && !readOnly ? (
             <Pressable onPress={confirmDelete} disabled={saving} accessibilityRole="button" style={{ alignSelf: 'center', padding: 8 }}>
-              <Text style={{ color: colors.expense }}>刪除這筆帳目</Text>
+              <Text style={{ color: colors.expense }}>刪除這筆交易</Text>
             </Pressable>
           ) : null}
         </ScrollView>
