@@ -1,5 +1,5 @@
 // 交易的欄位規則：addTransaction 與舊帳整批帶入共用，錯誤碼與訊息一致。
-// （已結月份鎖定只在 addTransaction 檢查，舊帳整批帶入的月份是以搬遷月份身分帶入，不受鎖定。）
+// （已結月份鎖定在 transactions.ts 的新增／修改／刪除檢查；舊帳整批帶入的月份是以搬遷月份身分帶入，不受鎖定。）
 import { isValidDate } from '../calc/dates.ts';
 import type { Flow } from './defaults.ts';
 import { LedgerError } from './errors.ts';
