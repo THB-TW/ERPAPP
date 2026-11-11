@@ -4,6 +4,8 @@ import {
   latestMonth,
   openMonth,
   position,
+  mappedBudgetCategory,
+  BudgetRuleError,
 } from '../calc/budgetEngine.ts';
 import type { BudgetAmountChange, BudgetCategoryDefinition, BudgetRevision, BudgetState } from '../calc/budgetTypes.ts';
 
@@ -16,6 +18,57 @@ export interface BudgetStatus {
   /** 目前生效（開放月份採用）的上限版本；還沒設定過為 null。 */
   currentRevision: BudgetRevision | null;
   categories: (BudgetCategoryDefinition & { active: boolean })[];
+}
+
+export interface BudgetProgressRow {
+  categoryId: string;
+  name: string;
+  kind: 'reserve' | 'fixed' | 'actual';
+  cap: number | null;
+  spent: number;
+  remaining: number | null;
+}
+
+export interface BudgetProgress {
+  month: string;
+  openMonth: string;
+  rows: BudgetProgressRow[];
+  unmapped: { categoryId: number; name: string; spent: number }[];
+  totalSpent: number;
+  totalCap: number;
+}
+
+function safeSum(a: number, b: number): number {
+  const result = a + b;
+  if (!Number.isSafeInteger(result)) throw new BudgetRuleError('overflow', '金額超出可安全計算的範圍，已拒絕。');
+  return result;
+}
+
+/** 沿用引擎的有效版本與歸屬規則；實支由帳本服務查出，不重算任何月結。 */
+export function budgetProgress(state: BudgetState, month: string, fallback: string,
+  expenses: { categoryId: number; name: string; spent: number }[]): BudgetProgress {
+  const closed = state.months.find((m) => m.month === month);
+  const revision = closed ? closed.revision : effectiveRevision(state, month);
+  const rows: BudgetProgressRow[] = (revision?.limits ?? []).map((l) => {
+    const definition = state.categories.find((c) => c.id === l.categoryId);
+    if (!definition || !['reserve', 'fixed', 'actual'].includes(definition.kind)) throw new BudgetRuleError('operation', '找不到有效的預算類別與用途。');
+    return { categoryId: l.categoryId, name: definition.name, kind: definition.kind as BudgetProgressRow['kind'],
+      cap: definition.kind === 'actual' ? null : l.amount, spent: 0, remaining: definition.kind === 'actual' ? null : l.amount };
+  });
+  const unmapped: BudgetProgress['unmapped'] = [];
+  let totalSpent = 0;
+  for (const expense of expenses) {
+    totalSpent = safeSum(totalSpent, expense.spent);
+    const id = revision && mappedBudgetCategory(revision, expense.name);
+    const row = rows.find((r) => r.categoryId === id);
+    if (!row) unmapped.push(expense);
+    else {
+      row.spent = safeSum(row.spent, expense.spent);
+      row.remaining = row.cap === null ? null : safeSum(row.cap, -row.spent);
+    }
+  }
+  return { month, openMonth: openMonth(state, fallback), rows, unmapped, totalSpent,
+    totalCap: rows.reduce((sum, r) => safeSum(sum, r.cap ?? 0), 0) };
 }
 
 export interface BudgetReserveView {

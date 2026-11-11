@@ -1,17 +1,19 @@
 // 帳本服務：唯一的測試切入點。畫面只能透過這裡的指令與查詢碰資料。
-import type { Database, Queryable } from '../db/driver.ts';
+import type { Database } from '../db/driver.ts';
 import { migrate, type Migration } from '../db/migrate.ts';
 import { isValidDate, isValidMonth, taipeiDate } from '../calc/dates.ts';
 import {
-  BUDGET_ACTOR,
-  applyBudgetCommand,
   effectiveRevision,
   mappedBudgetCategory,
   openMonth,
 } from '../calc/budgetEngine.ts';
 import { serializeBudgetDocument } from '../calc/budgetDocument.ts';
-import type { BudgetCommand, BudgetExpense } from '../calc/budgetTypes.ts';
-import { parseImportedDocument, readStoredDocument, replaceDocument, writeState } from './financeDocument.ts';
+import type { BudgetCommand, BudgetRevision } from '../calc/budgetTypes.ts';
+import { parseImportedDocument, readStoredDocument, replaceDocument } from './financeDocument.ts';
+import { budgetFallbackMonth, executeBudgetCommand, type BudgetCommandPreview } from './budgetCommands.ts';
+import { getBudgetProgress } from './budgetPage.ts';
+import type { BudgetProgress } from './budgetViews.ts';
+import { listActiveCategories } from './categoryLifecycle.ts';
 import { importLegacy, type LegacyImportData, type LegacyImportResult } from './legacyImport.ts';
 import { isMonthClosed } from './monthLock.ts';
 import { INVALID_DATE_MESSAGE } from './transactionRules.ts';
@@ -53,7 +55,9 @@ export { inspectLedgerFile } from './inspect.ts';
 export type { LedgerFileCheck } from './inspect.ts';
 export type { LedgerErrorCode } from './errors.ts';
 export { BudgetRuleError } from '../calc/budgetEngine.ts';
-export type { BudgetCommand } from '../calc/budgetTypes.ts';
+export type { BudgetCommand, BudgetRevision } from '../calc/budgetTypes.ts';
+export type { BudgetCommandPreview } from './budgetCommands.ts';
+export type { BudgetProgress, BudgetProgressRow } from './budgetViews.ts';
 export type {
   BudgetAdjustmentView, BudgetMonthSummary, BudgetMonthView, BudgetReserveView, BudgetStatus,
 } from './budgetViews.ts';
@@ -113,7 +117,8 @@ export interface Ledger extends AccountsLedger, TransfersLedger {
   /** 該月是否已月結（含期初基準月）。畫面用來把交易標成鎖定。 */
   isMonthClosed(month: string): Promise<boolean>;
   getDayTransactions(date: string): Promise<DayTransaction[]>;
-  listCategories(): Promise<Category[]>;
+  /** 預設查開放月份；傳月份可取得當時可選的交易分類（撤銷月結後編輯舊交易使用）。 */
+  listCategories(month?: string): Promise<Category[]>;
   listMembers(): Promise<Member[]>;
   /** 全域設定的開帳日（某月 1 號，YYYY-MM-DD）；尚未設定為 null。開帳日以前的交易不計入帳戶餘額（票 08）。 */
   getOpeningDate(): Promise<string | null>;
@@ -128,11 +133,17 @@ export interface Ledger extends AccountsLedger, TransfersLedger {
 
   // ---- 預算與月結（票 03）----
   /**
-   * 執行一個預算指令（caps、add、map、retire、transfer、fund、correct、reverse、rollback、close）。
+   * 執行一個預算指令（caps、add、edit、map、retire、transfer、fund、correct、reverse、rollback、close）。
    * 在同一個資料庫交易內讀文件、套用引擎、寫回。close 的實支由該月支出交易彙總，當月收入由 command.amount 傳入
    * （票 11 才改成自動帶入）。被拒時丟 BudgetRuleError（kind 為 argument／operation／overflow）或 LedgerError。
    */
   runBudgetCommand(command: BudgetCommand): Promise<BudgetCommandResult>;
+  /** 僅計算，不寫入；確認時重送相同指令，仍會重新檢查版本與開放月份。 */
+  previewBudgetCommand(command: BudgetCommand): Promise<BudgetCommandPreview>;
+  /** 免費的上限與實支進度；預設為日曆本月，與開放月份分開。 */
+  getBudgetProgress(month?: string): Promise<BudgetProgress>;
+  /** 完整上限版本與修改原因，依儲存順序列出。 */
+  listBudgetRevisions(): Promise<BudgetRevision[]>;
   /** 該月收入交易的合計（票 11 月結精靈用來帶入當月收入）。 */
   getMonthIncome(month: string): Promise<number>;
   getBudgetStatus(): Promise<BudgetStatus>;
@@ -183,7 +194,7 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
   // 所有寫入交易自動記下帳本最後修改時間（備份檔的「最後修改時間」）；備份指令本身用 rawDb，不算變動。
   const db = trackModifications(rawDb, now);
   const backup = backupCommands(rawDb, options.backupFiles, migrations, now);
-  const fallbackMonth = () => taipeiDate(now()).slice(0, 7);
+  const fallbackMonth = () => budgetFallbackMonth(db, now());
 
   // 所有指令與查詢排成一條隊：寫入交易進行中，不會有別的查詢插進來（expo-sqlite 的交易會把
   // 同時發出的查詢也算進去）。這也是「已月結月份不得默默改動」之後掛上檢查的唯一入口。
@@ -244,30 +255,20 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
     getOpeningDate: () =>
       serial(async () => (await db.get<{ value: string }>("SELECT value FROM settings WHERE key = 'opening_date'"))?.value ?? null),
 
-    listCategories: () =>
-      serial(() => db.all<Category>('SELECT id, name, flow FROM categories ORDER BY sort_order')),
+    listCategories: (month) => serial(async () => {
+      const target = month ?? budgetStatus((await readStoredDocument(db)).state, await fallbackMonth()).openMonth;
+      if (!isValidMonth(target)) throw new LedgerError('invalid_month', MONTH_MESSAGE);
+      return listActiveCategories(db, target);
+    }),
     listMembers: () => serial(() => db.all<Member>('SELECT id, name FROM members ORDER BY sort_order')),
 
     importLegacyLedger: (data) => serial(() => db.transaction((tx) => importLegacy(tx, data))),
 
     runBudgetCommand: (command) =>
-      serial(() =>
-        db.transaction(async (tx) => {
-          const { exists, state } = await readStoredDocument(tx);
-          const operationId = typeof command.operationId === 'string' ? command.operationId.toLowerCase() : '';
-          const replay = state.receipts.some((r) => r.id === operationId);
-          if (!replay) await assertCategoryNamesAvailable(tx, command);
-          let expenses: BudgetExpense[] | undefined;
-          if (command.action === 'close' && !replay && isValidMonth(command.month)) {
-            expenses = await monthExpenses(tx, command.month);
-          }
-          const after = applyBudgetCommand(state, command, { actor: BUDGET_ACTOR, time: now().toISOString(), expenses });
-          if (after === state) return { version: state.version, replayed: true };
-          await writeState(tx, exists, state.version, after);
-          await syncExpenseCategory(tx, command);
-          return { version: after.version, replayed: false };
-        }),
-      ),
+      serial(() => db.transaction(async (tx) => (await executeBudgetCommand(tx, command, now())).result)),
+    previewBudgetCommand: (command) => serial(async () => (await executeBudgetCommand(db, command, now(), true)).preview),
+    getBudgetProgress: (month) => serial(() => getBudgetProgress(db, now(), month)),
+    listBudgetRevisions: () => serial(async () => (await readStoredDocument(db)).state.revisions),
 
     getMonthIncome: (month) =>
       serial(async () => {
@@ -280,12 +281,12 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
       }),
 
     getBudgetStatus: () =>
-      serial(async () => budgetStatus((await readStoredDocument(db)).state, fallbackMonth())),
+      serial(async () => budgetStatus((await readStoredDocument(db)).state, await fallbackMonth())),
 
     getBudgetMonth: (month) =>
       serial(async () => {
         if (!isValidMonth(month)) throw new LedgerError('invalid_month', MONTH_MESSAGE);
-        const view = budgetMonth((await readStoredDocument(db)).state, month, fallbackMonth());
+        const view = budgetMonth((await readStoredDocument(db)).state, month, await fallbackMonth());
         if (!view) throw new LedgerError('month_not_closed', `${month} 尚未月結。`);
         return view;
       }),
@@ -297,7 +298,7 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
     getUnmappedExpenseCategories: (month) =>
       serial(async () => {
         const { state } = await readStoredDocument(db);
-        const target = month ?? openMonth(state, fallbackMonth());
+        const target = month ?? openMonth(state, await fallbackMonth());
         if (!isValidMonth(target)) throw new LedgerError('invalid_month', MONTH_MESSAGE);
         const revision = effectiveRevision(state, target);
         const rows = await db.all<{ name: string }>(
@@ -335,40 +336,4 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
 
     close: () => serial(() => db.close()),
   };
-}
-
-// ---- 預算指令的資料庫側輔助 ----
-
-/** 新增或歸屬預算類別會用到的交易分類名稱（C# BudgetWorkspace.Execute 的 sourceName）。 */
-function sourceCategoryName(command: BudgetCommand): string | null {
-  if (command.action === 'add') return (command.name ?? '').trim() || null;
-  if (command.action === 'map') return (command.sourceCategory ?? '').trim() || null;
-  return null;
-}
-
-async function assertCategoryNamesAvailable(tx: Queryable, command: BudgetCommand): Promise<void> {
-  const name = sourceCategoryName(command);
-  if (name === null) return;
-  const clash = await tx.get("SELECT 1 AS hit FROM categories WHERE name = ? COLLATE NOCASE AND flow <> 'expense'", [name]);
-  if (clash) throw new LedgerError('category_name_conflict', '這個名稱已用於收入分類，請使用其他支出名稱。');
-}
-
-/** 指令成功後，若同名交易分類不存在就建立一個支出分類，讓使用者能直接記這個類別的帳。 */
-async function syncExpenseCategory(tx: Queryable, command: BudgetCommand): Promise<void> {
-  const name = sourceCategoryName(command);
-  if (name === null) return;
-  const existing = await tx.get('SELECT id FROM categories WHERE name = ? COLLATE NOCASE', [name]);
-  if (existing) return;
-  const last = await tx.get<{ top: number | null }>('SELECT MAX(sort_order) AS top FROM categories');
-  await tx.run("INSERT INTO categories (name, flow, sort_order) VALUES (?, 'expense', ?)", [name, (last?.top ?? -1) + 1]);
-}
-
-/** 該月每一筆支出交易（分類名稱與金額）。收入與轉帳不算；實支以分類名稱交給引擎依歸屬分配。 */
-async function monthExpenses(tx: Queryable, month: string): Promise<BudgetExpense[]> {
-  const rows = await tx.all<{ category: string; amount: number }>(
-    `SELECT c.name AS category, t.amount AS amount FROM transactions t JOIN categories c ON c.id = t.category_id
-      WHERE t.flow = 'expense' AND substr(t.date, 1, 7) = ? ORDER BY t.id`,
-    [month],
-  );
-  return rows;
 }
