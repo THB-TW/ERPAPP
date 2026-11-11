@@ -14,6 +14,7 @@ import type { LegacyData } from './legacyData.ts';
 import type { BaselineIdentity } from './baseline.ts';
 import { ConversionStopped, loadVerifiedSource } from './source.ts';
 import { assertGitIgnored, assertPrivateOutput } from './output.ts';
+import { thousands } from '../common.ts';
 import { buildPlan, type MixedFlowMode } from './plan.ts';
 
 export { ConversionStopped };
@@ -290,7 +291,7 @@ function notMigrated(verified: VerifiedExport): { table: string; rows: number }[
 }
 
 /** 比較兩份財務文件 JSON 的內容（屬性順序不計；null 與缺漏視為相同，因為 C# 會輸出 null 而帳本讀回也補 null）。 */
-function sameDocument(exported: string, source: string): boolean {
+export function sameDocument(exported: string, source: string): boolean {
   const strip = (_key: string, value: unknown) => (value === null ? undefined : value);
   try {
     deepStrictEqual(JSON.parse(JSON.stringify(JSON.parse(exported), strip)), JSON.parse(JSON.stringify(JSON.parse(source), strip)));
@@ -301,7 +302,7 @@ function sameDocument(exported: string, source: string): boolean {
 }
 
 export function formatSummary(s: ConvertSummary): string[] {
-  const yen = (n: number) => n.toLocaleString('en-US');
+  const yen = thousands;
   return [
     '轉換完成。摘要（供票 05 比對；金額為新台幣元）：',
     `  輸出檔：${s.outputPath}`,
