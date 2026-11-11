@@ -3,25 +3,20 @@
 // 先寫到暫存檔，全部檢查通過才以「不覆寫」的方式改成正式檔名，失敗不留任何輸出。
 import { deepStrictEqual } from 'node:assert/strict';
 import { chmodSync, linkSync, unlinkSync } from 'node:fs';
-import { defaultPrivateRoot, verifyExport, type VerifiedExport } from '../../../../tools/lib/verify-export.mjs';
+import { defaultPrivateRoot, type VerifiedExport } from '../../../../tools/lib/verify-export.mjs';
 import { shiftMonth } from '../../src/calc/dates.ts';
 import { openNodeDatabase } from '../../src/db/nodeDriver.ts';
 import { ledgerMigrations } from '../../src/ledger/migrations.ts';
 import { LedgerError, openLedger, type LegacyImportData } from '../../src/ledger/index.ts';
 import { ACCOUNT_KINDS, type AccountKind } from '../../src/ledger/defaults.ts';
 import { guessKind, deriveOpeningBalances } from './accounts.ts';
-import { LegacyExportError, readLegacyExport, type LegacyData } from './legacyData.ts';
-import { BASELINE_20261108, baselineDifferences, type BaselineIdentity } from './baseline.ts';
+import type { LegacyData } from './legacyData.ts';
+import type { BaselineIdentity } from './baseline.ts';
+import { ConversionStopped, loadVerifiedSource } from './source.ts';
 import { assertGitIgnored, assertPrivateOutput } from './output.ts';
 import { buildPlan, type MixedFlowMode } from './plan.ts';
 
-/** 需要人處理才能繼續的情況（衝突、不合規定的列、缺少回答…）。message 是給翰陞看的完整說明。 */
-export class ConversionStopped extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ConversionStopped';
-  }
-}
+export { ConversionStopped };
 
 export interface ConvertOptions {
   /** 已驗證的私人匯出目錄（含 manifest.json）。 */
@@ -108,21 +103,9 @@ export async function convertLegacy(options: ConvertOptions): Promise<ConvertSum
 
   // 2. 來源驗證：任何不符就拋錯，什麼都不產生
   log('驗證來源匯出的清冊與每個檔案的 SHA-256 ...');
-  const verified = verifyExport(options.exportDirectory, { privateRoot });
-  if (options.expectedManifestSha256 !== undefined && options.expectedManifestSha256.toLowerCase() !== verified.manifestSha256) {
-    throw new ConversionStopped(`匯出清冊（manifest.json）的 SHA-256 與指定的不同，已拒絕。實際：${verified.manifestSha256}`);
-  }
-  let legacy: LegacyData;
-  try {
-    legacy = readLegacyExport(verified);
-  } catch (e) {
-    if (e instanceof LegacyExportError) throw new ConversionStopped(e.message);
-    throw e;
-  }
-  const differences = baselineDifferences(verified, legacy, options.expectedBaseline ?? BASELINE_20261108);
-  if (differences.length > 0) {
-    throw new ConversionStopped(['輸入的匯出與 docs/cloudflare/baseline.md 記錄的 2026-11-08 基準不符，已拒絕，沒有產生輸出：', ...differences.map((d) => `- ${d}`)].join('\n'));
-  }
+  const { verified, legacy } = loadVerifiedSource({
+    exportDirectory: options.exportDirectory, privateRoot, expectedBaseline: options.expectedBaseline, expectedManifestSha256: options.expectedManifestSha256,
+  });
   if (legacy.cutoffMonth === null) throw new ConversionStopped('財務文件裡沒有任何月結月份，無法決定搬遷截止月與開帳日。');
   const cutoffMonth = legacy.cutoffMonth;
   const openingDate = `${shiftMonth(cutoffMonth, 1)}-01`;

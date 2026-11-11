@@ -38,13 +38,13 @@ function text(value: unknown): string | null {
   return typeof value === 'string' && value.trim() !== '' ? value : null;
 }
 
-function parseDate(value: unknown): string | null {
+export function parseDate(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const match = DATE_PATTERN.exec(value);
   return match && isValidDate(match[1]) ? match[1] : null;
 }
 
-function flowOf(type: unknown): Flow | null {
+export function flowOf(type: unknown): Flow | null {
   return type === '支' ? 'expense' : type === '收' ? 'income' : null;
 }
 

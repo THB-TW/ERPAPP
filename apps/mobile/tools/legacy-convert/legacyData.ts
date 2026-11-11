@@ -46,7 +46,7 @@ export interface LegacyData {
   checks: RawCheck[];
 }
 
-function findTable(verified: VerifiedExport, candidates: string[], what: string): ExportTable {
+export function findTable(verified: VerifiedExport, candidates: string[], what: string): ExportTable {
   const wanted = candidates.map((c) => c.toLowerCase());
   const found = verified.tables.filter((t) => wanted.includes(t.sourceTable.toLowerCase()));
   if (found.length !== 1) throw new LegacyExportError(`匯出缺少${what}資料表（預期名稱：${candidates.map((c) => 'dbo.' + c).join(' 或 ')}）。`);
@@ -54,7 +54,7 @@ function findTable(verified: VerifiedExport, candidates: string[], what: string)
 }
 
 /** 欄位名稱不分大小寫對應到匯出實際的欄位名（舊系統的日期欄位是小寫 date）。 */
-function resolver(table: ExportTable): (name: string) => string {
+export function resolver(table: ExportTable): (name: string) => string {
   const actual = new Map(table.columns.map((c) => [c.name.toLowerCase(), c.name]));
   return (name) => {
     const found = actual.get(name.toLowerCase());
