@@ -18,3 +18,7 @@ Status: resolved
 訂閱必須走 IAP；網頁訂閱可在 App 內沿用，但 iOS 也要同時賣 IAP，且台灣店面 App 內不能有導向網頁付款的按鈕或連結。App 內必須能刪帳號；有 Google 登入就必須同時提供 Sign in with Apple。財務類 App 可能被要求以法人身分提交（5.1.1(ix)、3.2.1(viii)），是最大的上架風險。加入 Small Business Program 抽 15%。TestFlight 外部測試最多 10,000 人，第一版需過 Beta 審查。
 
 詳見[研究文件](../research/01-apple-subscription-rules.md)（查證日期 2026-11-08）。
+
+## Comments
+
+2026-11-10 更正：Apple 2026-10-29 公告，自 2026-10-31 起台灣店面（iOS／iPadOS）標準 IAP 與付費 App 抽成由 30% 降為 **26%**（https://developer.apple.com/news/?id=w9mxlhek ，已讀原文）。公告未提 Small Business Program；加入後在台灣是否仍為 15%（或更低）尚未查到明文，以 App Store Connect 實際帳單為準。

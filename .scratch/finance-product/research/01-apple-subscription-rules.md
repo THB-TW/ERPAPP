@@ -24,7 +24,7 @@
    - 3.1.5 加密貨幣：本產品只是記錄虛擬貨幣桶，不做錢包／交易所，字面不適用；若日後做交易或錢包功能會觸發 3.1.5(i)(iii)（錢包須組織身分、交易所須有牌照）。【推論】
    - 1.6 資料安全、5.1.1(i) 隱私政策、第 5 章導言「須遵守所有上架地區法律」。【確定】
 6. **隱私標籤：** 送審新 App 與更新都必須在 App Store Connect 填隱私資訊，含整合的第三方 SDK 的蒐集行為；答案可隨時更新，不需新版本；隱私政策 URL 必填。財務資料類型分 Payment Info、Credit Info、Other Financial Info（薪資、收入、資產、負債等）。【確定】本產品把收支、資產上傳雲端，屬「Other Financial Info」，且與使用者綁定，需照實申報。【推論】
-7. **Small Business Program：** 前一曆年與當年至今 proceeds 皆 ≤ 100 萬美元，可申請，傭金 15%。【確定】訂閱細節有矛盾：訂閱頁寫加入計畫者「無論是否滿一年」皆拿 85%；計畫頁另有一句「訂閱滿一年後 Apple 提供進一步降低的 10%」，但該句文字可讀成僅適用歐盟替代條款。**滿一年後是 15% 還是 10%：【不確定】**，以 Paid Apps Agreement（Schedule 2）與 App Store Connect 實際帳單為準。未加入時：第一年 30%、滿一年 15%。【確定】
+7. **Small Business Program：** 前一曆年與當年至今 proceeds 皆 ≤ 100 萬美元，可申請，傭金 15%。【確定】訂閱細節有矛盾：訂閱頁寫加入計畫者「無論是否滿一年」皆拿 85%；計畫頁另有一句「訂閱滿一年後 Apple 提供進一步降低的 10%」，但該句文字可讀成僅適用歐盟替代條款。**滿一年後是 15% 還是 10%：【不確定】**，以 Paid Apps Agreement（Schedule 2）與 App Store Connect 實際帳單為準。未加入時：第一年 30%、滿一年 15%。【確定】（**2026-11-10 更正**：台灣店面自 2026-10-31 起標準抽成為 26%，見 https://developer.apple.com/news/?id=w9mxlhek ；Small Business Program 在台灣的費率公告未提。）
 8. **台灣稅務／收款：**
    - Apple 依 Paid Apps Agreement Schedule 2 在台灣代收並代繳稅。【確定】
    - 在台灣報稅或持有台灣統編／身分證字號者，需在 App Store Connect 填台灣 TIN；填與不填，被扣的稅額不同；所有開發者仍須填美國稅表。【確定】
