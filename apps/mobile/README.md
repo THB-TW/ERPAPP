@@ -9,7 +9,7 @@
 | `src/app/` | Expo Router 路由與畫面 | 只顯示與收集輸入；不碰資料庫、不含帳務規則 |
 | `src/ui/` | 共用元件、`LedgerProvider`、格式化 | 同上，只能拿到 `Ledger` |
 | `src/ledger/` | 帳本服務：指令、查詢、驗證、結構遷移、預設分類與帳戶 | 唯一的測試切入點 |
-| `src/calc/` | 純計算（日期、月曆格子；之後放預算引擎、CSV 解析） | 純函式，不碰資料庫 |
+| `src/calc/` | 純計算（日期、月曆格子、預算與月結引擎；之後放 CSV 解析） | 純函式，不碰資料庫 |
 | `src/db/` | 資料庫驅動介面、遷移機制、兩個實作 | `nodeDriver.ts`（測試）、`expoDriver.ts`（手機） |
 | `src/platform/` | 手機端接線（驅動接帳本服務） | 唯一同時認識兩者的地方 |
 
@@ -34,3 +34,10 @@ npx expo start      # 開發（需要 iPhone 與 Expo Go／開發版）
 ## 新增指令或查詢的流程
 
 先在 `src/ledger/ledger.test.ts` 寫一個失敗的測試（開全新記憶體資料庫、下指令、查結果），再實作到通過。
+
+## 預算與月結（票 03）
+
+- 引擎：`src/calc/budgetEngine.ts`（狀態＋指令 → 新狀態，移植自舊系統 `BudgetEngine.cs`）、`budgetTypes.ts`、`budgetDocument.ts`（舊財務文件 JSON ↔ 引擎狀態；PascalCase ↔ camelCase，字典鍵與 Checks 原樣）。
+- 財務文件存在資料表 `finance_document`（遷移版本 2），內容是舊系統格式的 JSON；只能經帳本服務的 `runBudgetCommand`、`importFinanceDocument` 寫入。
+- 已結月份鎖定只在 `src/ledger/monthLock.ts` 一處檢查；之後的修改、刪除、匯入交易都呼叫 `assertDateOpen`。
+

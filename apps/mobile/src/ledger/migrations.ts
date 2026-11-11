@@ -38,4 +38,19 @@ export const ledgerMigrations: readonly Migration[] = [
       }
     },
   },
+  {
+    // 財務文件（ADR 0005）：整份預算狀態存成一份帶版本號的 JSON。單一帳本只有一列（id 固定為 1）；
+    // 還沒有任何預算指令或匯入時沒有這一列，讀取時視為空狀態。document 內容沿用舊系統
+    // 財務文件的 JSON 格式（PascalCase，見 src/calc/budgetDocument.ts），所以舊帳文件可原樣匯入。
+    version: 2,
+    async up(tx) {
+      await tx.exec(`
+        CREATE TABLE finance_document (
+          id INTEGER PRIMARY KEY CHECK (id = 1),
+          version INTEGER NOT NULL CHECK (version >= 0),
+          document TEXT NOT NULL
+        );
+      `);
+    },
+  },
 ];
