@@ -211,7 +211,7 @@ async function restoreBackupFile(
 ): Promise<RestoreResult> {
   const available = filesOrThrow(files);
   const current = await readMeta(db, LAST_MODIFIED);
-  const info = await inspectBackupFile(available, path, migrations.length, current);
+  const info = await inspectBackupFile(available, path, migrations.at(-1)?.version ?? 0, current);
   if (info.olderThanCurrent && !options.allowOlder) {
     throw new LedgerError('backup_older', '要匯入的備份比手機上的帳舊，匯入會蓋掉備份之後才記的帳。確定要匯入嗎？');
   }
@@ -232,13 +232,12 @@ async function restoreBackupFile(
     } finally {
       await incoming.close();
     }
-    if (info.schemaVersion < migrations.length) {
-      const staged = await available.open(staging);
-      try {
-        await migrate(staged, migrations);
-      } finally {
-        await staged.close();
-      }
+    // 最高版本相同仍可能缺少後補的中間版；逐版紀錄由遷移器判斷。
+    const staged = await available.open(staging);
+    try {
+      await migrate(staged, migrations);
+    } finally {
+      await staged.close();
     }
 
     // 2. 取代前另存：目前的帳本身就是合格的備份檔
@@ -293,7 +292,7 @@ export function backupCommands(db: Database, files: BackupFiles | undefined, mig
     status: () => backupStatus(db, files),
     export: (path: string) => exportBackupFile(db, files, path, now()),
     recordDelivered: (exportedAt: string) => recordBackupTime(db, exportedAt),
-    inspect: async (path: string) => inspectBackupFile(files, path, migrations.length, await readMeta(db, LAST_MODIFIED)),
+    inspect: async (path: string) => inspectBackupFile(files, path, migrations.at(-1)?.version ?? 0, await readMeta(db, LAST_MODIFIED)),
     restore: (path: string, options: { allowOlder?: boolean } = {}) => restoreBackupFile(db, files, path, migrations, options, now()),
   };
 }

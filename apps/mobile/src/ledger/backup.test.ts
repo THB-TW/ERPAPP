@@ -11,6 +11,7 @@ import { BACKUP_APPLICATION_ID, inspectBackupFile } from './backup.ts';
 import { ledgerMigrations } from './migrations.ts';
 import { LedgerError, openLedger, type Ledger } from './index.ts';
 
+const SUPPORTED_VERSION = ledgerMigrations.at(-1)!.version;
 const FULL: [string, string] = ['0001-01-01', '9999-12-31'];
 
 /** 可以撥動的時鐘：每個測試自己決定「現在」。 */
@@ -129,12 +130,12 @@ test('匯出的備份檔帶識別標記、結構版本、最後修改時間與�
 
   const raw = openNodeDatabase(out);
   assert.equal((await raw.get<{ application_id: number }>('PRAGMA application_id'))?.application_id, BACKUP_APPLICATION_ID);
-  assert.equal((await raw.get<{ user_version: number }>('PRAGMA user_version'))?.user_version, ledgerMigrations.length);
+  assert.equal((await raw.get<{ user_version: number }>('PRAGMA user_version'))?.user_version, SUPPORTED_VERSION);
   await raw.close();
 
   const info = await ledger.inspectBackup(out);
   assert.deepEqual(info, {
-    schemaVersion: ledgerMigrations.length,
+    schemaVersion: SUPPORTED_VERSION,
     lastModifiedAt: '2026-10-31T15:00:00.000Z',
     exportedAt: '2026-11-05T12:30:00.000Z',
     olderThanCurrent: false,
@@ -175,7 +176,7 @@ test('在另一支手機匯入備份檔：整本取代，所有查詢結果與�
     lastModifiedAt: '2026-11-01T00:00:00.000Z',
     safetyCopyPath: result.safetyCopyPath,
   });
-  assert.equal(result.schemaVersion, ledgerMigrations.length);
+  assert.equal(result.schemaVersion, SUPPORTED_VERSION);
 
   // 還原後照常記帳，編號接在後面、不撞號
   await spend(target, '2026-11-03', '飲食', 50);
@@ -295,7 +296,7 @@ test('結構版本比 App 新的備份被拒，請使用者先更新 App', async
   const ledger = await sampleLedger(dir, 'ledger.db', clock('2026-11-01T00:00:00Z').now);
   const exported = await ledger.exportBackup(join(dir, 'export.db'));
   const raw = openNodeDatabase(exported.path);
-  await raw.exec(`PRAGMA user_version = ${ledgerMigrations.length + 1}`);
+  await raw.exec(`PRAGMA user_version = ${SUPPORTED_VERSION + 1}`);
   await raw.close();
 
   await assert.rejects(ledger.restoreBackup(exported.path, { allowOlder: true }), (e) =>
@@ -369,21 +370,21 @@ test('結構版本較舊的備份先遷移再取代', async (t) => {
 
   // 模擬之後的 App 版本多了一個遷移：同一份備份對它來說是較舊的結構
   const newer = [...ledgerMigrations, {
-    version: ledgerMigrations.length + 1,
+    version: SUPPORTED_VERSION + 1,
     async up(tx: { exec(sql: string): Promise<void> }) {
       await tx.exec("ALTER TABLE transactions ADD COLUMN tag TEXT NOT NULL DEFAULT ''");
     },
   }];
   const files = nodeFiles(dir);
-  const info = await inspectBackupFile(files, exported.path, newer.length, null);
-  assert.equal(info.schemaVersion, ledgerMigrations.length);
+  const info = await inspectBackupFile(files, exported.path, newer.at(-1)!.version, null);
+  assert.equal(info.schemaVersion, SUPPORTED_VERSION);
 
   const live = openNodeDatabase(join(dir, 'newer-app.db'));
   await migrate(live, newer);
   const app = await openLedger(live, { backupFiles: files, migrations: newer });
   await app.restoreBackup(exported.path);
   assert.deepEqual(await snapshot(app), expected);
-  assert.equal((await live.get<{ user_version: number }>('PRAGMA user_version'))?.user_version, newer.length);
+  assert.equal((await live.get<{ user_version: number }>('PRAGMA user_version'))?.user_version, newer.at(-1)!.version);
   await app.close();
 });
 

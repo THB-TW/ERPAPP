@@ -1,10 +1,10 @@
 // 月結精靈只組織流程；所有月結數字仍由既有預算引擎計算。
 import type { Queryable } from '../db/driver.ts';
 import { isValidMonth, taipeiDate } from '../calc/dates.ts';
-import { applyBudgetCommand, BUDGET_ACTOR, BudgetRuleError } from '../calc/budgetEngine.ts';
+import { BudgetRuleError } from '../calc/budgetEngine.ts';
 import type { BudgetState, MonthClose } from '../calc/budgetTypes.ts';
 import { readStoredDocument } from './financeDocument.ts';
-import { assertMonthlyCloseAccess, budgetFallbackMonth, executeBudgetCommand, monthExpenses } from './budgetCommands.ts';
+import { assertMonthlyCloseAccess, budgetFallbackMonth, executeBudgetCommand } from './budgetCommands.ts';
 import { budgetMonth, budgetStatus, type BudgetMonthView } from './budgetViews.ts';
 import { LedgerError } from './errors.ts';
 
@@ -101,9 +101,9 @@ export async function previewMonthlyClose(q: Queryable, input: MonthlyCloseReque
   while (state.receipts.some((r) => r.id === operationId)) {
     operationId = `11111111-1111-4111-8111-${String(sequence++).padStart(12, '0')}`;
   }
-  const after = applyBudgetCommand(state, { action: 'close', operationId,
+  const { state: after } = await executeBudgetCommand(q, { action: 'close', operationId,
     month: input.month, version: state.version, amount: income, reason: '月結' },
-  { actor: BUDGET_ACTOR, time: now.toISOString(), openingMonth: fallback, expenses: await monthExpenses(q, input.month) });
+  now, true, input);
   const raw = after.months.find((m) => m.month === input.month)!;
   const summary = budgetMonth(after, input.month, fallback)!;
   const rows = calculationRows(after, raw, summary);

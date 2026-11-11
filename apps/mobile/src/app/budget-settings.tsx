@@ -65,12 +65,15 @@ export default function BudgetSettingsScreen() {
     setLoading(true);
     setError(null);
     setPreview(null);
-    Promise.all([ledger.getBudgetStatus(), ledger.listCategories(), ledger.listBudgetRevisions(), ledger.getUnmappedExpenseCategories()]).then(
-      ([nextStatus, categories, history, unmapped]) => {
+    Promise.all([ledger.getBudgetStatus(), ledger.listCategories(), ledger.listBudgetRevisions(), ledger.getUnmappedExpenseCategories(), ledger.listLoans()]).then(
+      ([nextStatus, categories, history, unmapped, loans]) => {
         if (cancelled) return;
         setStatus(nextStatus);
         // 停用類別的舊交易仍須保留原分類；即使不再供記帳選用，也要能重新指定其歸屬。
-        setSourceCategories([...new Set([...categories.filter((category) => category.flow === 'expense').map((category) => category.name), ...unmapped])]);
+        const loanCategoryIds = new Set(loans.map((loan) => loan.categoryId));
+        const loanNames = new Set(categories.filter((category) => loanCategoryIds.has(category.id)).map((category) => category.name));
+        setSourceCategories([...new Set([...categories.filter((category) => category.flow === 'expense' && !loanCategoryIds.has(category.id)).map((category) => category.name),
+          ...unmapped.filter((name) => !loanNames.has(name))])]);
         setRevisions(history);
         const first = nextStatus.categories.find((category) => category.active);
         setMode(first ? 'edit' : 'add');

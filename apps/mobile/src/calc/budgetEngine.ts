@@ -43,6 +43,8 @@ export interface BudgetContext {
   openingMonth?: string;
   /** 只有 close 使用：該月每一筆支出（交易分類名稱與正整數金額）。 */
   expenses?: readonly BudgetExpense[];
+  /** 貸款服務已依各筆本金與繳款算好的合計；省略時完整沿用舊學費算法。 */
+  loans?: { contribution: number; payment: number };
 }
 
 // ---- 安全整數運算（對應 C# checked）----
@@ -337,7 +339,7 @@ export function applyBudgetCommand(state: BudgetState, input: BudgetCommand, con
       break;
     }
     case 'close':
-      close(next, command, reason, actor, time, context.expenses ?? [], fallbackMonth);
+      close(next, command, reason, actor, time, context.expenses ?? [], fallbackMonth, context.loans);
       break;
     default:
       throw argumentError('不支援的操作。');
@@ -438,6 +440,7 @@ function newRevision(state: BudgetState, c: BudgetCommand, reason: string, actor
 function close(
   next: BudgetState, command: BudgetCommand, reason: string, actor: string, time: string,
   expenses: readonly BudgetExpense[], fallbackMonth: string,
+  loans?: BudgetContext['loans'],
 ): void {
   const amount = command.amount ?? 0;
   if (amount < 0) throw argumentError('當月收入不能為負數。');
@@ -469,7 +472,9 @@ function close(
     put(actual, categoryId, add(own(actual, categoryId) ?? 0, expense.amount));
   }
   const changes: Record<string, number> = {};
-  let outlay = revision.tuition;
+  const contribution = loans?.contribution ?? revision.tuition;
+  const payment = loans?.payment ?? 0;
+  let outlay = contribution;
   for (const limit of revision.limits) {
     const definition = singleCategory(next, limit.categoryId);
     const cost = own(actual, definition.id) ?? 0;
@@ -484,7 +489,7 @@ function close(
   const surplus = sub(amount, outlay);
   const closed: MonthClose = {
     id: command.operationId, month: command.month, income: amount, surplus,
-    rawSpare: add(previous.rawSpare, surplus), tuition: add(previous.tuition, revision.tuition),
+    rawSpare: add(previous.rawSpare, surplus), tuition: sub(add(previous.tuition, contribution), payment),
     balances, changes, expenses: actual, revision: clone(revision),
     migrated: false, legacyTotalDifference: 0, legacyBalanceAnchor: 0, time, actor,
   };
