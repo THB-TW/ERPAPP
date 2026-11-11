@@ -28,14 +28,14 @@ function workspace(t: TestContext) {
   };
 }
 
-test('v11 帳本可檢查；帳單、所屬卡與重複列隨整本備份還原及取代前另存完整復原', async (t) => {
+test('目前版本帳本可檢查；帳單、所屬卡與重複列隨整本備份還原及取代前另存完整復原', async (t) => {
   const w = workspace(t);
   const { db, ledger: source } = await w.open('source.db');
   const card = (await source.listAccounts()).find((a) => a.kind === 'credit_card')!;
   await source.importCardStatement({ accountId: card.id, csv: '2026-10-02,合成商店,100\n2026-10-02,合成商店,100' });
   assert.deepEqual(await inspectLedgerFile(db), { ok: true });
   const exported = await source.exportBackup(join(w.directory, 'export.db'));
-  assert.equal((await source.inspectBackup(exported.path)).schemaVersion, 11);
+  assert.equal((await source.inspectBackup(exported.path)).schemaVersion, 13);
   const { ledger: target } = await w.open('target.db');
   const second = await target.addAccount({ name: '合成其他卡', kind: 'credit_card' });
   await target.importCardStatement({ accountId: second.id, csv: '2026-10-03,合成他店,90' });

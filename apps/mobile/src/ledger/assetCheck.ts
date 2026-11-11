@@ -8,6 +8,8 @@ import { LedgerError } from './errors.ts';
 import { BudgetRuleError } from '../calc/budgetEngine.ts';
 import { assertMonthlyCloseAccess } from './budgetCommands.ts';
 import { readStoredDocument, writeState } from './financeDocument.ts';
+import { investmentCashFlows } from './investmentCashFlows.ts';
+import { netDeployed as investmentNetDeployed } from './investment.ts';
 
 export interface AssetCheckRequest {
   month: string;
@@ -16,7 +18,7 @@ export interface AssetCheckRequest {
   balances?: { accountId: number; balance: number }[];
 }
 export interface AssetCheckMovement {
-  kind: 'income' | 'expense' | 'transfer_in' | 'transfer_out';
+  kind: 'income' | 'expense' | 'transfer_in' | 'transfer_out' | 'investment_buy' | 'investment_sell';
   id: number;
   date: string;
   amount: number;
@@ -157,6 +159,11 @@ export async function previewAssetCheck(q: Queryable, input: AssetCheckRequest, 
     movements.get(t.fromId)!.push({ kind: 'transfer_out', id: t.id, date: t.date, amount: t.amount, adjustment: t.amount, description: `轉至${t.toName}` });
     movements.get(t.toId)!.push({ kind: 'transfer_in', id: t.id, date: t.date, amount: t.amount, adjustment: -t.amount, description: `來自${t.fromName}` });
   }
+  for (const t of await investmentCashFlows(q, opening, asOf)) {
+    if (t.date <= minDate) continue;
+    movements.get(t.accountId)!.push({ kind: t.txType === 'buy' ? 'investment_buy' : 'investment_sell', id: t.id, date: t.date,
+      amount: t.amount, adjustment: t.txType === 'buy' ? t.amount : -t.amount, description: t.description });
+  }
   const accounts = balances.map((a): AssetCheckAccount => {
     const rows = movements.get(a.id)!.sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id || a.kind.localeCompare(b.kind));
     const rollback = total(rows.map((r) => r.adjustment));
@@ -167,8 +174,7 @@ export async function previewAssetCheck(q: Queryable, input: AssetCheckRequest, 
       appBalance: a.balance, inputBalance, appMonthEndBalance, monthEndBalance,
       difference: integer(BigInt(monthEndBalance) - BigInt(appMonthEndBalance)), rollback, movements: rows };
   });
-  // 投資票尚未完成；接線時須採結算月底的累計投入淨額，不用市值。
-  const netDeployed = 0;
+  const netDeployed = await investmentNetDeployed(q, minDate);
   const rawTotal = total(accounts.map((a) => a.inputBalance));
   const rollbackTotal = total(accounts.map((a) => a.rollback));
   const actualTotal = total([...accounts.map((a) => a.monthEndBalance), netDeployed]);

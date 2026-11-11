@@ -95,3 +95,11 @@ test('互動終端中途關閉輸入（Ctrl-D）：詢問轉成 ConversionStoppe
   assert.equal(code, 2);
   assert.match(errs.join(''), /輸入已關閉/);
 });
+
+test('可重複用 --investment-account 明確指定投資交易編號與帳戶，不接受不明編號或衝突', () => {
+  const parsed = parseCliArgs(['a', 'b', '--investment-account', '15=虛構銀行', '--investment-account', '21=虛構現金']);
+  assert.deepEqual(parsed.investmentAccounts, { '15': '虛構銀行', '21': '虛構現金' });
+  for (const values of [['0=銀行'], ['abc=銀行'], ['1.5=銀行'], ['15=銀行', '15=現金']]) {
+    assert.throws(() => parseCliArgs(['a', 'b', ...values.flatMap((value) => ['--investment-account', value])]), UsageError);
+  }
+});

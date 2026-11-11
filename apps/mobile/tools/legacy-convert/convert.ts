@@ -17,6 +17,7 @@ import { assertGitIgnored, assertPrivateOutput } from './output.ts';
 import { thousands } from '../common.ts';
 import { buildPlan, type MixedFlowMode } from './plan.ts';
 import { planCardStatements } from './cardStatements.ts';
+import { assignInvestmentAccounts, planInvestments } from './investments.ts';
 
 export { ConversionStopped };
 
@@ -35,6 +36,8 @@ export interface ConvertOptions {
   openingBalances?: Record<string, number>;
   /** 舊 creditcard 表沒有卡識別；多卡時明確指定全表所屬卡，不做猜測。 */
   cardStatementAccount?: string;
+  /** 開帳日後帳內投資買賣的來源交易編號 → 帳戶完整名稱；舊表沒有帳戶，不自行推測。 */
+  investmentAccounts?: Record<string, string>;
   /**
    * 預期的舊帳基準身分；預設是 docs/cloudflare/baseline.md 記錄的 2026-11-08 基準（baseline.ts）。
    * 只給程式介面（測試）用，命令列沒有關閉這項檢查的旗標。
@@ -72,7 +75,7 @@ export interface ConvertSummary {
   openings: OpeningSummary[];
   /** 舊系統帳戶表的 Balance（原字串）；僅供參考，未用於計算。 */
   legacyAccountBalances: { account: string; balance: string }[];
-  /** 匯出裡沒有搬入的資料表與列數（員工、投資…）。 */
+  /** 匯出裡沒有搬入的資料表與列數（員工、權限…）。 */
   notMigrated: { table: string; rows: number }[];
   notices: string[];
 }
@@ -83,7 +86,7 @@ const KIND_WORDS = new Map<string, AccountKind>([
   ...ACCOUNT_KINDS.map((k): [string, AccountKind] => [k, k]),
   ['現金', 'cash'], ['銀行', 'bank'], ['信用卡', 'credit_card'], ['電子支付', 'e_wallet'],
 ]);
-const MIGRATED_TABLES = ['transactions', 'transaction', 'categories', 'category', 'accounts', 'account', 'members', 'member', 'financeworkspace', 'creditcard'];
+const MIGRATED_TABLES = ['transactions', 'transaction', 'categories', 'category', 'accounts', 'account', 'members', 'member', 'financeworkspace', 'creditcard', 'investmentholding', 'investmenttransaction', 'investmentvaluation', 'investmentopening'];
 const ATTEMPTS = 3;
 
 async function askUntil<T>(ask: (q: string) => Promise<string>, question: string, parse: (answer: string) => T | null): Promise<T> {
@@ -179,6 +182,7 @@ export async function convertLegacy(options: ConvertOptions): Promise<ConvertSum
     members: plan.members,
     transactions: plan.transactions,
     cardStatements,
+    investments: assignInvestmentAccounts(planInvestments(legacy.investments ?? { holdings: [], transactions: [], valuations: [], openings: [] }), openingDate, plan.accounts, options.investmentAccounts),
     document: legacy.document,
   };
   const partial = `${final}.partial`;
@@ -295,6 +299,19 @@ async function verifyReopened(file: string, data: LegacyImportData, legacy: Lega
       const left = sourceCards.get(key) ?? 0;
       if (left === 0) fail('信用卡明細內容或所屬卡');
       sourceCards.set(key, left - 1);
+    }
+    const investment = data.investments;
+    if (investment) {
+      const positions = (await ledger.getInvestmentPortfolio('9999-12-31')).positions;
+      if (!same(positions.map((p) => [p.holdingId, p.assetClass, p.symbol, p.name, p.active]).sort((a, b) => Number(a[0]) - Number(b[0])),
+        investment.holdings.map((p) => [p.id, p.assetClass, p.symbol, p.name, p.active]).sort((a, b) => Number(a[0]) - Number(b[0])))) fail('投資標的');
+      const accounts = new Map((await ledger.listAccounts()).map((a) => [a.id, a.name]));
+      const txs = await ledger.listInvestmentTransactions();
+      if (!same(txs.map((t) => [t.id, t.holdingId, t.date, t.txType, t.amount, t.quantity, t.fundSource, t.accountId === null ? null : accounts.get(t.accountId), t.note]).sort((a, b) => Number(a[0]) - Number(b[0])),
+        investment.transactions.map((t) => [t.id, t.holdingId, t.date, t.txType, t.amount, t.quantity, t.fundSource, t.account, t.note]).sort((a, b) => Number(a[0]) - Number(b[0])))) fail('投資交易');
+      if (!same((await ledger.listInvestmentValuations()).map((v) => [v.id, v.holdingId, v.asOf, v.unitPrice, v.marketValue]).sort((a, b) => Number(a[0]) - Number(b[0])),
+        investment.valuations.map((v) => [v.id, v.holdingId, v.asOf, v.unitPrice, v.marketValue]).sort((a, b) => Number(a[0]) - Number(b[0])))) fail('市值快照');
+      if (!same(await ledger.getInvestmentOpening(), investment.opening)) fail('期初投入宣告');
     }
     if ((await ledger.listBudgetMonths()).length !== legacy.months) fail('月結月份數');
     if (!sameDocument(await ledger.exportFinanceDocument(), legacy.document)) {
