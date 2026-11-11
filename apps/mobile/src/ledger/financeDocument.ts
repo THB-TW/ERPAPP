@@ -1,9 +1,10 @@
 // 財務文件的儲存：資料表 finance_document 一列（id=1），內容是舊系統格式的 JSON，欄位 version 與文件內的
 // Version 一致。寫入用「版本相符才更新」的條件式更新（樂觀鎖），並與呼叫端的資料庫交易同一個。
 import type { Queryable } from '../db/driver.ts';
-import { emptyBudgetState, parseBudgetDocument, serializeBudgetDocument } from '../calc/budgetDocument.ts';
+import { BudgetDocumentError, emptyBudgetState, parseBudgetDocument, serializeBudgetDocument } from '../calc/budgetDocument.ts';
 import type { BudgetState } from '../calc/budgetTypes.ts';
-import { BudgetRuleError } from '../calc/budgetEngine.ts';
+import { BudgetRuleError, position } from '../calc/budgetEngine.ts';
+import { LedgerError } from './errors.ts';
 
 interface Row { version: number; document: string }
 
@@ -37,4 +38,21 @@ export async function replaceDocument(q: Queryable, state: BudgetState): Promise
        ON CONFLICT(id) DO UPDATE SET version = excluded.version, document = excluded.document`,
     [state.version, serializeBudgetDocument(state)],
   );
+}
+
+/**
+ * 匯入入口共用的文件驗證：解析舊格式 JSON，並確認每個月的位置與合計都算得出來（例如合計不溢位）。
+ * 不合就丟 LedgerError('invalid_document')。importFinanceDocument 與舊帳整批帶入走同一套。
+ */
+export function parseImportedDocument(document: string): BudgetState {
+  try {
+    const state = parseBudgetDocument(document);
+    for (const m of state.months) position(state, m.month);
+    return state;
+  } catch (error) {
+    if (error instanceof BudgetDocumentError || error instanceof BudgetRuleError) {
+      throw new LedgerError('invalid_document', `財務文件無法匯入：${error.message}`);
+    }
+    throw error;
+  }
 }

@@ -1,7 +1,8 @@
 // 預設分類與帳戶：程式內建的一張表，只有名稱與種類，不含任何個人資料。
 // 這是「版本 1」遷移寫入的內容；遷移一旦發佈就不可改，之後要調整預設值請新增遷移。
 
-export type AccountKind = 'cash' | 'bank' | 'credit_card' | 'e_wallet';
+export const ACCOUNT_KINDS = ['cash', 'bank', 'credit_card', 'e_wallet'] as const;
+export type AccountKind = (typeof ACCOUNT_KINDS)[number];
 export type Flow = 'expense' | 'income';
 
 export const DEFAULT_ACCOUNTS: readonly { name: string; kind: AccountKind }[] = [

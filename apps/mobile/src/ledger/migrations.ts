@@ -53,4 +53,26 @@ export const ledgerMigrations: readonly Migration[] = [
       `);
     },
   },
+  {
+    // 成員、帳戶開帳餘額、設定（票 04 舊帳轉換；票 08 帳戶餘額接著用）。
+    // - 成員為選填：transactions.member_id 可為 NULL，既有的記帳不需要指定成員。
+    // - 開帳日是全域設定（規格「資料模型」：設定＝開帳日、發薪日…），存在 settings（key = 'opening_date'）；
+    //   帳戶只有開帳餘額（新台幣整數，信用卡填未繳金額的負數）。是否停用由票 08 新增。
+    version: 3,
+    async up(tx) {
+      await tx.exec(`
+        CREATE TABLE members (
+          id INTEGER PRIMARY KEY,
+          name TEXT NOT NULL UNIQUE,
+          sort_order INTEGER NOT NULL
+        );
+        CREATE TABLE settings (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL
+        );
+        ALTER TABLE transactions ADD COLUMN member_id INTEGER REFERENCES members(id);
+        ALTER TABLE accounts ADD COLUMN opening_balance INTEGER NOT NULL DEFAULT 0;
+      `);
+    },
+  },
 ];

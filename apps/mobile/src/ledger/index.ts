@@ -4,17 +4,17 @@ import { migrate } from '../db/migrate.ts';
 import { isValidDate, isValidMonth, taipeiDate } from '../calc/dates.ts';
 import {
   BUDGET_ACTOR,
-  BudgetRuleError,
   applyBudgetCommand,
   effectiveRevision,
   mappedBudgetCategory,
   openMonth,
-  position,
 } from '../calc/budgetEngine.ts';
-import { BudgetDocumentError, parseBudgetDocument, serializeBudgetDocument } from '../calc/budgetDocument.ts';
+import { serializeBudgetDocument } from '../calc/budgetDocument.ts';
 import type { BudgetCommand, BudgetExpense } from '../calc/budgetTypes.ts';
-import { readStoredDocument, replaceDocument, writeState } from './financeDocument.ts';
+import { parseImportedDocument, readStoredDocument, replaceDocument, writeState } from './financeDocument.ts';
+import { importLegacy, type LegacyImportData, type LegacyImportResult } from './legacyImport.ts';
 import { assertDateOpen } from './monthLock.ts';
+import { INVALID_DATE_MESSAGE, assertAccountKnown, assertCategoryFlow, assertTransactionShape } from './transactionRules.ts';
 import {
   budgetAdjustments,
   budgetMonth,
@@ -39,7 +39,15 @@ export type {
 } from './budgetViews.ts';
 
 export interface Category { id: number; name: string; flow: Flow }
-export interface Account { id: number; name: string; kind: AccountKind }
+export interface Account {
+  id: number;
+  name: string;
+  kind: AccountKind;
+  /** 開帳日當天的餘額（新台幣整數；信用卡為未繳金額的負數）。 */
+  openingBalance: number;
+}
+export interface Member { id: number; name: string }
+export type { LegacyImportData, LegacyImportResult } from './legacyImport.ts';
 
 export interface NewTransaction {
   date: string;
@@ -60,6 +68,8 @@ export interface DayTransaction {
   categoryName: string;
   accountId: number;
   accountName: string;
+  /** 沒有指定成員為 null。 */
+  memberName: string | null;
 }
 
 export interface CalendarDay {
@@ -93,6 +103,11 @@ export interface Ledger {
   getDayTransactions(date: string): Promise<DayTransaction[]>;
   listCategories(): Promise<Category[]>;
   listAccounts(): Promise<Account[]>;
+  listMembers(): Promise<Member[]>;
+  /** 全域設定的開帳日（某月 1 號，YYYY-MM-DD）；尚未設定為 null。開帳日以前的交易不計入帳戶餘額（票 08）。 */
+  getOpeningDate(): Promise<string | null>;
+  /** 日期區間內（含兩端）的全部交易，依日期、編號排序。給讀回核對與匯出用。 */
+  listTransactions(from: string, to: string): Promise<DayTransaction[]>;
 
   // ---- 預算與月結（票 03）----
   /**
@@ -115,13 +130,17 @@ export interface Ledger {
    * 已有文件時必須明確指定 replace: true 才會取代；文件內部不一致（例如合計溢位）會被拒。
    */
   importFinanceDocument(document: string, options?: { replace?: boolean }): Promise<{ version: number }>;
+  /**
+   * 舊帳整批帶入（票 04 轉換程式專用）：交易、財務文件、帳戶、分類、成員在同一個資料庫交易內寫入。
+   * 只允許在空帳本（沒有交易、沒有財務文件，分類與帳戶仍是出廠預設）上執行，並取代出廠預設的分類與帳戶。
+   * 舊月份以搬遷月份的身分帶入，所以不受已結月份鎖定限制，也不重算；任何一處不合就整批還原。
+   */
+  importLegacyLedger(data: LegacyImportData): Promise<LegacyImportResult>;
   /** 以舊系統格式輸出目前的財務文件（尚無文件時為空狀態）。 */
   exportFinanceDocument(): Promise<string>;
 
   close(): Promise<void>;
 }
-
-const INVALID_DATE_MESSAGE = '日期格式不正確，請用 YYYY-MM-DD 的有效日期。';
 
 const MONTH_MESSAGE = '月份格式不正確，請用 YYYY-MM。';
 
@@ -143,32 +162,14 @@ export async function openLedger(db: Database, options: LedgerOptions = {}): Pro
     addTransaction: (input) =>
       serial(() =>
         db.transaction(async (tx) => {
-          if (!isValidDate(input.date)) {
-            throw new LedgerError('invalid_date', INVALID_DATE_MESSAGE);
-          }
-          if (input.flow !== 'expense' && input.flow !== 'income') {
-            throw new LedgerError('invalid_flow', '收支別只能是「支出」或「收入」。');
-          }
-          if (!Number.isSafeInteger(input.amount) || input.amount <= 0) {
-            throw new LedgerError('invalid_amount', '金額必須是大於 0 的整數（新台幣元）。');
-          }
+          assertTransactionShape(input);
           await assertDateOpen(tx, input.date); // 已結月份鎖定的唯一檢查點
           const category = await tx.get<{ flow: Flow }>('SELECT flow FROM categories WHERE id = ?', [
             input.categoryId,
           ]);
-          if (!category) {
-            throw new LedgerError('unknown_category', '找不到這個分類，請先到分類設定新增。');
-          }
-          if (category.flow !== input.flow) {
-            throw new LedgerError(
-              'flow_mismatch',
-              category.flow === 'income' ? '這是收入分類，不能記成支出。' : '這是支出分類，不能記成收入。',
-            );
-          }
+          assertCategoryFlow(category, input.flow);
           const account = await tx.get('SELECT id FROM accounts WHERE id = ?', [input.accountId]);
-          if (!account) {
-            throw new LedgerError('unknown_account', '找不到這個帳戶。');
-          }
+          assertAccountKnown(account);
           const result = await tx.run(
             'INSERT INTO transactions (date, category_id, account_id, flow, amount, note) VALUES (?, ?, ?, ?, ?, ?)',
             [input.date, input.categoryId, input.accountId, input.flow, input.amount, input.note ?? ''],
@@ -196,25 +197,30 @@ export async function openLedger(db: Database, options: LedgerOptions = {}): Pro
 
     getDayTransactions: (date) =>
       serial(async () => {
-        if (!isValidDate(date)) {
-          throw new LedgerError('invalid_date', INVALID_DATE_MESSAGE);
-        }
-        return db.all<DayTransaction>(
-          `SELECT t.id, t.date, t.flow, t.amount, t.note,
-                  t.category_id AS categoryId, c.name AS categoryName,
-                  t.account_id AS accountId, a.name AS accountName
-             FROM transactions t
-             JOIN categories c ON c.id = t.category_id
-             JOIN accounts a ON a.id = t.account_id
-            WHERE t.date = ? ORDER BY t.id`,
-          [date],
-        );
+        if (!isValidDate(date)) throw new LedgerError('invalid_date', INVALID_DATE_MESSAGE);
+        return transactionsBetween(db, date, date);
       }),
+
+    listTransactions: (from, to) =>
+      serial(async () => {
+        if (!isValidDate(from) || !isValidDate(to)) throw new LedgerError('invalid_date', INVALID_DATE_MESSAGE);
+        return transactionsBetween(db, from, to);
+      }),
+
+    getOpeningDate: () =>
+      serial(async () => (await db.get<{ value: string }>("SELECT value FROM settings WHERE key = 'opening_date'"))?.value ?? null),
 
     listCategories: () =>
       serial(() => db.all<Category>('SELECT id, name, flow FROM categories ORDER BY sort_order')),
     listAccounts: () =>
-      serial(() => db.all<Account>('SELECT id, name, kind FROM accounts ORDER BY sort_order')),
+      serial(() =>
+        db.all<Account>(
+          'SELECT id, name, kind, opening_balance AS openingBalance FROM accounts ORDER BY sort_order',
+        ),
+      ),
+    listMembers: () => serial(() => db.all<Member>('SELECT id, name FROM members ORDER BY sort_order')),
+
+    importLegacyLedger: (data) => serial(() => db.transaction((tx) => importLegacy(tx, data))),
 
     runBudgetCommand: (command) =>
       serial(() =>
@@ -280,16 +286,7 @@ export async function openLedger(db: Database, options: LedgerOptions = {}): Pro
     importFinanceDocument: (document, importOptions = {}) =>
       serial(() =>
         db.transaction(async (tx) => {
-          let state;
-          try {
-            state = parseBudgetDocument(document);
-            for (const m of state.months) position(state, m.month); // 驗證每個月的位置與合計都算得出來
-          } catch (error) {
-            if (error instanceof BudgetDocumentError || error instanceof BudgetRuleError) {
-              throw new LedgerError('invalid_document', `財務文件無法匯入：${error.message}`);
-            }
-            throw error;
-          }
+          const state = parseImportedDocument(document);
           const { exists } = await readStoredDocument(tx);
           if (exists && !importOptions.replace) {
             throw new LedgerError('document_exists', '已經有財務文件，匯入會取代現有的預算與月結資料；請明確指定取代。');
@@ -340,4 +337,19 @@ async function monthExpenses(tx: Queryable, month: string): Promise<BudgetExpens
     [month],
   );
   return rows;
+}
+
+function transactionsBetween(q: Queryable, from: string, to: string): Promise<DayTransaction[]> {
+  return q.all<DayTransaction>(
+    `SELECT t.id, t.date, t.flow, t.amount, t.note,
+            t.category_id AS categoryId, c.name AS categoryName,
+            t.account_id AS accountId, a.name AS accountName,
+            m.name AS memberName
+       FROM transactions t
+       JOIN categories c ON c.id = t.category_id
+       JOIN accounts a ON a.id = t.account_id
+       LEFT JOIN members m ON m.id = t.member_id
+      WHERE t.date >= ? AND t.date <= ? ORDER BY t.date, t.id`,
+    [from, to],
+  );
 }
