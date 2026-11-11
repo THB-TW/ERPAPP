@@ -8,6 +8,7 @@ import { assertMonthlyCloseAccess, budgetFallbackMonth, executeBudgetCommand, mo
 import { budgetMonth, budgetStatus, type BudgetMonthView } from './budgetViews.ts';
 import { LedgerError } from './errors.ts';
 import { assertAssetCheckForClose } from './assetCheck.ts';
+import { assertCardReconciliation } from './cardReconciliation.ts';
 
 export interface MonthlyCloseRow {
   categoryId: string;
@@ -92,6 +93,7 @@ export async function monthlyCloseDraft(q: Queryable, now: Date): Promise<Monthl
 export async function previewMonthlyClose(q: Queryable, input: MonthlyCloseRequest, now: Date): Promise<MonthlyClosePreview> {
   assertMonthlyCloseAccess(input.hasEntitlement);
   validateMonth(input.month);
+  await assertCardReconciliation(q, input.month);
   if (input.month >= taipeiDate(now).slice(0, 7)) {
     throw new BudgetRuleError('operation', '這個月還沒結束，要等下個月才能月結。');
   }

@@ -1,5 +1,5 @@
 // 測試用：依 tools/export-finance-baseline.ps1 的匯出格式，產生一份小型虛構匯出（名稱、金額全是虛構）。
-// 含員工密碼、信用卡明細、投資等「不該搬」的資料表，用來確認它們不會進到輸出。
+// 員工密碼、投資不該搬；信用卡明細與交易同樣必須保留。
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { sha256 } from '../../../../tools/lib/verify-export.mjs';
@@ -27,6 +27,7 @@ export interface FictionalExport {
   categories: Row[];
   accounts: Row[];
   members: Row[];
+  cardStatements?: Row[];
   state: BudgetState;
   /** 直接指定財務文件原文（覆寫 state），用來測試壞文件。 */
   documentText?: string;
@@ -101,7 +102,7 @@ export function writeFictionalExport(privateRoot: string, data: FictionalExport 
     ...(data.projections ? projectionTables(data.projections) : []),
     { name: 'Employee', rows: [{ EmployeeId: 1, Account: 'fictional-user', Password: FICTIONAL_PASSWORD }],
       columns: [['EmployeeId', 'int'], ['Account', 'nvarchar'], ['Password', 'nvarchar']] },
-    { name: 'creditcard', rows: [{ Date: '2026-09-03', Item: '虛構店家', Amount: 999 }], columns: [['Date', 'date'], ['Item', 'nvarchar'], ['Amount', 'int']] },
+    { name: 'creditcard', rows: data.cardStatements ?? [{ Date: '2026-09-03', Item: '虛構店家', Amount: 999 }], columns: [['Date', 'date'], ['Item', 'nvarchar'], ['Amount', 'int']] },
     { name: 'InvestmentHolding', rows: [{ Id: 1, Symbol: 'FICT' }], columns: [['Id', 'int'], ['Symbol', 'nvarchar']] },
   ];
   const files: { file: string; bytes: number; sha256: string }[] = [];
@@ -129,9 +130,10 @@ export function fictionalBaseline(data: FictionalExport = fictionalExport()): Ba
   return {
     sourceDatabase: 'ERPDB_CloudflareBaseline_FICTIONAL',
     tables: 8 + (data.projections ? 3 : 0),
-    totalRows: data.transactions.length + data.categories.length + data.accounts.length + data.members.length + 1 + 1 + 1 + 1 +
+    totalRows: data.transactions.length + data.categories.length + data.accounts.length + data.members.length + 1 + 1 + (data.cardStatements?.length ?? 1) + 1 +
       (data.projections ? data.projections.property.length + data.projections.budget.length + data.projections.budgetCap.length : 0),
     transactions: data.transactions.length,
+    cardStatements: data.cardStatements?.length ?? 1,
     workspaceMonths: data.state.months.length,
     historicalAssetMismatches: 0,
   };

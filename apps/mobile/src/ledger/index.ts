@@ -47,6 +47,11 @@ import { listAssetChecks, previewAssetCheck, recordAssetCheck, type AssetCheckPr
 export type { AssetCheckPreview, AssetCheckRequest, AssetCheckAccount, AssetCheckMovement, AssetCheckRecord, RecordAssetCheckRequest } from './assetCheck.ts';
 import { completeMonthlyClose, monthlyCloseDraft, monthlyCloseSnapshot, previewMonthlyClose, type CompleteMonthlyCloseRequest, type MonthlyCloseDraft, type MonthlyClosePreview, type MonthlyCloseRequest, type MonthlyCloseSnapshot } from './monthlyClose.ts';
 import { backupCommands, trackModifications, type BackupFiles, type BackupInspection, type BackupStatus, type RestoreResult } from './backup.ts';
+import { importCardStatement, listCardStatements, type CardStatementRequest, type CardStatementResult, type CardStatementFilter, type CardStatement } from './cardStatements.ts';
+import { cardReconciliation, type CardReconciliation } from './cardReconciliation.ts';
+export { CardStatementMismatchError, type CardReconciliation, type CardCount, type CardMismatch } from './cardReconciliation.ts';
+export type { CardStatementRequest, CardStatementResult, CardStatementFilter, CardStatement } from './cardStatements.ts';
+export { CsvFormatError } from '../csv/records.ts';
 export type { BackupFiles, BackupInspection, BackupStatus, RestoreResult } from './backup.ts';
 
 export type { AccountKind, Flow } from './defaults.ts';
@@ -103,6 +108,9 @@ export interface BudgetCommandResult {
 }
 
 export interface Ledger extends AccountsLedger, TransfersLedger {
+  getCardReconciliation(month: string): Promise<CardReconciliation>;
+  importCardStatement(input: CardStatementRequest): Promise<CardStatementResult>;
+  listCardStatements(filter?: CardStatementFilter): Promise<CardStatement[]>;
   previewAssetCheck(input: AssetCheckRequest): Promise<AssetCheckPreview>;
   recordAssetCheck(input: RecordAssetCheckRequest): Promise<AssetCheckRecord>;
   listAssetChecks(month?: string): Promise<AssetCheckRecord[]>;
@@ -216,6 +224,9 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
   }
 
   return {
+    getCardReconciliation: (month) => serial(() => cardReconciliation(db, month)),
+    importCardStatement: (input) => serial(() => db.transaction((tx) => importCardStatement(tx, input))),
+    listCardStatements: (filter) => serial(() => listCardStatements(db, filter)),
     previewAssetCheck: (input) => serial(() => previewAssetCheck(db, input, now())),
     recordAssetCheck: (input) => serial(() => db.transaction((tx) => recordAssetCheck(tx, input, now()))),
     listAssetChecks: (month) => serial(() => listAssetChecks(db, month)),

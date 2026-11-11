@@ -117,4 +117,20 @@ export const ledgerMigrations: readonly Migration[] = [
       `);
     },
   },
+  {
+    // 票 12 固定使用 v11；中間預留版本由 schema_migrations 各版獨立判斷。
+    version: 11,
+    async up(tx) {
+      await tx.exec(`
+        CREATE TABLE card_statements (
+          id INTEGER PRIMARY KEY,
+          date TEXT NOT NULL,
+          merchant TEXT NOT NULL,
+          amount INTEGER NOT NULL CHECK (amount >= 0),
+          account_id INTEGER NOT NULL REFERENCES accounts(id)
+        );
+        CREATE INDEX card_statements_by_card_date ON card_statements(account_id, date);
+      `);
+    },
+  },
 ];

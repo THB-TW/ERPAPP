@@ -7,6 +7,7 @@ import { readStoredDocument, writeState } from './financeDocument.ts';
 import { budgetStatus, type BudgetStatus } from './budgetViews.ts';
 import { categoryAvailability, ensureExpenseCategory, renameExpenseCategory, setCategoryInactive } from './categoryLifecycle.ts';
 import { LedgerError } from './errors.ts';
+import { assertCardReconciliation } from './cardReconciliation.ts';
 
 export interface BudgetCommandPreview {
   before: BudgetStatus;
@@ -94,6 +95,7 @@ export async function executeBudgetCommand(q: Queryable, input: BudgetCommand, n
   if (!replay) await assertNamesAvailable(q, command, state, fallback);
   const expenses = command.action === 'close' && !replay ? await monthExpenses(q, command.month) : undefined;
   const after = applyBudgetCommand(state, command, { actor: BUDGET_ACTOR, time: now.toISOString(), openingMonth: fallback, expenses });
+  if (command.action === 'close' && !replay) await assertCardReconciliation(q, command.month);
   if (!preview && after !== state) {
     await writeState(q, exists, state.version, after);
     await syncCategories(q, command, state, fallback);

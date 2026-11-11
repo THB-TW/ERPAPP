@@ -1,17 +1,20 @@
 import { Stack, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
-import type { MonthlyClosePreview } from '../ledger/index.ts';
+import type { CardReconciliation, MonthlyClosePreview } from '../ledger/index.ts';
+import { CardStatementCheck } from '../ui/CardStatementCheck.tsx';
+import { cardStatementErrorMessage } from '../ui/cardStatementError.ts';
 import { hasMonthlyCloseEntitlement } from '../ui/closeEntitlement.ts';
 import { formatAmount, monthTitle } from '../ui/format.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
-import { CloseButton, ClosePage, MonthlyCloseSummary, closeErrorMessage, closeStyles as styles } from '../ui/MonthlyCloseSummary.tsx';
+import { CloseButton, ClosePage, MonthlyCloseSummary, closeStyles as styles } from '../ui/MonthlyCloseSummary.tsx';
 
 export default function CloseCalculationScreen() {
   const { month: monthParam } = useLocalSearchParams<{ month?: string | string[] }>();
   const month = typeof monthParam === 'string' ? monthParam : '';
   const ledger = useLedger();
   const [preview, setPreview] = useState<MonthlyClosePreview | null>(null);
+  const [cardCheck, setCardCheck] = useState<CardReconciliation | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [retry, setRetry] = useState(0);
@@ -20,11 +23,18 @@ export default function CloseCalculationScreen() {
     let cancelled = false;
     setLoading(true);
     setPreview(null);
+    setCardCheck(null);
     setError(null);
-    ledger.previewMonthlyClose({ month, hasEntitlement: hasMonthlyCloseEntitlement() }).then((value) => {
-      if (!cancelled) { setPreview(value); setLoading(false); }
+    async function load() {
+      const check = await ledger.getCardReconciliation(month);
+      if (!cancelled) setCardCheck(check);
+      const value = check.matched ? await ledger.previewMonthlyClose({ month, hasEntitlement: hasMonthlyCloseEntitlement() }) : null;
+      return { check, value };
+    }
+    load().then(({ check, value }) => {
+      if (!cancelled) { setCardCheck(check); setPreview(value); setLoading(false); }
     }, (e: unknown) => {
-      if (!cancelled) { setError(closeErrorMessage(e)); setLoading(false); }
+      if (!cancelled) { setError(cardStatementErrorMessage(e)); setLoading(false); }
     });
     return () => { cancelled = true; };
   }, [ledger, month, retry]));
@@ -35,6 +45,9 @@ export default function CloseCalculationScreen() {
       <Text style={styles.title}>{month ? monthTitle(month) : '月結'}計算預覽</Text>
       {loading ? <ActivityIndicator accessibilityLabel="計算月結中" /> : null}
       {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
+      {cardCheck ? <CardStatementCheck result={cardCheck} /> : null}
+      {!loading && cardCheck && !cardCheck.matched ? <CloseButton title="回信用卡帳單匯入與核對"
+        onPress={() => router.push({ pathname: '/close-card-statement', params: { month } })} /> : null}
       <>
         {!loading && preview ? <>
           <Text style={styles.heading}>③ 自動計算結果</Text>
