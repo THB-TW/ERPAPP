@@ -1,0 +1,14 @@
+# 06 — 翰陞執行舊帳轉換與比對
+
+**What to build:** 翰陞把 Windows 上 2026-11-08 的私人備份匯出複製到 Mac，照說明執行轉換與比對，回報摘要。這是驗收門檻的前兩項。
+
+**Blocked by:** 05 58 個月比對工具與報告
+
+**Status:** ready-for-human
+
+**Owner:** `legacy-migration`（見 `docs/agents/team.md`）　**Spec:** [規格](../../finance-product/spec.md)
+
+- [ ] 備份匯出已在 Mac 的私人位置，未進 Git
+- [ ] 轉換成功產生帳本檔
+- [ ] 比對結果為 58 個月 0 差異、17 個月歷史差異同額重現、交易與信用卡與投資總量相同；摘要已提交
+- [ ] 重算差異報告已由翰陞看過；需要處理的差異另開票
