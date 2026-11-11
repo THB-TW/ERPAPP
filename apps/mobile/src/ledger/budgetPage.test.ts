@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { openNodeDatabase } from '../db/nodeDriver.ts';
 import { emptyBudgetState, serializeBudgetDocument } from '../calc/budgetDocument.ts';
 import type { BudgetCommand, BudgetState } from '../calc/budgetTypes.ts';
-import { openLedger, type Ledger } from './index.ts';
+import { LedgerError, openLedger, type Ledger } from './index.ts';
 
 const NOW = new Date('2026-11-11T04:00:00Z');
 function fixture(withBaseline = false): BudgetState {
@@ -304,4 +304,56 @@ test('分類可以改回自己先前的名稱，沿用同一歸屬且保留交�
   assert.equal((await ledger.getDayTransactions('2026-11-01'))[0].categoryName, '飲食');
   assert.deepEqual((await ledger.listTransactions('2026-10-01', '2026-11-30')).map((r) => r.amount), [1000, 25]);
   assert.deepEqual(await ledger.getUnmappedExpenseCategories(), []);
+});
+
+test('保留原停用帳戶可修改交易，但不能換到其他停用帳戶或繞過分類啟停', async (t) => {
+  const ledger = await setup(t);
+  const original = await spend(ledger, '飲食', 80, '2026-10-10');
+  const food = (await ledger.listCategories()).find((c) => c.name === '飲食')!;
+  const bank = (await ledger.listAccounts())[0];
+  await ledger.updateAccount(bank.id, { active: false });
+  assert.equal((await ledger.listAccounts()).find((a) => a.id === bank.id)!.active, false);
+  const input = { date: '2026-10-10', categoryId: food.id, accountId: bank.id, flow: 'expense' as const, amount: 90 };
+  await assert.rejects(ledger.addTransaction(input), (e) => e instanceof LedgerError && e.code === 'account_inactive');
+  await ledger.updateTransaction(original.id, input);
+  assert.equal((await ledger.getTransaction(original.id)).amount, 90);
+
+  const other = await ledger.addAccount({ name: '合成停用帳戶', kind: 'cash' });
+  await ledger.updateAccount(other.id, { active: false });
+  await assert.rejects(ledger.updateTransaction(original.id, { ...input, accountId: other.id }),
+    (e) => e instanceof LedgerError && e.code === 'account_inactive');
+  await ledger.runBudgetCommand(await command(ledger, { action: 'retire', from: 'food' }));
+  await assert.rejects(ledger.updateTransaction(original.id, { ...input, amount: 100 }),
+    (e) => e instanceof LedgerError && e.code === 'unknown_category');
+  await ledger.updateAccount(bank.id, { active: true });
+  await assert.rejects(ledger.addTransaction(input), (e) => e instanceof LedgerError && e.code === 'unknown_category');
+  assert.equal((await ledger.getTransaction(original.id)).amount, 90);
+});
+
+test('轉帳的新增、修改與刪除不改預算進度，保留轉帳時月結仍與相同收支的帳本一致', async (t) => {
+  const source = await setup(t, true);
+  const reference = await setup(t, true);
+  for (const ledger of [source, reference]) {
+    await ledger.addAccount({ name: '合成信用卡', kind: 'credit_card', openingBalance: -200 });
+    await spend(ledger, '飲食', 100, '2026-10-10');
+  }
+  const before = await source.getBudgetProgress('2026-10');
+  const document = await source.exportFinanceDocument();
+  const balances = await source.listAccountBalances('2026-10-31');
+  const transfer = { date: '2026-10-11', fromAccountId: 1, toAccountId: 2, amount: 80, note: '合成繳卡費' };
+  const first = await source.addTransfer(transfer);
+  await source.updateTransfer(first.id, { ...transfer, amount: 60 });
+  const temporary = await source.addTransfer({ ...transfer, amount: 20 });
+  await source.deleteTransfer(temporary.id);
+  assert.equal((await source.listTransfers('2026-10-01', '2026-10-31')).length, 1);
+  assert.deepEqual(await source.getBudgetProgress('2026-10'), before);
+  assert.equal(await source.getMonthIncome('2026-10'), await reference.getMonthIncome('2026-10'));
+  assert.deepEqual(await source.getUnmappedExpenseCategories('2026-10'), []);
+  assert.equal(await source.exportFinanceDocument(), document);
+  assert.equal((await source.listAccountBalances('2026-10-31')).reduce((sum, a) => sum + a.balance, 0),
+    balances.reduce((sum, a) => sum + a.balance, 0));
+  for (const ledger of [source, reference]) {
+    await ledger.runBudgetCommand(await command(ledger, { action: 'close', amount: 1000 }));
+  }
+  assert.deepEqual(await source.getBudgetMonth('2026-10'), await reference.getBudgetMonth('2026-10'));
 });

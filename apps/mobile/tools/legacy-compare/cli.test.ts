@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { ConversionStopped } from '../legacy-convert/source.ts';
 import { OutputPathError } from '../legacy-convert/output.ts';
 import { EXIT, UsageError, main, parseCliArgs } from './cli.ts';
-import type { CompareOptions, CompareOutcome } from './run.ts';
+import { ReportWriteFailed, type CompareOptions, type CompareOutcome } from './run.ts';
 
 test('參數解析：三個位置參數與 --manifest-sha256；其他一律用法錯誤', () => {
   const o = parseCliArgs(['/p/export', '/p/ledger.sqlite', '/p/report.md', '--manifest-sha256', 'ABC']);
@@ -42,4 +42,31 @@ test('結束代碼：全過 0；門檻有差異 3（仍印摘要與報告位置�
   assert.match(other.err, /Checksum differs/);
   const usage = await main(['a'], async () => outcome(true), { out: () => {}, err: () => {} });
   assert.equal(usage, EXIT.usage);
+});
+
+test('非預期的錯誤：stderr 先警告可能含私人資料，再印訊息；不會出現在摘要裡', async () => {
+  const other = await run(async () => { throw new Error('裡面有 虛構名稱'); });
+  assert.equal(other.code, EXIT.failed);
+  const lines = other.err.split('\n');
+  assert.equal(lines[0], '以下錯誤訊息可能含私人資料，請勿貼到公開位置');
+  assert.match(lines[1], /虛構名稱/);
+  assert.equal(other.out, '');
+  // 位置、輸入問題的訊息是我們自己寫的固定說明，不需要警告
+  const stopped = await run(async () => { throw new ConversionStopped('基準不符'); });
+  assert.doesNotMatch(stopped.err, /私人資料/);
+});
+
+test('恰好 1 項門檻差異也是結束代碼 3；摘要後印出給操作者的回報指示', async () => {
+  const one = await run(async () => ({ ...outcome(false), thresholdDifferences: 1 }));
+  assert.equal(one.code, EXIT.differences);
+  assert.match(one.err, /1 項差異/);
+  assert.match(one.out, /請把上面的摘要內容回報/);
+});
+
+test('報告寫不進去：有門檻差異（就算只有 1 項）仍是結束代碼 3 並把摘要印在終端機；沒有差異才是 1', async () => {
+  const one = await run(async () => { throw new ReportWriteFailed('報告寫入失敗', 1, [], ['摘要第一行']); });
+  assert.equal(one.code, EXIT.differences);
+  assert.match(one.out, /摘要第一行/);
+  const none = await run(async () => { throw new ReportWriteFailed('報告寫入失敗', 0, [], ['摘要第一行']); });
+  assert.equal(none.code, EXIT.failed);
 });

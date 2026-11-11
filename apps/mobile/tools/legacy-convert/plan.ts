@@ -34,7 +34,7 @@ export interface PlanResult {
 const DATE_PATTERN = /^(\d{4}-\d{2}-\d{2})(?:[T ]00:00:00(?:\.0+)?)?$/;
 const SAMPLE_LIMIT = 10;
 
-function text(value: unknown): string | null {
+export function text(value: unknown): string | null {
   return typeof value === 'string' && value.trim() !== '' ? value : null;
 }
 

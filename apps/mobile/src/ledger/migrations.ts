@@ -1,5 +1,6 @@
 import type { Migration } from '../db/migrate.ts';
 import { DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES } from './defaults.ts';
+import { BACKUP_APPLICATION_ID } from './backup.ts';
 
 // 帳本的結構遷移。金額為新台幣整數（INTEGER），日期為台北時間的 YYYY-MM-DD 字串（TEXT）。
 export const ledgerMigrations: readonly Migration[] = [
@@ -72,6 +73,47 @@ export const ledgerMigrations: readonly Migration[] = [
         );
         ALTER TABLE transactions ADD COLUMN member_id INTEGER REFERENCES members(id);
         ALTER TABLE accounts ADD COLUMN opening_balance INTEGER NOT NULL DEFAULT 0;
+      `);
+    },
+  },
+  {
+    // 備份檔（票 16）：帳本檔頭寫入識別標記（application_id），並新增 ledger_meta 存最後修改時間、
+    // 上次備份時間與另存檔檔名。ledger_meta 不放在 settings，是因為舊帳帶入要求 settings 是空的。
+    version: 4,
+    async up(tx) {
+      await tx.exec(`
+        CREATE TABLE ledger_meta (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL
+        );
+      `);
+      // 升級前就有帳的帳本：以升級當下當作最後修改時間（格式同 toISOString），
+      // 之後匯入較舊的備份才會警告。全新的帳本不補。
+      await tx.exec(`
+        INSERT INTO ledger_meta (key, value)
+        SELECT 'last_modified_at', strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE EXISTS (SELECT 1 FROM transactions) OR EXISTS (SELECT 1 FROM finance_document);
+      `);
+      // PRAGMA 不能帶參數；值是程式內的常數。
+      await tx.exec(`PRAGMA application_id = ${BACKUP_APPLICATION_ID}`);
+    },
+  },
+  {
+    // 票 08 預先分配 v5；v4 可稍後補入，由遷移器逐版記錄，不能只看最高版本跳過。
+    version: 5,
+    async up(tx) {
+      await tx.exec(`
+        ALTER TABLE accounts ADD COLUMN active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1));
+        CREATE TABLE transfers (
+          id INTEGER PRIMARY KEY,
+          date TEXT NOT NULL CHECK (date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+          from_account_id INTEGER NOT NULL REFERENCES accounts(id),
+          to_account_id INTEGER NOT NULL REFERENCES accounts(id),
+          amount INTEGER NOT NULL CHECK (amount > 0),
+          note TEXT NOT NULL DEFAULT '',
+          CHECK (from_account_id <> to_account_id)
+        );
+        CREATE INDEX transfers_by_date ON transfers(date);
       `);
     },
   },
