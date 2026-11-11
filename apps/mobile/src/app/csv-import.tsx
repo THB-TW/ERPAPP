@@ -8,6 +8,7 @@ import { csvFilePort, CsvFilePortError, type CsvFile } from '../csv/filePort.ts'
 import { CsvFormatError, LedgerError, type CsvImportResult } from '../ledger/index.ts';
 import { syncNotifications } from '../platform/notificationSync.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
+import { hasMonthlyCloseEntitlement } from '../ui/closeEntitlement.ts';
 import { colors } from '../ui/theme.ts';
 
 export default function CsvImportScreen() {
@@ -82,6 +83,14 @@ export default function CsvImportScreen() {
     }, '匯出失敗，請再試一次。');
   }
 
+  function exportBudget() {
+    void perform(async () => {
+      const bytes = await ledger.exportBudgetCsv({ hasEntitlement: hasMonthlyCloseEntitlement() });
+      if (!mounted.current) return;
+      await csvFilePort.shareCsv({ name: `預算資料-${taipeiDate(new Date())}.csv`, bytes });
+    }, '匯出失敗，請再試一次。');
+  }
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['bottom']}>
       <Stack.Screen options={{ title: '匯入 CSV', headerBackTitle: '返回' }} />
@@ -92,7 +101,7 @@ export default function CsvImportScreen() {
       >
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 16 }}>
           <Text style={{ fontSize: 24, fontWeight: '700', color: colors.text }}>其他 App 搬家（匯入 CSV）</Text>
-          <Text style={{ color: colors.muted }}>只需要類別與金額。匯入與匯出皆免費，不需訂閱。</Text>
+          <Text style={{ color: colors.muted }}>只需要類別與金額。交易的匯入與匯出皆免費，不需訂閱。</Text>
           <Action label="查看 CSV 規格說明" disabled={busy} onPress={() => router.push('/csv-spec')} secondary />
 
           <View style={{ padding: 16, borderRadius: 12, backgroundColor: colors.surface, gap: 12 }}>
@@ -154,6 +163,12 @@ export default function CsvImportScreen() {
             <Text style={{ color: colors.text, fontWeight: '600', fontSize: 18 }}>帶走全部交易</Text>
             <Text style={{ color: colors.muted }}>匯出成 UTF-8 CSV，包含全部日期的收入與支出，可再次匯入。</Text>
             <Action label="匯出全部交易 CSV" disabled={busy} onPress={exportCsv} secondary />
+          </View>
+
+          <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 16, gap: 12 }}>
+            <Text style={{ color: colors.text, fontWeight: '600', fontSize: 18 }}>匯出預算資料（付費）</Text>
+            <Text style={{ color: colors.muted }}>把預算上限、各月月結、儲備餘額與貸款整理成一份 CSV 報表。要換手機或搬家請用「設定 → 備份」的備份檔，它永遠免費，也包含全部預算資料。</Text>
+            <Action label="匯出預算資料 CSV" disabled={busy} onPress={exportBudget} secondary />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

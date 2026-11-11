@@ -52,6 +52,8 @@ export type { AssetCheckPreview, AssetCheckRequest, AssetCheckAccount, AssetChec
 import { loanCategoryNames, loanCommands, type LoansLedger } from './loans.ts';
 export type { LoanInput, LoanWriteRequest, LoanView, LoanRevision } from './loans.ts';
 import { completeMonthlyClose, monthlyCloseDraft, monthlyCloseSnapshot, previewMonthlyClose, type CompleteMonthlyCloseRequest, type MonthlyCloseDraft, type MonthlyClosePreview, type MonthlyCloseRequest, type MonthlyCloseSnapshot } from './monthlyClose.ts';
+import { exportBudgetCsv, type BudgetExportRequest } from './budgetExport.ts';
+export type { BudgetExportRequest } from './budgetExport.ts';
 import { importTransactionsCsv, exportTransactionsCsv, type CsvImportOptions, type CsvImportResult } from './csvTransactions.ts';
 export type { CsvEncoding, CsvImportOptions, CsvImportResult, CsvRowRejection } from './csvTransactions.ts';
 import { backupCommands, trackModifications, type BackupFiles, type BackupInspection, type BackupStatus, type RestoreResult } from './backup.ts';
@@ -143,6 +145,8 @@ export interface Ledger extends AccountsLedger, TransfersLedger, InvestmentsLedg
   importTransactionsCsv(input: string | Uint8Array, options?: CsvImportOptions): Promise<CsvImportResult>;
   /** 免費匯出全部交易為 UTF-8（含 BOM）的 CSV。 */
   exportTransactionsCsv(): Promise<Uint8Array>;
+  /** 付費的預算資料匯出（上限、月結、儲備、貸款），UTF-8（含 BOM）CSV；沒有權益丟 LedgerError('entitlement_required')。完整遷移請用備份檔。 */
+  exportBudgetCsv(input: BudgetExportRequest): Promise<Uint8Array>;
   getMonthCalendar(month: string): Promise<MonthCalendar>;
   addTransaction(input: NewTransaction): Promise<{ id: number }>;
   /** 修改交易的全部欄位。原日期或新日期落在已結月份都會被拒（month_closed）。 */
@@ -263,6 +267,7 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
     getMonthlyCloseSnapshot: (month) => serial(() => monthlyCloseSnapshot(db, month, now())),
     importTransactionsCsv: (input, csvOptions) => serial(() => db.transaction((tx) => importTransactionsCsv(tx, input, taipeiDate(now()), csvOptions))),
     exportTransactionsCsv: () => serial(() => exportTransactionsCsv(db)),
+    exportBudgetCsv: (input) => serial(() => exportBudgetCsv(db, input, now())),
     ...accountCommands(db, serial, () => taipeiDate(now())),
     ...investmentCommands(db, serial, () => taipeiDate(now())),
     ...transferCommands(db, serial),
