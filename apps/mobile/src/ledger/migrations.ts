@@ -1,5 +1,6 @@
 import type { Migration } from '../db/migrate.ts';
 import { DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES } from './defaults.ts';
+import { ledgerMetaMigration } from './backup.ts';
 
 // 帳本的結構遷移。金額為新台幣整數（INTEGER），日期為台北時間的 YYYY-MM-DD 字串（TEXT）。
 export const ledgerMigrations: readonly Migration[] = [
@@ -74,5 +75,11 @@ export const ledgerMigrations: readonly Migration[] = [
         ALTER TABLE accounts ADD COLUMN opening_balance INTEGER NOT NULL DEFAULT 0;
       `);
     },
+  },
+  {
+    // 備份檔（票 16）：帳本檔頭寫入識別標記（application_id），並新增 ledger_meta 存最後修改時間與
+    // 上次備份時間。ledger_meta 不放在 settings，是因為舊帳帶入要求 settings 是空的。
+    version: 4,
+    up: ledgerMetaMigration,
   },
 ];
