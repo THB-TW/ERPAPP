@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { ActivityIndicator, Text, View } from 'react-native';
 import type { Ledger } from '../ledger/index.ts';
 import { openMobileLedger } from '../platform/openMobileLedger.ts';
+import { startNotificationSync } from '../platform/notificationSync.ts';
 import { colors } from './theme.ts';
 
 const LedgerContext = createContext<Ledger | null>(null);
@@ -25,6 +26,10 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (ledger) return startNotificationSync(ledger);
+  }, [ledger]);
 
   if (error) {
     return (

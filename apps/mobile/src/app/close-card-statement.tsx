@@ -9,6 +9,7 @@ import { CardStatementCheck } from '../ui/CardStatementCheck.tsx';
 import { cardStatementErrorMessage } from '../ui/cardStatementError.ts';
 import { hasMonthlyCloseEntitlement } from '../ui/closeEntitlement.ts';
 import { monthTitle } from '../ui/format.ts';
+import { syncNotifications } from '../platform/notificationSync.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
 import { CloseButton, closeStyles as styles } from '../ui/MonthlyCloseSummary.tsx';
 import { colors } from '../ui/theme.ts';
@@ -70,6 +71,7 @@ export default function CloseCardStatementScreen() {
         name = file.name;
       }
       const result = await ledger.importCardStatement({ accountId: selectedId, csv: content, encoding });
+      void syncNotifications(ledger).catch(() => {});
       setMessage(`${name}：新增 ${result.imported} 筆，已存在略過 ${result.skipped} 筆，共 ${result.total} 筆消費。負數繳款列不計數。`);
       setCheck(null);
       setCheck(await ledger.getCardReconciliation(month));
