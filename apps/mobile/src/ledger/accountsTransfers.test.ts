@@ -119,6 +119,78 @@ test('轉帳不進交易、月曆收支、預算歸屬與月結，財務文件�
   assert.deepEqual([month.income, month.surplus, month.spare, month.tuition, month.reserve, month.total], [0, 0, 0, 0, 0, 0]);
 });
 
+test('只有轉帳的月份：收入與支出明細合計為零，圓餅分類及分類交易列表皆為空', async (t) => {
+  const ledger = await fresh(); t.after(() => ledger.close());
+  await ledger.addTransfer(transfer);
+  assert.equal((await ledger.listTransfers('2026-11-01', '2026-11-30')).length, 1);
+
+  for (const flow of ['expense', 'income'] as const) {
+    assert.deepEqual(await ledger.getMonthBreakdown('2026-11', flow), {
+      month: '2026-11', flow, total: 0, otherFlowTotal: 0, categories: [],
+    });
+  }
+  for (const category of await ledger.listCategories()) {
+    assert.deepEqual(await ledger.getCategoryMonthTransactions('2026-11', category.id), []);
+  }
+  assert.equal(await ledger.getMonthIncome('2026-11'), 0);
+});
+
+test('收支混合轉帳：明細圓餅占比、分類金額筆數與兩邊合計全部不變', async (t) => {
+  const ledger = await fresh(false); t.after(() => ledger.close());
+  const categories = await ledger.listCategories();
+  const accounts = await ledger.listAccounts();
+  const cat = (name: string) => categories.find((c) => c.name === name)!.id;
+  const acc = (name: string) => accounts.find((a) => a.name === name)!.id;
+  const add = (category: string, flow: 'expense' | 'income', amount: number, account: string) =>
+    ledger.addTransaction({ date: '2026-11-05', categoryId: cat(category), accountId: acc(account), flow, amount });
+  await add('飲食', 'expense', 40, '現金');
+  await add('飲食', 'expense', 60, '信用卡');
+  await add('交通', 'expense', 100, '現金');
+  await add('娛樂', 'expense', 100, '電子支付');
+  await add('薪資', 'income', 30000, '銀行');
+  await add('薪資', 'income', 10000, '銀行');
+  await add('其他收入', 'income', 10000, '電子支付');
+
+  const expenseBefore = await ledger.getMonthBreakdown('2026-11', 'expense');
+  const incomeBefore = await ledger.getMonthBreakdown('2026-11', 'income');
+  assert.deepEqual([expenseBefore.total, expenseBefore.otherFlowTotal, incomeBefore.total, incomeBefore.otherFlowTotal], [300, 50000, 50000, 300]);
+  assert.deepEqual(expenseBefore.categories, [
+    { categoryId: cat('飲食'), categoryName: '飲食', amount: 100, count: 2, permille: 334 },
+    { categoryId: cat('交通'), categoryName: '交通', amount: 100, count: 1, permille: 333 },
+    { categoryId: cat('娛樂'), categoryName: '娛樂', amount: 100, count: 1, permille: 333 },
+  ]);
+  assert.deepEqual(incomeBefore.categories, [
+    { categoryId: cat('薪資'), categoryName: '薪資', amount: 40000, count: 2, permille: 800 },
+    { categoryId: cat('其他收入'), categoryName: '其他收入', amount: 10000, count: 1, permille: 200 },
+  ]);
+
+  await ledger.addTransfer({ date: '2026-11-05', fromAccountId: acc('銀行'), toAccountId: acc('信用卡'), amount: 5000, note: '繳卡費' });
+  await ledger.addTransfer({ date: '2026-11-05', fromAccountId: acc('銀行'), toAccountId: acc('現金'), amount: 100, note: '飲食' });
+  await ledger.addTransfer({ date: '2026-11-05', fromAccountId: acc('現金'), toAccountId: acc('電子支付'), amount: 50, note: '薪資' });
+  assert.equal((await ledger.listTransfers('2026-11-01', '2026-11-30')).length, 3);
+  assert.deepEqual(await ledger.getMonthBreakdown('2026-11', 'expense'), expenseBefore);
+  assert.deepEqual(await ledger.getMonthBreakdown('2026-11', 'income'), incomeBefore);
+  assert.equal(await ledger.getMonthIncome('2026-11'), 50000);
+});
+
+test('分類當月交易列表排除同日同額轉帳，既有支出與收入交易原樣保留', async (t) => {
+  const ledger = await fresh(); t.after(() => ledger.close());
+  const expense = await ledger.addTransaction({ date: '2026-11-05', categoryId: 1, accountId: 3, flow: 'expense', amount: 500, note: '假午餐' });
+  const income = await ledger.addTransaction({ date: '2026-11-05', categoryId: 2, accountId: 2, flow: 'income', amount: 500, note: '假收入' });
+  const expenseBefore = await ledger.getCategoryMonthTransactions('2026-11', 1);
+  const incomeBefore = await ledger.getCategoryMonthTransactions('2026-11', 2);
+  assert.deepEqual(expenseBefore.map((x) => x.id), [expense.id]);
+  assert.deepEqual(incomeBefore.map((x) => x.id), [income.id]);
+
+  await ledger.addTransfer(transfer);
+  await ledger.addTransfer({ ...transfer, fromAccountId: 3, toAccountId: 2, note: '假收入' });
+  assert.equal((await ledger.listTransfers('2026-11-01', '2026-11-30')).length, 2);
+  assert.deepEqual(await ledger.getCategoryMonthTransactions('2026-11', 1), expenseBefore);
+  assert.deepEqual(await ledger.getCategoryMonthTransactions('2026-11', 2), incomeBefore);
+  assert.deepEqual(await ledger.getCategoryMonthTransactions('2026-12', 1), []);
+  assert.deepEqual(await ledger.getCategoryMonthTransactions('2026-12', 2), []);
+});
+
 test('轉帳欄位錯誤全部拒絕且不留下單邊異動', async (t) => {
   const ledger = await fresh(); t.after(() => ledger.close());
   for (const amount of [0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
