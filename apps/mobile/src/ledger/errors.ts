@@ -26,7 +26,8 @@ export type LedgerErrorCode =
   | 'backup_corrupt'
   | 'backup_older'
   | 'backup_failed'
-  | 'backup_unavailable';
+  | 'backup_unavailable'
+  | 'entitlement_required';
 
 /** 帳本服務拒絕指令或查詢時丟出；message 是可直接顯示給使用者的繁體中文。 */
 export class LedgerError extends Error {
