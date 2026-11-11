@@ -15,6 +15,15 @@ export interface BudgetCommandPreview {
   changes: BudgetAmountChange[];
 }
 
+export interface BudgetCommandAccess {
+  /** 舊帳工具可省略；App 的付費指令須明確帶入訂閱模組判斷。 */
+  hasEntitlement?: boolean;
+}
+
+export function assertMonthlyCloseAccess(hasEntitlement: boolean): void {
+  if (hasEntitlement !== true) throw new BudgetRuleError('operation', '需要有效的付費權益才能進行月結。');
+}
+
 export async function budgetFallbackMonth(q: Queryable, now: Date): Promise<string> {
   return (await q.get<{ value: string }>("SELECT value FROM settings WHERE key = 'opening_date'"))?.value.slice(0, 7) ?? taipeiDate(now).slice(0, 7);
 }
@@ -69,7 +78,10 @@ async function syncCategories(q: Queryable, command: BudgetCommand, state: Budge
   }
 }
 
-export async function executeBudgetCommand(q: Queryable, input: BudgetCommand, now: Date, preview = false) {
+export async function executeBudgetCommand(q: Queryable, input: BudgetCommand, now: Date, preview = false, access: BudgetCommandAccess = {}) {
+  if ((input.action === 'close' || input.action === 'rollback') && access.hasEntitlement !== undefined) {
+    assertMonthlyCloseAccess(access.hasEntitlement);
+  }
   // 新增分類預設照實支，既有引擎與舊文件的 reserve 預設不變。
   const command = input.action === 'add' ? { ...input, kind: input.kind ?? 'actual' } : input;
   const { exists, state } = await readStoredDocument(q);

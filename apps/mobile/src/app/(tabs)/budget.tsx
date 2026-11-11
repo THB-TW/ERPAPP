@@ -4,10 +4,11 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import type { NativeScrollEvent, NativeSyntheticEvent, ScrollViewInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { monthOf, shiftMonth, taipeiDate } from '../../calc/dates.ts';
-import type { BudgetProgress, BudgetProgressRow } from '../../ledger/index.ts';
+import type { BudgetMonthView, BudgetProgress, BudgetProgressRow } from '../../ledger/index.ts';
 import { formatAmount, monthTitle, userMessage } from '../../ui/format.ts';
 import { useLedger } from '../../ui/LedgerProvider.tsx';
 import { colors } from '../../ui/theme.ts';
+import { MonthlyCloseSummary } from '../../ui/MonthlyCloseSummary.tsx';
 
 const SECTIONS = [
   { id: 'overview', label: '總覽', color: colors.muted },
@@ -26,6 +27,7 @@ export default function BudgetScreen() {
   const ledger = useLedger();
   const [month, setMonth] = useState(() => monthOf(taipeiDate(new Date())));
   const [progress, setProgress] = useState<BudgetProgress | null>(null);
+  const [closed, setClosed] = useState<BudgetMonthView | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
@@ -40,15 +42,21 @@ export default function BudgetScreen() {
     setError(null);
     setActiveSection('overview');
     sectionY.current = {};
-    ledger.getBudgetProgress(month).then(
-      (result) => {
+    Promise.all([ledger.getBudgetProgress(month), ledger.listBudgetMonths()]).then(async ([result, months]) => {
+      // 已結月份用自己快照；未結月份只顯示不晚於所選月份的最近已結結果。
+      const latest = months.filter((item) => item.month <= month).at(-1);
+      return { result, snapshot: latest ? await ledger.getBudgetMonth(latest.month) : null };
+    }).then(
+      ({ result, snapshot }) => {
         if (cancelled) return;
         setProgress(result);
+        setClosed(snapshot);
         setLoading(false);
       },
       (e: unknown) => {
         if (cancelled) return;
         setProgress(null);
+        setClosed(null);
         setError(userMessage(e, '讀取預算失敗，請再試一次。'));
         setLoading(false);
       },
@@ -155,6 +163,18 @@ export default function BudgetScreen() {
             </View>
             <Text style={styles.note}>上限合計不含照實支；本月已花包含照實支與尚未設定歸屬的支出。</Text>
             <Text style={styles.note}>可編輯的開放月份：{monthTitle(progress.openMonth)}。已結月份沿用當時的上限快照。</Text>
+            {closed ? <>
+              <Text style={styles.heading}>{monthTitle(closed.month)}已結資產</Text>
+              <MonthlyCloseSummary summary={closed} />
+              <Text style={styles.note}>以下累積儲備截至{monthTitle(closed.month)}，包含已生效調整；尚未包含未結月份的預估變動。</Text>
+              {closed.reserves.map((reserve) => <View key={reserve.categoryId} style={styles.rowTitle}>
+                <Text style={{ color: colors.text, flex: 1 }}>{reserve.name}累積儲備</Text>
+                <Text style={{ color: reserve.balance < 0 ? colors.expense : colors.text }}>{formatAmount(reserve.balance)}</Text>
+              </View>)}
+              <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/close-snapshot', params: { month: closed.month } })}>
+                <Text style={styles.link}>查看這個月的月結快照 ›</Text>
+              </Pressable>
+            </> : <Text style={styles.note}>這個月份尚無已結資產；完成月結後會顯示可用餘額、累積儲備與帳面總資產。</Text>}
             {progress.rows.length === 0 ? (
               <Text style={styles.note}>這個月還沒有預算上限設定，請到「設定 → 預算與分類」建立。</Text>
             ) : null}
