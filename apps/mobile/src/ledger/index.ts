@@ -13,8 +13,18 @@ import { serializeBudgetDocument } from '../calc/budgetDocument.ts';
 import type { BudgetCommand, BudgetExpense } from '../calc/budgetTypes.ts';
 import { parseImportedDocument, readStoredDocument, replaceDocument, writeState } from './financeDocument.ts';
 import { importLegacy, type LegacyImportData, type LegacyImportResult } from './legacyImport.ts';
-import { assertDateOpen } from './monthLock.ts';
-import { INVALID_DATE_MESSAGE, assertAccountKnown, assertCategoryFlow, assertTransactionShape } from './transactionRules.ts';
+import { isMonthClosed } from './monthLock.ts';
+import { INVALID_DATE_MESSAGE } from './transactionRules.ts';
+import {
+  deleteTransaction,
+  getTransaction,
+  insertTransaction,
+  transactionsBetween,
+  updateTransaction,
+  type DayTransaction,
+  type NewTransaction,
+  type TransactionDetail,
+} from './transactions.ts';
 import {
   budgetAdjustments,
   budgetMonth,
@@ -25,6 +35,7 @@ import {
   type BudgetMonthView,
   type BudgetStatus,
 } from './budgetViews.ts';
+import { categoryMonthTransactions, monthBreakdown, type MonthBreakdown } from './report.ts';
 import type { AccountKind, Flow } from './defaults.ts';
 import { LedgerError } from './errors.ts';
 import { ledgerMigrations } from './migrations.ts';
@@ -38,6 +49,8 @@ export type {
   BudgetAdjustmentView, BudgetMonthSummary, BudgetMonthView, BudgetReserveView, BudgetStatus,
 } from './budgetViews.ts';
 
+export type { CategoryShare, MonthBreakdown } from './report.ts';
+
 export interface Category { id: number; name: string; flow: Flow }
 export interface Account {
   id: number;
@@ -49,28 +62,7 @@ export interface Account {
 export interface Member { id: number; name: string }
 export type { LegacyImportData, LegacyImportResult } from './legacyImport.ts';
 
-export interface NewTransaction {
-  date: string;
-  categoryId: number;
-  accountId: number;
-  flow: Flow;
-  amount: number;
-  note?: string;
-}
-
-export interface DayTransaction {
-  id: number;
-  date: string;
-  flow: Flow;
-  amount: number;
-  note: string;
-  categoryId: number;
-  categoryName: string;
-  accountId: number;
-  accountName: string;
-  /** 沒有指定成員為 null。 */
-  memberName: string | null;
-}
+export type { DayTransaction, NewTransaction, TransactionDetail } from './transactions.ts';
 
 export interface CalendarDay {
   date: string;
@@ -100,6 +92,14 @@ export interface BudgetCommandResult {
 export interface Ledger {
   getMonthCalendar(month: string): Promise<MonthCalendar>;
   addTransaction(input: NewTransaction): Promise<{ id: number }>;
+  /** 修改交易的全部欄位。原日期或新日期落在已結月份都會被拒（month_closed）。 */
+  updateTransaction(id: number, input: NewTransaction): Promise<void>;
+  /** 刪除交易。已結月份的交易不能刪（month_closed）。 */
+  deleteTransaction(id: number): Promise<void>;
+  /** 單筆交易（修改表單用）；不存在丟 LedgerError('unknown_transaction')。 */
+  getTransaction(id: number): Promise<TransactionDetail>;
+  /** 該月是否已月結（含期初基準月）。畫面用來把交易標成鎖定。 */
+  isMonthClosed(month: string): Promise<boolean>;
   getDayTransactions(date: string): Promise<DayTransaction[]>;
   listCategories(): Promise<Category[]>;
   listAccounts(): Promise<Account[]>;
@@ -108,6 +108,12 @@ export interface Ledger {
   getOpeningDate(): Promise<string | null>;
   /** 日期區間內（含兩端）的全部交易，依日期、編號排序。給讀回核對與匯出用。 */
   listTransactions(from: string, to: string): Promise<DayTransaction[]>;
+
+  // ---- 明細（票 09）----
+  /** 該月某收支別的分類彙總與占比（圓餅圖與類別列表）。轉帳不計入。 */
+  getMonthBreakdown(month: string, flow: Flow): Promise<MonthBreakdown>;
+  /** 某分類在該月的交易，日期新的在前。 */
+  getCategoryMonthTransactions(month: string, categoryId: number): Promise<DayTransaction[]>;
 
   // ---- 預算與月結（票 03）----
   /**
@@ -159,24 +165,15 @@ export async function openLedger(db: Database, options: LedgerOptions = {}): Pro
   }
 
   return {
-    addTransaction: (input) =>
-      serial(() =>
-        db.transaction(async (tx) => {
-          assertTransactionShape(input);
-          await assertDateOpen(tx, input.date); // 已結月份鎖定的唯一檢查點
-          const category = await tx.get<{ flow: Flow }>('SELECT flow FROM categories WHERE id = ?', [
-            input.categoryId,
-          ]);
-          assertCategoryFlow(category, input.flow);
-          const account = await tx.get('SELECT id FROM accounts WHERE id = ?', [input.accountId]);
-          assertAccountKnown(account);
-          const result = await tx.run(
-            'INSERT INTO transactions (date, category_id, account_id, flow, amount, note) VALUES (?, ?, ?, ?, ?, ?)',
-            [input.date, input.categoryId, input.accountId, input.flow, input.amount, input.note ?? ''],
-          );
-          return { id: result.lastInsertRowId };
-        }),
-      ),
+    addTransaction: (input) => serial(() => db.transaction((tx) => insertTransaction(tx, input))),
+    updateTransaction: (id, input) => serial(() => db.transaction((tx) => updateTransaction(tx, id, input))),
+    deleteTransaction: (id) => serial(() => db.transaction((tx) => deleteTransaction(tx, id))),
+    getTransaction: (id) => serial(() => getTransaction(db, id)),
+    isMonthClosed: (month) =>
+      serial(async () => {
+        if (!isValidMonth(month)) throw new LedgerError('invalid_month', MONTH_MESSAGE);
+        return isMonthClosed(db, month);
+      }),
 
     getMonthCalendar: (month) =>
       serial(async () => {
@@ -206,6 +203,9 @@ export async function openLedger(db: Database, options: LedgerOptions = {}): Pro
         if (!isValidDate(from) || !isValidDate(to)) throw new LedgerError('invalid_date', INVALID_DATE_MESSAGE);
         return transactionsBetween(db, from, to);
       }),
+
+    getMonthBreakdown: (month, flow) => serial(() => monthBreakdown(db, month, flow)),
+    getCategoryMonthTransactions: (month, categoryId) => serial(() => categoryMonthTransactions(db, month, categoryId)),
 
     getOpeningDate: () =>
       serial(async () => (await db.get<{ value: string }>("SELECT value FROM settings WHERE key = 'opening_date'"))?.value ?? null),
@@ -337,19 +337,4 @@ async function monthExpenses(tx: Queryable, month: string): Promise<BudgetExpens
     [month],
   );
   return rows;
-}
-
-function transactionsBetween(q: Queryable, from: string, to: string): Promise<DayTransaction[]> {
-  return q.all<DayTransaction>(
-    `SELECT t.id, t.date, t.flow, t.amount, t.note,
-            t.category_id AS categoryId, c.name AS categoryName,
-            t.account_id AS accountId, a.name AS accountName,
-            m.name AS memberName
-       FROM transactions t
-       JOIN categories c ON c.id = t.category_id
-       JOIN accounts a ON a.id = t.account_id
-       LEFT JOIN members m ON m.id = t.member_id
-      WHERE t.date >= ? AND t.date <= ? ORDER BY t.date, t.id`,
-    [from, to],
-  );
 }

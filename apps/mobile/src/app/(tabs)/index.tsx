@@ -2,12 +2,12 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { monthGrid } from '../calc/calendarGrid.ts';
-import { monthOf, shiftMonth, taipeiDate } from '../calc/dates.ts';
-import type { CalendarDay, DayTransaction } from '../ledger/index.ts';
-import { formatAmount, dayTitle, monthTitle, userMessage } from '../ui/format.ts';
-import { useLedger } from '../ui/LedgerProvider.tsx';
-import { colors } from '../ui/theme.ts';
+import { monthGrid } from '../../calc/calendarGrid.ts';
+import { monthOf, shiftMonth, taipeiDate } from '../../calc/dates.ts';
+import type { CalendarDay, DayTransaction } from '../../ledger/index.ts';
+import { formatAmount, dayTitle, monthTitle, userMessage } from '../../ui/format.ts';
+import { useLedger } from '../../ui/LedgerProvider.tsx';
+import { colors } from '../../ui/theme.ts';
 
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
 
@@ -18,17 +18,23 @@ export default function HomeScreen() {
   const [selected, setSelected] = useState(today);
   const [days, setDays] = useState<Record<string, CalendarDay>>({});
   const [list, setList] = useState<DayTransaction[]>([]);
+  const [locked, setLocked] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // 每次回到首頁（含從記帳表單返回）都重新查，月曆與當日列表才會包含剛存的那筆。
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      Promise.all([ledger.getMonthCalendar(month), ledger.getDayTransactions(selected)]).then(
-        ([calendar, transactions]) => {
+      Promise.all([
+        ledger.getMonthCalendar(month),
+        ledger.getDayTransactions(selected),
+        ledger.isMonthClosed(monthOf(selected)),
+      ]).then(
+        ([calendar, transactions, closed]) => {
           if (cancelled) return;
           setDays(Object.fromEntries(calendar.days.map((d) => [d.date, d])));
           setList(transactions);
+          setLocked(closed);
           setError(null);
         },
         (e: unknown) => {
@@ -67,7 +73,7 @@ export default function HomeScreen() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['bottom']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={[]}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 12 }}>
         <Pressable onPress={() => changeMonth(-1)} hitSlop={12} accessibilityLabel="上個月">
           <Text style={{ fontSize: 22, color: colors.accent }}>‹</Text>
@@ -106,21 +112,36 @@ export default function HomeScreen() {
         <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text }}>{dayTitle(selected)}</Text>
         <Pressable
           onPress={() => router.push({ pathname: '/entry', params: { date: selected } })}
-          style={{ backgroundColor: colors.accent, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 16 }}
+          disabled={locked}
+          style={{
+            backgroundColor: locked ? colors.border : colors.accent,
+            borderRadius: 8,
+            paddingVertical: 8,
+            paddingHorizontal: 16,
+          }}
           accessibilityRole="button"
+          accessibilityState={{ disabled: locked }}
         >
-          <Text style={{ color: '#fff', fontWeight: '600' }}>新增</Text>
+          <Text style={{ color: locked ? colors.muted : '#fff', fontWeight: '600' }}>新增</Text>
         </Pressable>
       </View>
+      {locked ? (
+        <Text style={{ color: colors.muted, fontSize: 13, paddingHorizontal: 12, paddingBottom: 8 }}>
+          🔒 {monthTitle(monthOf(selected))}已月結，交易已鎖定，不能新增、修改或刪除。要更改請先撤銷月結，或做前期更正。
+        </Text>
+      ) : null}
 
       <ScrollView style={{ flex: 1 }}>
         {error ? <Text style={{ color: colors.expense, padding: 12 }}>{error}</Text> : null}
         {list.length === 0 && !error ? (
-          <Text style={{ color: colors.muted, padding: 12 }}>這天還沒有帳目</Text>
+          <Text style={{ color: colors.muted, padding: 12 }}>這天還沒有交易</Text>
         ) : null}
         {list.map((t) => (
-          <View
+          <Pressable
             key={t.id}
+            onPress={() => router.push({ pathname: '/entry', params: { id: String(t.id) } })}
+            accessibilityRole="button"
+            accessibilityHint={locked ? '已月結，只能檢視' : '修改或刪除這筆交易'}
             style={{
               flexDirection: 'row',
               justifyContent: 'space-between',
@@ -133,7 +154,9 @@ export default function HomeScreen() {
             <View style={{ flexShrink: 1 }}>
               <Text style={{ color: colors.text, fontSize: 16 }}>{t.categoryName}</Text>
               <Text style={{ color: colors.muted, fontSize: 13 }}>
+                {locked ? '🔒 ' : ''}
                 {t.accountName}
+                {t.memberName ? `・${t.memberName}` : ''}
                 {t.note ? `・${t.note}` : ''}
               </Text>
             </View>
@@ -141,7 +164,7 @@ export default function HomeScreen() {
               {t.flow === 'expense' ? '-' : '+'}
               {formatAmount(t.amount)}
             </Text>
-          </View>
+          </Pressable>
         ))}
       </ScrollView>
     </SafeAreaView>
