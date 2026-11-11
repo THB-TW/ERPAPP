@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { emptyBudgetState, serializeBudgetDocument } from '../calc/budgetDocument.ts';
 import { openNodeDatabase } from '../db/nodeDriver.ts';
-import { openLedger } from './index.ts';
+import { CsvFormatError, openLedger } from './index.ts';
 
 async function setup(t: TestContext) {
   const ledger = await openLedger(openNodeDatabase(':memory:'), { now: () => new Date('2026-11-11T04:00:00Z') });
@@ -12,6 +12,17 @@ async function setup(t: TestContext) {
   const card = (await ledger.listAccounts()).find((a) => a.kind === 'credit_card')!;
   return { ledger, card };
 }
+
+test('信用卡與記帳 CSV 的格式錯誤皆可用帳本入口的 CsvFormatError 識別，整份壞檔不寫入', async (t) => {
+  const { ledger, card } = await setup(t);
+  const malformed = '2026-10-02,"未閉合,100';
+  await assert.rejects(ledger.importCardStatement({ accountId: card.id, csv: malformed }),
+    (error: unknown) => error instanceof CsvFormatError);
+  await assert.rejects(ledger.importTransactionsCsv('類別,金額\n"未閉合,100'),
+    (error: unknown) => error instanceof CsvFormatError);
+  assert.deepEqual(await ledger.listCardStatements(), []);
+  assert.deepEqual(await ledger.listTransactions('2026-01-01', '2026-12-31'), []);
+});
 
 test('三欄帳單保留同鍵合法重複，重跑只補不足數量，負數不匯入也不計數，卡片互相隔離', async (t) => {
   const { ledger, card } = await setup(t);
