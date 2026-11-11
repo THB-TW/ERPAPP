@@ -229,7 +229,7 @@ function SubRow(props: { label: string; amount: number; onPress?: () => void }) 
   );
   const style = { flexDirection: 'row', gap: 10, paddingVertical: 8, paddingLeft: 34, paddingRight: 12 } as const;
   return props.onPress ? (
-    <Pressable onPress={props.onPress} accessibilityRole="button" accessibilityHint="檢視或修改這筆帳目" style={style}>
+    <Pressable onPress={props.onPress} accessibilityRole="button" accessibilityHint="檢視或修改這筆交易" style={style}>
       {content}
     </Pressable>
   ) : (
