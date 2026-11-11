@@ -8,7 +8,9 @@ export default function RootLayout() {
   return (
     <LedgerProvider>
       <StatusBar style="auto" />
-      <Stack>
+      {/* iOS 26 起原生導覽列預設半透明、內容會跑到列底下；統一改回不透明，各頁不必自己避開。
+          返回鍵一律寫「返回」，否則從分頁推入的畫面會顯示路由群組名稱「(tabs)」。 */}
+      <Stack screenOptions={{ headerTransparent: false, headerBackTitle: '返回' }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="entry" options={{ title: '新增交易', headerBackTitle: '返回' }} />
       </Stack>

@@ -1,13 +1,14 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "記帳",
+    "slug": "ledger",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "tw.thbtw.ledger.dev"
     },
     "android": {
       "adaptiveIcon": {
@@ -16,12 +17,13 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "tw.thbtw.ledger.dev"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "scheme": "mobile",
+    "scheme": "ledger",
     "plugins": [
       "expo-router",
       ["expo-notifications", { "enableRemoteNotifications": false }]
