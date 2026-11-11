@@ -10,7 +10,7 @@ import {
 import { serializeBudgetDocument } from '../calc/budgetDocument.ts';
 import type { BudgetCommand, BudgetRevision } from '../calc/budgetTypes.ts';
 import { parseImportedDocument, readStoredDocument, replaceDocument } from './financeDocument.ts';
-import { budgetFallbackMonth, executeBudgetCommand, type BudgetCommandPreview } from './budgetCommands.ts';
+import { budgetFallbackMonth, executeBudgetCommand, type BudgetCommandAccess, type BudgetCommandPreview } from './budgetCommands.ts';
 import { getBudgetProgress } from './budgetPage.ts';
 import type { BudgetProgress } from './budgetViews.ts';
 import { listActiveCategories } from './categoryLifecycle.ts';
@@ -43,6 +43,7 @@ import { accountCommands, type AccountsLedger } from './accounts.ts';
 import { transferCommands, type TransfersLedger } from './transfers.ts';
 import { LedgerError } from './errors.ts';
 import { ledgerMigrations } from './migrations.ts';
+import { completeMonthlyClose, monthlyCloseDraft, monthlyCloseSnapshot, previewMonthlyClose, type CompleteMonthlyCloseRequest, type MonthlyCloseDraft, type MonthlyClosePreview, type MonthlyCloseRequest, type MonthlyCloseSnapshot } from './monthlyClose.ts';
 import { importTransactionsCsv, exportTransactionsCsv, type CsvImportOptions, type CsvImportResult } from './csvTransactions.ts';
 export { CsvFormatError } from './csvTransactions.ts';
 export type { CsvEncoding, CsvImportOptions, CsvImportResult, CsvRowRejection } from './csvTransactions.ts';
@@ -56,13 +57,14 @@ export type { LedgerFileCheck } from './inspect.ts';
 export type { LedgerErrorCode } from './errors.ts';
 export { BudgetRuleError } from '../calc/budgetEngine.ts';
 export type { BudgetCommand, BudgetRevision } from '../calc/budgetTypes.ts';
-export type { BudgetCommandPreview } from './budgetCommands.ts';
+export type { BudgetCommandAccess, BudgetCommandPreview } from './budgetCommands.ts';
 export type { BudgetProgress, BudgetProgressRow } from './budgetViews.ts';
 export type {
   BudgetAdjustmentView, BudgetMonthSummary, BudgetMonthView, BudgetReserveView, BudgetStatus,
 } from './budgetViews.ts';
 
 export type { CategoryShare, MonthBreakdown } from './report.ts';
+export type { CompleteMonthlyCloseRequest, MonthlyCloseDraft, MonthlyClosePreview, MonthlyCloseRequest, MonthlyCloseRow, MonthlyCloseSnapshot } from './monthlyClose.ts';
 
 export interface Category { id: number; name: string; flow: Flow }
 export type { Account, AccountBalance, NewAccount, AccountChanges } from './accounts.ts';
@@ -102,6 +104,14 @@ export interface BudgetCommandResult {
 }
 
 export interface Ledger extends AccountsLedger, TransfersLedger {
+  /** 月結精靈的開放月份與唯讀收入；當月尚未結束時不能完成。 */
+  getMonthlyCloseDraft(): Promise<MonthlyCloseDraft>;
+  /** 讀當月收入並立即試算，不寫入月結或快照。 */
+  previewMonthlyClose(input: MonthlyCloseRequest): Promise<MonthlyClosePreview>;
+  /** 確認仍與預覽相符才月結；同操作識別碼重送不重做。 */
+  completeMonthlyClose(input: CompleteMonthlyCloseRequest): Promise<BudgetCommandResult>;
+  /** 已結月份的原始計算與調整後資產；不以現在交易重算歷史。 */
+  getMonthlyCloseSnapshot(month: string): Promise<MonthlyCloseSnapshot>;
   /** 免費 CSV 匯入：只新增通過驗證且數量超出既有筆數的列；拒收與略過分開回報。 */
   importTransactionsCsv(input: string | Uint8Array, options?: CsvImportOptions): Promise<CsvImportResult>;
   /** 免費匯出全部交易為 UTF-8（含 BOM）的 CSV。 */
@@ -135,11 +145,12 @@ export interface Ledger extends AccountsLedger, TransfersLedger {
   /**
    * 執行一個預算指令（caps、add、edit、map、retire、transfer、fund、correct、reverse、rollback、close）。
    * 在同一個資料庫交易內讀文件、套用引擎、寫回。close 的實支由該月支出交易彙總，當月收入由 command.amount 傳入
-   * （票 11 才改成自動帶入）。被拒時丟 BudgetRuleError（kind 為 argument／operation／overflow）或 LedgerError。
+   * （保留舊帳工具相容；App 精靈使用 completeMonthlyClose 自動帶入）。被拒時丟 BudgetRuleError 或 LedgerError。
+   * App 必須帶入 access.hasEntitlement；省略只供既有移植測試與舊帳工具相容使用。
    */
-  runBudgetCommand(command: BudgetCommand): Promise<BudgetCommandResult>;
+  runBudgetCommand(command: BudgetCommand, access?: BudgetCommandAccess): Promise<BudgetCommandResult>;
   /** 僅計算，不寫入；確認時重送相同指令，仍會重新檢查版本與開放月份。 */
-  previewBudgetCommand(command: BudgetCommand): Promise<BudgetCommandPreview>;
+  previewBudgetCommand(command: BudgetCommand, access?: BudgetCommandAccess): Promise<BudgetCommandPreview>;
   /** 免費的上限與實支進度；預設為日曆本月，與開放月份分開。 */
   getBudgetProgress(month?: string): Promise<BudgetProgress>;
   /** 完整上限版本與修改原因，依儲存順序列出。 */
@@ -206,6 +217,10 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
   }
 
   return {
+    getMonthlyCloseDraft: () => serial(() => monthlyCloseDraft(db, now())),
+    previewMonthlyClose: (input) => serial(() => previewMonthlyClose(db, input, now())),
+    completeMonthlyClose: (input) => serial(() => db.transaction((tx) => completeMonthlyClose(tx, input, now()))),
+    getMonthlyCloseSnapshot: (month) => serial(() => monthlyCloseSnapshot(db, month, now())),
     importTransactionsCsv: (input, csvOptions) => serial(() => db.transaction((tx) => importTransactionsCsv(tx, input, taipeiDate(now()), csvOptions))),
     exportTransactionsCsv: () => serial(() => exportTransactionsCsv(db)),
     ...accountCommands(db, serial, () => taipeiDate(now())),
@@ -264,9 +279,9 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
 
     importLegacyLedger: (data) => serial(() => db.transaction((tx) => importLegacy(tx, data))),
 
-    runBudgetCommand: (command) =>
-      serial(() => db.transaction(async (tx) => (await executeBudgetCommand(tx, command, now())).result)),
-    previewBudgetCommand: (command) => serial(async () => (await executeBudgetCommand(db, command, now(), true)).preview),
+    runBudgetCommand: (command, access) =>
+      serial(() => db.transaction(async (tx) => (await executeBudgetCommand(tx, command, now(), false, access)).result)),
+    previewBudgetCommand: (command, access) => serial(async () => (await executeBudgetCommand(db, command, now(), true, access)).preview),
     getBudgetProgress: (month) => serial(() => getBudgetProgress(db, now(), month)),
     listBudgetRevisions: () => serial(async () => (await readStoredDocument(db)).state.revisions),
 
