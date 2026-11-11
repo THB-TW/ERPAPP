@@ -61,6 +61,9 @@ export { CardStatementMismatchError, type CardReconciliation, type CardCount, ty
 export type { CardStatementRequest, CardStatementResult, CardStatementFilter, CardStatement } from './cardStatements.ts';
 export { CsvFormatError } from '../csv/records.ts';
 export type { BackupFiles, BackupInspection, BackupStatus, RestoreResult } from './backup.ts';
+import { notificationCommands, type NotificationsLedger } from './notifications.ts';
+export { NotificationSettingsError } from './notifications.ts';
+export type { NotificationKind, NotificationSettings, NotificationPlanInput, PlannedNotification } from './notifications.ts';
 
 export type { AccountKind, Flow } from './defaults.ts';
 export { LedgerError } from './errors.ts';
@@ -115,7 +118,7 @@ export interface BudgetCommandResult {
   replayed: boolean;
 }
 
-export interface Ledger extends AccountsLedger, TransfersLedger, InvestmentsLedger, LoansLedger {
+export interface Ledger extends AccountsLedger, TransfersLedger, InvestmentsLedger, LoansLedger, NotificationsLedger {
   getCardReconciliation(month: string): Promise<CardReconciliation>;
   importCardStatement(input: CardStatementRequest): Promise<CardStatementResult>;
   listCardStatements(filter?: CardStatementFilter): Promise<CardStatement[]>;
@@ -257,6 +260,7 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
     ...investmentCommands(db, serial, () => taipeiDate(now())),
     ...transferCommands(db, serial),
     ...loanCommands(db, serial, fallbackMonth, now),
+    ...notificationCommands(db, serial, now),
     addTransaction: (input) => serial(() => db.transaction((tx) => insertTransaction(tx, input))),
     updateTransaction: (id, input) => serial(() => db.transaction((tx) => updateTransaction(tx, id, input))),
     deleteTransaction: (id) => serial(() => db.transaction((tx) => deleteTransaction(tx, id))),
