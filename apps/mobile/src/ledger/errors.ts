@@ -3,6 +3,7 @@ export type LedgerErrorCode =
   | 'invalid_month'
   | 'invalid_amount'
   | 'invalid_flow'
+  | 'flow_mismatch'
   | 'unknown_category'
   | 'unknown_account';
 

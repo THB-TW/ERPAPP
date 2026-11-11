@@ -90,6 +90,8 @@ test('無效輸入被拒，給繁體中文訊息，且不留下任何一筆', as
     ['日期格式錯（沒補零）', { date: '2026-1-1' }, 'invalid_date'],
     ['日期不存在', { date: '2026-02-30' }, 'invalid_date'],
     ['收支別錯誤', { flow: 'transfer' }, 'invalid_flow'],
+    ['支出分類記成收入', { flow: 'income' }, 'flow_mismatch'],
+    ['收入分類記成支出', { categoryId: cat('薪資') }, 'flow_mismatch'],
   ];
   for (const [label, override, code] of cases) {
     await assert.rejects(

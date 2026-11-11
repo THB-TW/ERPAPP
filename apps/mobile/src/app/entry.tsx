@@ -4,7 +4,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { taipeiDate } from '../calc/dates.ts';
 import type { Account, Category, Flow } from '../ledger/index.ts';
-import { dayTitle } from '../ui/format.ts';
+import { dayTitle, userMessage } from '../ui/format.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
 import { colors } from '../ui/theme.ts';
 
@@ -24,11 +24,14 @@ export default function EntryScreen() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    Promise.all([ledger.listCategories(), ledger.listAccounts()]).then(([cats, accs]) => {
-      setCategories(cats);
-      setAccounts(accs);
-      setAccountId((current) => current ?? accs[0]?.id ?? null); // 預設第一個帳戶（現金），少點一下
-    });
+    Promise.all([ledger.listCategories(), ledger.listAccounts()]).then(
+      ([cats, accs]) => {
+        setCategories(cats);
+        setAccounts(accs);
+        setAccountId((current) => current ?? accs[0]?.id ?? null); // 預設排在最前面的帳戶，少點一下
+      },
+      (e: unknown) => setError(userMessage(e, '讀取分類與帳戶失敗，請返回後再試一次。')),
+    );
   }, [ledger]);
 
   function chooseFlow(next: Flow) {
@@ -58,7 +61,7 @@ export default function EntryScreen() {
       });
       router.back();
     } catch (e) {
-      setError(e instanceof Error ? e.message : '儲存失敗。');
+      setError(userMessage(e, '儲存失敗，請再試一次。'));
       setSaving(false);
     }
   }

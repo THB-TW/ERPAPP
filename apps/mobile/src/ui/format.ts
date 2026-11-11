@@ -1,16 +1,14 @@
-import type { AccountKind } from '../ledger/index.ts';
+import { LedgerError } from '../ledger/index.ts';
 
 /** 新台幣整數顯示，例如 1234567 -> "1,234,567"。 */
 export function formatAmount(amount: number): string {
   return String(amount).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
-export const accountKindLabels: Record<AccountKind, string> = {
-  cash: '現金',
-  bank: '銀行',
-  credit_card: '信用卡',
-  e_wallet: '電子支付',
-};
+/** 帳本服務拒絕的原因可直接顯示；其他錯誤（例如資料庫故障）一律顯示 fallback，不把原始訊息給使用者看。 */
+export function userMessage(error: unknown, fallback: string): string {
+  return error instanceof LedgerError ? error.message : fallback;
+}
 
 export function monthTitle(month: string): string {
   const [year, mon] = month.split('-');

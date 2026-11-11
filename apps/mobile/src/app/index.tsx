@@ -1,11 +1,11 @@
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { monthGrid } from '../calc/calendarGrid.ts';
 import { monthOf, shiftMonth, taipeiDate } from '../calc/dates.ts';
 import type { CalendarDay, DayTransaction } from '../ledger/index.ts';
-import { formatAmount, dayTitle, monthTitle } from '../ui/format.ts';
+import { formatAmount, dayTitle, monthTitle, userMessage } from '../ui/format.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
 import { colors } from '../ui/theme.ts';
 
@@ -13,7 +13,7 @@ const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
 
 export default function HomeScreen() {
   const ledger = useLedger();
-  const [today] = useState(() => taipeiDate(new Date()));
+  const [today, setToday] = useState(() => taipeiDate(new Date()));
   const [month, setMonth] = useState(monthOf(today));
   const [selected, setSelected] = useState(today);
   const [days, setDays] = useState<Record<string, CalendarDay>>({});
@@ -32,7 +32,7 @@ export default function HomeScreen() {
           setError(null);
         },
         (e: unknown) => {
-          if (!cancelled) setError(e instanceof Error ? e.message : '讀取失敗。');
+          if (!cancelled) setError(userMessage(e, '讀取失敗，請再試一次。'));
         },
       );
       return () => {
@@ -40,6 +40,25 @@ export default function HomeScreen() {
       };
     }, [ledger, month, selected]),
   );
+
+  // App 放到隔天才回到前景時，「今天」要跟著換日。原本選在舊的今天就一起移到新的今天，
+  // 才不會把今天的帳記到昨天；使用者正在看別天時不動。
+  const latest = useRef({ today, selected });
+  latest.current = { today, selected };
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      const now = taipeiDate(new Date());
+      const { today: previous, selected: current } = latest.current;
+      if (now === previous) return;
+      setToday(now);
+      if (current === previous) {
+        setSelected(now);
+        setMonth(monthOf(now));
+      }
+    });
+    return () => subscription.remove();
+  }, []);
 
   function changeMonth(delta: number) {
     const next = shiftMonth(month, delta);

@@ -56,6 +56,8 @@ export interface Ledger {
   close(): Promise<void>;
 }
 
+const INVALID_DATE_MESSAGE = '日期格式不正確，請用 YYYY-MM-DD 的有效日期。';
+
 export async function openLedger(db: Database): Promise<Ledger> {
   await migrate(db, ledgerMigrations);
 
@@ -73,7 +75,7 @@ export async function openLedger(db: Database): Promise<Ledger> {
       serial(() =>
         db.transaction(async (tx) => {
           if (!isValidDate(input.date)) {
-            throw new LedgerError('invalid_date', '日期格式不正確，請用 YYYY-MM-DD 的有效日期。');
+            throw new LedgerError('invalid_date', INVALID_DATE_MESSAGE);
           }
           if (input.flow !== 'expense' && input.flow !== 'income') {
             throw new LedgerError('invalid_flow', '收支別只能是「支出」或「收入」。');
@@ -81,9 +83,17 @@ export async function openLedger(db: Database): Promise<Ledger> {
           if (!Number.isSafeInteger(input.amount) || input.amount <= 0) {
             throw new LedgerError('invalid_amount', '金額必須是大於 0 的整數（新台幣元）。');
           }
-          const category = await tx.get('SELECT id FROM categories WHERE id = ?', [input.categoryId]);
+          const category = await tx.get<{ flow: Flow }>('SELECT flow FROM categories WHERE id = ?', [
+            input.categoryId,
+          ]);
           if (!category) {
             throw new LedgerError('unknown_category', '找不到這個分類，請先到分類設定新增。');
+          }
+          if (category.flow !== input.flow) {
+            throw new LedgerError(
+              'flow_mismatch',
+              category.flow === 'income' ? '這是收入分類，不能記成支出。' : '這是支出分類，不能記成收入。',
+            );
           }
           const account = await tx.get('SELECT id FROM accounts WHERE id = ?', [input.accountId]);
           if (!account) {
@@ -117,7 +127,7 @@ export async function openLedger(db: Database): Promise<Ledger> {
     getDayTransactions: (date) =>
       serial(async () => {
         if (!isValidDate(date)) {
-          throw new LedgerError('invalid_date', '日期格式不正確，請用 YYYY-MM-DD 的有效日期。');
+          throw new LedgerError('invalid_date', INVALID_DATE_MESSAGE);
         }
         return db.all<DayTransaction>(
           `SELECT t.id, t.date, t.flow, t.amount, t.note,
