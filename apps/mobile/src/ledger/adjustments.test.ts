@@ -7,6 +7,18 @@ import { emptyBudgetState, serializeBudgetDocument } from '../calc/budgetDocumen
 import { openLedger, type BudgetCommand, type Ledger } from './index.ts';
 
 const NOW = new Date('2026-11-11T04:00:00Z');
+/** 精靈完成入口要先有零差額的總資產核對（票 13）：把合成銀行餘額核平後才完成月結。 */
+async function closeMonth(ledger: Ledger, month: string) {
+  const input = { month, hasEntitlement: true };
+  const check = await ledger.previewAssetCheck(input);
+  const bank = check.accounts.find((a) => a.kind === 'bank')!;
+  const balances = [{ accountId: bank.accountId, balance: bank.appBalance - check.difference }];
+  const adjusted = await ledger.previewAssetCheck({ ...input, balances });
+  const record = await ledger.recordAssetCheck({ ...input, balances, checkToken: adjusted.checkToken, operationId: randomUUID() });
+  const preview = await ledger.previewMonthlyClose(input);
+  await ledger.completeMonthlyClose({ month, hasEntitlement: true, operationId: randomUUID(), version: preview.version,
+    previewToken: preview.previewToken, assetCheckId: record.id });
+}
 async function setup(t: TestContext, openingSpare = 5000): Promise<Ledger> {
   const ledger = await openLedger(openNodeDatabase(':memory:'), { now: () => NOW });
   t.after(() => ledger.close());
@@ -25,10 +37,7 @@ async function setup(t: TestContext, openingSpare = 5000): Promise<Ledger> {
       { date: `2026-${month}-02`, category: '合成薪資', account: '合成銀行', member: null, note: '', flow: 'income' as const, amount: 3000 },
       { date: `2026-${month}-03`, category: '合成餐費', account: '合成銀行', member: null, note: '', flow: 'expense' as const, amount: 200 },
     ]), document: serializeBudgetDocument(state) });
-  for (const month of ['2026-09', '2026-10']) {
-    const preview = await ledger.previewMonthlyClose({ month, hasEntitlement: true });
-    await ledger.completeMonthlyClose({ month, hasEntitlement: true, operationId: randomUUID(), version: preview.version, previewToken: preview.previewToken });
-  }
+  for (const month of ['2026-09', '2026-10']) await closeMonth(ledger, month);
   return ledger;
 }
 
@@ -111,10 +120,7 @@ test('更正列出所有受影響月份；撤銷後待重結，重結只恢復�
   await assert.rejects(apply(ledger, 'reverse', { reverses: input.command.operationId }), /待重結/);
   assert.equal((await ledger.getBudgetStatus()).openMonth, '2026-09');
   assert.equal(await ledger.isMonthClosed('2026-09'), false);
-  for (const month of ['2026-09', '2026-10']) {
-    const reclose = await ledger.previewMonthlyClose({ month, hasEntitlement: true });
-    await ledger.completeMonthlyClose({ month, hasEntitlement: true, version: reclose.version, operationId: randomUUID(), previewToken: reclose.previewToken });
-  }
+  for (const month of ['2026-09', '2026-10']) await closeMonth(ledger, month);
   assert.equal((await ledger.getBudgetMonth('2026-10')).spare, 7300);
   assert.equal((await ledger.listBudgetAdjustments())[0].pending, false);
   assert.deepEqual((await ledger.getMonthlyCloseSnapshot('2026-10')).calculation, original.calculation);
@@ -133,8 +139,7 @@ test('撤銷本月的挪用與補入保留為待重結，重結恰好恢復一�
   assert.equal(preview.pending.length, 2);
   await ledger.confirmAdjustment({ ...rollback, previewToken: preview.previewToken });
   assert.ok((await ledger.listBudgetAdjustments()).every((a) => a.pending));
-  const close = await ledger.previewMonthlyClose({ month: '2026-10', hasEntitlement: true });
-  await ledger.completeMonthlyClose({ month: '2026-10', hasEntitlement: true, version: close.version, operationId: randomUUID(), previewToken: close.previewToken });
+  await closeMonth(ledger, '2026-10');
   assert.deepEqual(await ledger.getBudgetMonth('2026-10'), before);
 });
 
@@ -303,11 +308,7 @@ test('有貸款繳款時撤銷與重結只扣一次本金及儲備；重送舊�
   const [loan] = await ledger.listLoans();
   await ledger.addTransaction({ date: '2026-10-05', categoryId: loan.categoryId!, accountId: (await ledger.listAccounts())[0].id,
     amount: 100, flow: 'expense' });
-  async function close() {
-    const preview = await ledger.previewMonthlyClose({ month: '2026-10', hasEntitlement: true });
-    await ledger.completeMonthlyClose({ month: preview.month, hasEntitlement: true, version: preview.version,
-      operationId: randomUUID(), previewToken: preview.previewToken });
-  }
+  const close = () => closeMonth(ledger, '2026-10');
   await close();
   await apply(ledger, 'fund', { to: 'trip', amount: 100 });
   const before = await ledger.getBudgetMonth('2026-10');
