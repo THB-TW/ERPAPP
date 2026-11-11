@@ -35,6 +35,7 @@ import {
   type BudgetMonthView,
   type BudgetStatus,
 } from './budgetViews.ts';
+import { categoryMonthTransactions, monthBreakdown, type MonthBreakdown } from './report.ts';
 import type { AccountKind, Flow } from './defaults.ts';
 import { LedgerError } from './errors.ts';
 import { ledgerMigrations } from './migrations.ts';
@@ -47,6 +48,8 @@ export type { BudgetCommand } from '../calc/budgetTypes.ts';
 export type {
   BudgetAdjustmentView, BudgetMonthSummary, BudgetMonthView, BudgetReserveView, BudgetStatus,
 } from './budgetViews.ts';
+
+export type { CategoryShare, MonthBreakdown } from './report.ts';
 
 export interface Category { id: number; name: string; flow: Flow }
 export interface Account {
@@ -105,6 +108,12 @@ export interface Ledger {
   getOpeningDate(): Promise<string | null>;
   /** 日期區間內（含兩端）的全部交易，依日期、編號排序。給讀回核對與匯出用。 */
   listTransactions(from: string, to: string): Promise<DayTransaction[]>;
+
+  // ---- 明細（票 09）----
+  /** 該月某收支別的分類彙總與占比（圓餅圖與類別列表）。轉帳不計入。 */
+  getMonthBreakdown(month: string, flow: Flow): Promise<MonthBreakdown>;
+  /** 某分類在該月的交易，日期新的在前。 */
+  getCategoryMonthTransactions(month: string, categoryId: number): Promise<DayTransaction[]>;
 
   // ---- 預算與月結（票 03）----
   /**
@@ -194,6 +203,9 @@ export async function openLedger(db: Database, options: LedgerOptions = {}): Pro
         if (!isValidDate(from) || !isValidDate(to)) throw new LedgerError('invalid_date', INVALID_DATE_MESSAGE);
         return transactionsBetween(db, from, to);
       }),
+
+    getMonthBreakdown: (month, flow) => serial(() => monthBreakdown(db, month, flow)),
+    getCategoryMonthTransactions: (month, categoryId) => serial(() => categoryMonthTransactions(db, month, categoryId)),
 
     getOpeningDate: () =>
       serial(async () => (await db.get<{ value: string }>("SELECT value FROM settings WHERE key = 'opening_date'"))?.value ?? null),

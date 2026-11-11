@@ -108,6 +108,12 @@ const LIST_JOINS = `FROM transactions t
        JOIN accounts a ON a.id = t.account_id
        LEFT JOIN members m ON m.id = t.member_id`;
 
-function selectTransactions(q: Queryable, where: string, params: SqlValue[]): Promise<DayTransaction[]> {
-  return q.all<DayTransaction>(`SELECT ${LIST_COLUMNS} ${LIST_JOINS} WHERE ${where} ORDER BY t.date, t.id`, params);
+/** 交易列的共用查詢（含分類、帳戶、成員名稱）。where 與 orderBy 是程式內寫死的 SQL 片段，值一律走 params。 */
+export function selectTransactions(
+  q: Queryable,
+  where: string,
+  params: SqlValue[],
+  orderBy = 't.date, t.id',
+): Promise<DayTransaction[]> {
+  return q.all<DayTransaction>(`SELECT ${LIST_COLUMNS} ${LIST_JOINS} WHERE ${where} ORDER BY ${orderBy}`, params);
 }
