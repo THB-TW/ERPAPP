@@ -2,8 +2,16 @@
 import type { Database, Queryable } from '../db/driver.ts';
 import { migrate } from '../db/migrate.ts';
 import { isValidDate, isValidMonth, taipeiDate } from '../calc/dates.ts';
-import { BUDGET_ACTOR, BudgetRuleError, applyBudgetCommand, effectiveRevision, openMonth, position } from '../calc/budgetEngine.ts';
-import { BudgetDocumentError, emptyBudgetState, parseBudgetDocument, serializeBudgetDocument } from '../calc/budgetDocument.ts';
+import {
+  BUDGET_ACTOR,
+  BudgetRuleError,
+  applyBudgetCommand,
+  effectiveRevision,
+  mappedBudgetCategory,
+  openMonth,
+  position,
+} from '../calc/budgetEngine.ts';
+import { BudgetDocumentError, parseBudgetDocument, serializeBudgetDocument } from '../calc/budgetDocument.ts';
 import type { BudgetCommand, BudgetExpense } from '../calc/budgetTypes.ts';
 import { readStoredDocument, replaceDocument, writeState } from './financeDocument.ts';
 import { assertDateOpen } from './monthLock.ts';
@@ -265,10 +273,7 @@ export async function openLedger(db: Database, options: LedgerOptions = {}): Pro
         );
         return rows
           .map((r) => r.name)
-          .filter((name) => {
-            const id = revision && Object.hasOwn(revision.mapping, name) ? revision.mapping[name] : undefined;
-            return id === undefined || !revision!.limits.some((l) => l.categoryId === id);
-          })
+          .filter((name) => !revision || mappedBudgetCategory(revision, name) === undefined)
           .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
       }),
 
@@ -295,7 +300,7 @@ export async function openLedger(db: Database, options: LedgerOptions = {}): Pro
       ),
 
     exportFinanceDocument: () =>
-      serial(async () => serializeBudgetDocument((await readStoredDocument(db)).state ?? emptyBudgetState())),
+      serial(async () => serializeBudgetDocument((await readStoredDocument(db)).state)),
 
     close: () => serial(() => db.close()),
   };

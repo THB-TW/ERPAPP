@@ -127,6 +127,8 @@ test('retire：負儲備須先補足；無儲備可不指定轉入；停用後�
 test('transfer：只限最近已結月份、不同類別與正整數、使用中儲備類之間、餘額足夠', () => {
   const s = base();
   const t = (p: Partial<BudgetCommand>) => cmd({ action: 'transfer', month: '2026-09', from: 'r1', to: 'r2', amount: 10, ...p });
+  // 兩邊都沒選（一個 undefined、一個 null）在 C# 是 null == null，照舊算「相同類別」。
+  refuse('argument', '請選擇不同的儲備類別與正整數金額。', () => run(s, t({ from: undefined, to: null })));
   const s2 = { ...s, months: [...s.months, closed('2026-10', { rawSpare: 10000, balances: { r1: 100, r2: 50 } })] };
   refuse('operation', '只能挪用最近已結月份的累計儲備。', () => run(s2, t({})));
   refuse('argument', '請選擇不同的儲備類別與正整數金額。', () => run(s, t({ to: 'r1' })));

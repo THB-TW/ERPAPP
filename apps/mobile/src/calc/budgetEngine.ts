@@ -359,7 +359,8 @@ interface InnerCommand {
 
 function transfer(state: BudgetState, c: InnerCommand, actor: string, time: string, fallbackMonth: string): void {
   if (c.month !== latestMonth(state)) throw operationError('只能挪用最近已結月份的累計儲備。');
-  if (c.amount <= 0 || c.from === c.to) throw argumentError('請選擇不同的儲備類別與正整數金額。');
+  // C# 的 null == null 為真：兩邊都沒選也算「相同」，照舊丟這則訊息。
+  if (c.amount <= 0 || (c.from ?? null) === (c.to ?? null)) throw argumentError('請選擇不同的儲備類別與正整數金額。');
   const active = effectiveRevision(state, openMonth(state, fallbackMonth))?.limits ?? [];
   for (const id of [c.from, c.to]) {
     if (!state.categories.some((x) => x.id === id && x.kind === 'reserve') || !active.some((l) => l.categoryId === id)) {
@@ -424,8 +425,8 @@ function close(
   const actual: Record<string, number> = {};
   for (const expense of expenses) {
     if (!Number.isSafeInteger(expense.amount) || expense.amount <= 0) throw operationError('支出含有非正整數金額，請先核對交易。');
-    const categoryId = own(revision.mapping, expense.category);
-    if (categoryId === undefined || !revision.limits.some((l) => l.categoryId === categoryId)) {
+    const categoryId = mappedBudgetCategory(revision, expense.category);
+    if (categoryId === undefined) {
       throw operationError(`分類「${expense.category}」尚未設定有效的預算歸屬。`);
     }
     put(actual, categoryId, add(own(actual, categoryId) ?? 0, expense.amount));
@@ -452,4 +453,13 @@ function close(
   };
   next.months.push(closed);
   next.closeHistory.push(clone(closed));
+}
+
+/**
+ * 交易分類在這個上限版本裡歸屬的預算類別；沒有歸屬，或歸屬到已不在使用中的類別，回傳 undefined。
+ * 月結與「哪些分類還沒設定歸屬」的查詢共用這一條規則。
+ */
+export function mappedBudgetCategory(revision: BudgetRevision, category: string): string | undefined {
+  const categoryId = own(revision.mapping, category);
+  return categoryId !== undefined && revision.limits.some((l) => l.categoryId === categoryId) ? categoryId : undefined;
 }
