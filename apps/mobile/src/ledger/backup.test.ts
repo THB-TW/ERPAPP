@@ -89,9 +89,20 @@ test('帳本有變動才更新最後修改時間；查詢不算變動', async (t
   await ledger.getMonthCalendar('2026-11');
   assert.equal((await ledger.getBackupStatus()).lastModifiedAt, '2026-11-01T01:00:00.000Z');
 
+  // 修改與刪除交易（票 07）也算變動
+  const [only] = await ledger.listTransactions(...FULL);
+  await ledger.updateTransaction(only.id, { date: only.date, categoryId: only.categoryId, accountId: only.accountId, flow: only.flow, amount: 95 });
+  assert.equal((await ledger.getBackupStatus()).lastModifiedAt, '2026-11-02T01:00:00.000Z');
+  c.set('2026-11-03T01:00:00Z');
+  const extra = await spend(ledger, '2026-11-03', '飲食', 10);
+  c.set('2026-11-04T01:00:00Z');
+  await ledger.deleteTransaction(extra.id);
+  assert.equal((await ledger.getBackupStatus()).lastModifiedAt, '2026-11-04T01:00:00.000Z');
+  c.set('2026-11-05T01:00:00Z');
+
   // 被拒的指令整筆還原，也不算變動
   await assert.rejects(spend(ledger, '2026-11-02', '飲食', -1));
-  assert.equal((await ledger.getBackupStatus()).lastModifiedAt, '2026-11-01T01:00:00.000Z');
+  assert.equal((await ledger.getBackupStatus()).lastModifiedAt, '2026-11-04T01:00:00.000Z');
   await ledger.close();
 });
 
