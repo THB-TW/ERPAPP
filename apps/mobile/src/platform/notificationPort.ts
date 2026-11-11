@@ -1,5 +1,8 @@
-// 原生通知的替換邊界；加入 expo-notifications 後只替換 notificationPort 的實作。
+// 原生能力只在這個轉接層使用；帳本服務仍只產生計畫。
+import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
 import type { PlannedNotification } from '../ledger/index.ts';
+import { managedNotificationIds, notificationIdsToCancel, notificationRequests } from './notificationSchedule.ts';
 
 export type NotificationPermission = 'undetermined' | 'granted' | 'denied' | 'unsupported';
 
@@ -20,11 +23,54 @@ export interface NotificationPort {
   replacePending(notifications: readonly PlannedNotification[]): Promise<NotificationScheduleResult>;
 }
 
-/** 本分支沒有 expo-notifications，保留設定與查詢功能，不宣稱已排程。 */
+function permissionValue(settings: Notifications.NotificationPermissionsStatus): NotificationPermission {
+  // iOS 的暫時／試用授權也能排本機通知，不能只看跨平台的 status。
+  const status = settings.ios?.status;
+  if (settings.granted || status === Notifications.IosAuthorizationStatus.AUTHORIZED
+    || status === Notifications.IosAuthorizationStatus.PROVISIONAL
+    || status === Notifications.IosAuthorizationStatus.EPHEMERAL) return 'granted';
+  if (settings.status === 'denied' || status === Notifications.IosAuthorizationStatus.DENIED) return 'denied';
+  return 'undetermined';
+}
+
+if (Platform.OS === 'ios') {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: false,
+    }),
+  });
+}
+
+/** 首版只支援 iPhone 本機通知，不註冊遠端推播 token。 */
 export const notificationPort: NotificationPort = {
-  getPermission: async () => 'unsupported',
-  requestPermission: async () => 'unsupported',
-  replacePending: async () => ({ permission: 'unsupported', scheduled: 0 }),
+  getPermission: async () => Platform.OS === 'ios'
+    ? permissionValue(await Notifications.getPermissionsAsync()) : 'unsupported',
+  requestPermission: async () => Platform.OS === 'ios'
+    ? permissionValue(await Notifications.requestPermissionsAsync({
+      ios: { allowAlert: true, allowSound: true, allowBadge: false },
+    })) : 'unsupported',
+  async replacePending(plan) {
+    const permission = await notificationPort.getPermission();
+    if (permission === 'unsupported') return { permission, scheduled: 0 };
+    const pending = await Notifications.getAllScheduledNotificationsAsync();
+    const managed = managedNotificationIds(pending.map((request) => request.identifier));
+    const requests = permission === 'granted'
+      ? notificationRequests(plan, new Date(), pending.length - managed.length) : [];
+    // 不使用 cancelAllScheduledNotificationsAsync，避免清掉其他用途的通知。
+    // 同 identifier 由 iOS 更新；不先清掉仍有效的排程，減少中途失敗時漏提醒的範圍。
+    for (const id of notificationIdsToCancel(pending.map((request) => request.identifier), requests)) {
+      await Notifications.cancelScheduledNotificationAsync(id);
+    }
+    for (const request of requests) {
+      await Notifications.scheduleNotificationAsync({
+        identifier: request.identifier,
+        content: request.content,
+        trigger: request.date === null ? null
+          : { type: Notifications.SchedulableTriggerInputTypes.DATE, date: request.date },
+      });
+    }
+    return { permission, scheduled: requests.length };
+  },
 };
 
 /**

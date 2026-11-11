@@ -4,18 +4,45 @@
 
 **Blocked by:** 11 月結精靈基本流程、16 備份檔匯出與匯入還原、19 貸款／分期
 
-**Status:** 本次範圍完成（2026-11-11；帳本查詢、設定頁與未支援的平台介面；原生排程與真機送達待補）
+**Status:** 本次實作完成（2026-11-11；原生通知與自動重排已接線；真機送達待驗，實際權益與帳單期別狀態待後續接入）
 
 **Owner:** `local-notifications`（見 `docs/agents/team.md`）　**Spec:** [規格](../../finance-product/spec.md)
 
-- [x] 記帳提醒可設每天的時間；某分類超過上限時通知；月結完成後與超過 35 天未備份時提醒備份（本次完成待排查詢，原生送達尚未支援）
+- [x] 記帳提醒可設每天的時間；某分類超過上限時通知；月結完成後與超過 35 天未備份時提醒備份（查詢與原生排程完成，送達待真機驗證）
 - [x] 付費提醒：月結日、信用卡結帳日後尚未匯入帳單、貸款繳款日前（查詢與權益篩選；帳單狀態由參數注入）
 - [x] 發薪日與信用卡結帳日可在設定自訂
 - [x] 「接下來該排哪些通知」由帳本服務的查詢算出並有測試
-- [x] 拒絕通知權限時 App 照常運作；設定可逐項開關（介面將拒絕視為正常結果；本版不請求系統權限）
+- [x] 拒絕通知權限時 App 照常運作；設定可逐項開關（只有明確儲存套用且有待排通知時才要求權限）
+- [x] 使用 expo-notifications 讀取／要求權限，只取消與替換本模組管理的通知
+- [x] App 啟動／回前景及設定、交易、月結、備份等變動後自動查詢並重排，不主動要求權限
+- [x] 前綴篩選、一次性觸發時間、容量與受理去重有測試；型別檢查與 iOS 匯出通過
 - [ ] 真機實測通知實際送達
 
 ## Comments
+
+2026-11-11 原生通知接線完成（本次續作；以下較早紀錄保留為沿革）：
+
+- `notificationPort.ts` 改用已安裝的 `expo-notifications ~58.1.8`，沒有新增套件。讀權限使用 `getPermissionsAsync`；只有明確套用才可能使用 `requestPermissionsAsync`。正確接受 iOS authorized／provisional／ephemeral 狀態。拒絕時仍取消舊排程，背景更新失敗不影響已成功的帳務；明確儲存的失敗會在設定畫面顯示。`NotificationPort` 與 `applyNotificationPlan` 契約及行為保留。
+- 原生 identifier 採 `erpapp:ledger-reminder:` 前綴加帳本計畫的穩定 id。只取消已不在新計畫的管理排程，同 id 由 iOS 原地替換，保留其他用途通知；不全清後重建，降低新增中途失敗造成原有排程遺失的範圍。日期型通知使用 SDK 58 的 DATE 觸發，已到時使用立即觸發；前景顯示橫幅／通知中心／聲音，不設 badge，內容仍不放金額或帳戶／貸款名稱。
+- 新增 `src/platform/notificationSchedule.ts` 與測試：純函式處理前綴、取消篩選、穩定去重排序、UTC 一次性時間、已到時立即觸發與最多 64 則的保守排程容量；先扣掉其他用途已占用的數量，只排最近的項目。自動查詢範圍為 36 天，剛完成備份也能直接排入第 35 天加 1 毫秒的提醒；設定畫面預覽仍為未來 30 天。超過容量或 36 天外的項目需下次開啟／回前景補排，沒有新增背景工作或無限期排程保證。
+- 新增 `src/platform/notificationSync.ts`，集中重新取得最新計畫、權益判斷、套用及受理保存，所有呼叫排成一條序列，失敗後後續同步仍可執行。`LedgerProvider.tsx` 用既有生命週期啟動及清除 AppState 監聽；**沒有改任何 `_layout.tsx`**。除了啟動／回前景，交易新增／修改／刪除、上限／分類與調整、月結完成／撤銷、貸款異動、CSV／帳單匯入、帳戶異動、備份確認完成與整本還原成功後，都有最少的重排呼叫。只有提醒設定的「儲存並套用」傳入要求權限選項。
+- 帳本服務在既有 `notifications.ts` 增加 `getNotificationDispatches`、`recordNotificationDispatches`；沿用 `settings` 保存原生已受理的 id 與時間，不把受理說成實際送達。已到時的受理紀錄防止超支、月結後備份、逾期等提醒因反覆回前景而洗通知；尚未到時仍保留在完整計畫，取消後可重新啟用。紀錄隨帳本重開、備份、還原與取代前另存保存；重複寫入不更新修改時間。實際新增／取消受理紀錄屬設定變動，會更新帳本最後修改時間。
+- `app.json` 加入 `["expo-notifications", { "enableRemoteNotifications": false }]`。已依 [Expo SDK 58 官方文件](https://docs.expo.dev/versions/v58.0.0/sdk/notifications/) 及本機套件 plugin 檢查；`expo config --type introspect` 確認沒有 `aps-environment`，也沒有 `remote-notification` 背景模式。不註冊遠端推播 token、不需要伺服器。
+- **遷移版本**：不新增資料表或欄位，不需遷移；票 21 預留 **v14 未使用**，整合分支目前最高仍為 **v13**。`migrations.ts`、`index.ts`、`errors.ts` 均不需變動，既有 `notificationCommands` 接線自動提供新增方法。
+- **TDD／驗證**：先確認新增 API／純函式不存在及舊行為不符時測試失敗，再實作。通知服務與純排程測試 **33／33 通過**；其中新增 10 個測試（另擴充既有備份測試）。完整 `npm test` **500 個，499 通過、1 失敗**，唯一失敗仍為既知 `tools/legacy-compare/run.test.ts:156` 的 macOS `/var`／`/private/var` 路徑別名，未改該工具。`npm run typecheck` 通過；`npx expo export --platform ios --output-dir dist` 成功（1353 modules），產物在已忽略的 `dist/`，沒有執行 prebuild 或產生 `ios/`。專案沒有 `lint` script，執行 `npm run lint` 回報缺少 script，未新增設定或套件。
+- **舊帳／月結邊界**：唯讀交叉審查確認沒有改月結引擎、財務文件及交易／信用卡／投資總量。合成真 SQLite 測試比對受理保存前後的月結快照、財務文件與交易完全相同；通知查詢前後修改時間也不變。未讀私人帳本、未執行私人 58 個月比對，此次不能代替搬遷驗收。
+- **仍有邊界**：`hasMonthlyCloseEntitlement()` 仍是票 22 前固定 `true` 的既有佔位。同步每次都重新讀集中判斷，票 22 仍須提供真實權益及在權益事件後呼叫 `syncNotifications(ledger)`；目前只能證明服務以 `false` 查詢會移除三種付費提醒，不能宣稱已完成 StoreKit 到期取消。票 12 目前未保存「某卡某結帳期已匯入」的可靠狀態，仍視為未知、不發帳單提醒；不能把空明細當未匯入。
+- **變更檔案**：新增 `src/platform/notificationSchedule.ts`、`notificationSchedule.test.ts`、`notificationSync.ts`；修改 `src/platform/notificationPort.ts`、`src/ledger/notifications.ts`、`notifications.test.ts`、`src/ui/LedgerProvider.tsx`、`app.json`，及 `src/app/` 下的 `accounts.tsx`、`adjustments.tsx`、`budget-settings.tsx`、`close-assets.tsx`、`close-card-statement.tsx`、`csv-import.tsx`、`entry.tsx`、`loans.tsx`、`settings-backup.tsx`、`settings-notifications.tsx`，並更新本票。未改指定禁改檔案，未暫存、提交、推送、開 PR 或切換分支。
+
+本次待 iPhone 實機驗證（全部用假帳本及含新版原生模組的開發／測試安裝檔）：
+
+1. 乾淨安裝後開 App、進提醒設定及預覽，確認沒有權限對話框。開啟每日記帳，時間設在台北時間 2～3 分鐘後，按「儲存並套用」才要求權限；選「允許」，確認顯示已套用數量。
+2. 回主畫面並鎖定 iPhone，到時收到一則通知且文字不含金額／帳戶／貸款名稱。另在 App 前景驗證橫幅與聲音；清除通知後反覆回前景、記交易、重開 App，已受理的同一提醒不應再次補發。
+3. 在另一個乾淨測試權限情境選「不允許」，確認仍可儲存設定、預覽、記帳、月結與備份，不會因讀權限或回前景反覆跳詢問。之後從 iOS 設定允許通知，回 App 應自動排入未來提醒。
+4. 排一則 2～3 分鐘後的每日提醒，在送達前改時間或關閉該項並儲存；鎖定畫面等待，舊時間不應送達。其他已開提醒仍保留；重新啟用後新時間應只送達一次。
+5. 開超支與月結後備份提醒：假資料造成超支時收到一次；完成月結後出現備份提醒。分享面板取消／選「沒有存」不算備份完成，只有選「已存好」才更新日期並取消尚未送達的舊備份排程；確認新 35 天提醒已預排。實際第 35 天送達仍須長時間觀察或另做加速測試建置，服務邊界已有自動測試。
+6. 匯出假帳本，改提醒時間再還原舊備份；確認原設定與排程恢復，取代前帳本的未送達提醒被移除；回前景不重複通知。撤銷／重做月結、結清貸款也應移除失效的未送達提醒。
+7. **待票 22 接上真實權益後**：用 StoreKit 沙盒取得有效權益，開啟月結／貸款提醒並確認待排；讓權益到期或撤銷，觸發權益更新與回前景，確認付費提醒被取消、免費每日／備份提醒仍在。現有佔位版無法執行這項，不勾選真機驗收。
 
 2026-11-11 完成（依本次指示，不新增套件；原生排程保留為尚未支援）：
 

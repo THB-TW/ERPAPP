@@ -361,16 +361,100 @@ test('通知設定關機重開、整本備份還原及取代前另存皆完整�
     loanDueDays: [{ loanId: id, day: 15 }], creditCardClosingDays: [{ accountId: 3, day: 22 }] });
   await source.saveNotificationSettings(config);
   const expected = await source.getNotificationPlan({ now: NOW, hasEntitlement: true });
+  const receipt = { id: 'entry:2026-11-10', fireAt: NOW.toISOString() };
+  await source.recordNotificationDispatches([receipt]);
   await source.close(); ledgers.delete(source);
   source = await open('source.db');
   assert.deepEqual(await source.getNotificationSettings(), config);
+  assert.deepEqual(await source.getNotificationDispatches(), [receipt]);
   const out = await source.exportBackup(join(directory, 'out.db'));
   assert.deepEqual(await source.getNotificationPlan({ now: NOW, hasEntitlement: true }), expected);
   const target = await open('target.db');
   const original = await target.getNotificationSettings();
   const restored = await target.restoreBackup(out.path);
   assert.deepEqual(await target.getNotificationSettings(), config);
+  assert.deepEqual(await target.getNotificationDispatches(), [receipt]);
   assert.deepEqual(await target.getNotificationPlan({ now: NOW, hasEntitlement: true }), expected.filter((r) => r.kind !== 'backupAfterClose'));
   await target.restoreBackup(restored.safetyCopyPath, { allowOlder: true });
   assert.deepEqual(await target.getNotificationSettings(), original);
+  assert.deepEqual(await target.getNotificationDispatches(), []);
+});
+
+test('記下已受理的通知不算帳本修改：剛匯出的備份不會被當成比手機舊', async (t) => {
+  const directory = mkdtempSync(join(process.cwd(), '.notification-backup-test-'));
+  let current = new Date('2026-11-11T04:00:00Z');
+  const files = { directory, open: async (path: string) => openNodeDatabase(path), remove: async (path: string) => { rmSync(path, { force: true }); } };
+  const ledger = await openLedger(openNodeDatabase(join(directory, 'ledger.db')), { now: () => current, backupFiles: files });
+  t.after(async () => {
+    try { await ledger.close(); }
+    finally { rmSync(directory, { recursive: true, force: true }); }
+  });
+  await ledger.importFinanceDocument(serializeBudgetDocument(fixture()));
+  await spend(ledger, '飲食', 50);
+  const modified = (await ledger.getBackupStatus()).lastModifiedAt;
+  assert.ok(modified);
+  const out = await ledger.exportBackup(join(directory, 'out.db'));
+
+  // 隔天回到前景，自動重排只記下「系統已受理哪些提醒」，沒有任何帳務變動
+  current = new Date('2026-11-12T04:00:00Z');
+  const receipt = { id: 'entry:2026-11-12', fireAt: '2026-11-12T13:00:00.000Z' };
+  await ledger.recordNotificationDispatches([receipt]);
+
+  assert.deepEqual(await ledger.getNotificationDispatches(), [receipt]);
+  assert.equal((await ledger.getBackupStatus()).lastModifiedAt, modified);
+  assert.equal((await ledger.inspectBackup(out.path)).olderThanCurrent, false);
+});
+
+test('已受理即時提醒保存後不因前景重查而重發，也不改月結與交易總量', async (t) => {
+  const ledger = await setup(t);
+  await spend(ledger, '飲食', 101);
+  await closeOctober(ledger);
+  await ledger.saveNotificationSettings(await settings(ledger, 'entry', 'budgetOverrun', 'backupAfterClose'));
+  const snapshot = async () => ({ document: await ledger.exportFinanceDocument(), close: await ledger.getMonthlyCloseSnapshot('2026-10'),
+    transactions: await ledger.listTransactions('2026-01-01', '2027-12-31') });
+  const before = await snapshot();
+  assert.deepEqual(await ledger.getNotificationDispatches(), []);
+  const first = await ledger.getNotificationPlan({ now: NOW, hasEntitlement: false });
+  const immediate = first.filter((row) => row.fireAt === NOW.toISOString()).map(({ id, fireAt }) => ({ id, fireAt }));
+  assert.equal(immediate.length, 2);
+  await ledger.recordNotificationDispatches(immediate);
+  assert.deepEqual(await ledger.getNotificationDispatches(), immediate);
+  const later = await ledger.getNotificationPlan({ now: new Date(NOW.getTime() + 60_000), hasEntitlement: false });
+  assert.ok(later.length > 0 && later.every((row) => row.kind === 'entry'));
+  assert.deepEqual(await snapshot(), before);
+});
+
+test('記錄即時提醒識別碼去重、空清單與重送不改修改時間，無效輸入整批拒絕', async (t) => {
+  let time = NOW;
+  const ledger = await setup(t, () => time);
+  const receipt = { id: 'budgetOverrun:2026-11:food', fireAt: NOW.toISOString() };
+  await ledger.recordNotificationDispatches([receipt, receipt]);
+  const before = await ledger.getBackupStatus();
+  time = new Date(NOW.getTime() + DAY);
+  await ledger.recordNotificationDispatches([]);
+  await ledger.recordNotificationDispatches([receipt]);
+  assert.deepEqual(await ledger.getBackupStatus(), before);
+  await assert.rejects(ledger.recordNotificationDispatches([receipt, { ...receipt, id: '其他用途:1' }]), /識別碼/);
+  await assert.rejects(ledger.recordNotificationDispatches([{ ...receipt, fireAt: '無效日期' }]), /時間/);
+  assert.deepEqual(await ledger.getNotificationDispatches(), [receipt]);
+});
+
+test('預排提醒到時後不補發；到時前取消的排程仍可重新啟用', async (t) => {
+  let time = NOW;
+  const ledger = await setup(t, () => time);
+  await ledger.saveNotificationSettings(await settings(ledger, 'monthlyClose'));
+  const future = await ledger.getNotificationPlan({ now: NOW, hasEntitlement: true });
+  const december = future.find((row) => row.id.endsWith(':2026-12'))!;
+  assert.ok(december);
+  await ledger.recordNotificationDispatches([december]);
+  // 已受理但尚未到時仍須保留在下一份完整計畫，不能因去重而提前取消。
+  assert.ok((await ledger.getNotificationPlan({ now: NOW, hasEntitlement: true })).some((row) => row.id === december.id));
+  await ledger.recordNotificationDispatches([]);
+  assert.deepEqual(await ledger.getNotificationDispatches(), []);
+  time = new Date('2026-12-08T04:00:00Z');
+  assert.ok((await ledger.getNotificationPlan({ now: time, hasEntitlement: true })).some((row) => row.id === december.id));
+  time = NOW;
+  await ledger.recordNotificationDispatches([december]);
+  time = new Date('2026-12-08T04:00:00Z');
+  assert.ok(!(await ledger.getNotificationPlan({ now: time, hasEntitlement: true })).some((row) => row.id === december.id));
 });

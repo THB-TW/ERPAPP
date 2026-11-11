@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { isValidMonth } from '../calc/dates.ts';
 import type { BudgetStatus, LoanInput, LoanRevision, LoanView, LoanWriteRequest } from '../ledger/index.ts';
 import { formatAmount, monthTitle } from '../ui/format.ts';
+import { syncNotifications } from '../platform/notificationSync.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
 import { LoanCards } from '../ui/LoanCards.tsx';
 import { closeErrorMessage } from '../ui/MonthlyCloseSummary.tsx';
@@ -133,6 +134,7 @@ export default function LoansScreen() {
       const input = { ...preview, hasEntitlement: hasMonthlyCloseEntitlement() };
       if (editingId === null) await ledger.createLoan(input);
       else await ledger.updateLoan(editingId, input);
+      void syncNotifications(ledger).catch(() => {});
       saved = true;
       setFormOpen(false);
       setPreview(null);
