@@ -18,3 +18,5 @@
 - [x] 程式內沒有讓特定 Apple ID 免費的後門；家人共享不開（沒有內購的開發版全開，見 docs/subscription.md）
 - [ ] 權益對帳本服務指令的影響有測試（已有）；沙盒實測訂閱、試用、續訂、到期、寬限期、還原購買
 - [ ] 付費牆文字經 tw-legal-tax-counsel agent 審過
+
+- 2026-11-12 上架文件定案（PR #27，docs/app-store/）：App 名稱 Afterbills；付費項目「預算資料匯出」對使用者的名稱改為「預算表匯出（CSV）」，付費牆列出內容（分類、上限、儲備、貸款與月結結果），App 內字樣待本票改；付費牆與設定頁文字以 docs/app-store/subscription-disclosure.md 為準；內購用原生 StoreKit、不用 RevenueCat。

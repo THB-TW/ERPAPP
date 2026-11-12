@@ -1,13 +1,13 @@
 {
   "expo": {
-    "name": "記帳",
+    "name": "Afterbills",
     "slug": "ledger",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "tw.thbtw.ledger.dev"
     },
     "android": {

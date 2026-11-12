@@ -40,7 +40,7 @@ npx expo run:ios
 
 - 若最後出現 `simctl openurl … Operation timed out`：這是剛開機的模擬器反應太慢，App 其實已經裝好。另開一個終端機執行 `npx expo start`，再在模擬器桌面點「記帳」圖示開啟即可。之後改程式只要 `npx expo start`，不必重新編譯。
 - **要驗收月結、貸款、投資等進階功能**：目前還沒接內購，指令前面要加 `EXPO_PUBLIC_IAP=off`（`EXPO_PUBLIC_IAP=off npx expo run:ios`，或之後的 `EXPO_PUBLIC_IAP=off npx expo start`）。設定頁上方出現黃色「開發版・未接內購」就對了；不加是免費版，按進月結會出付費牆。
-- App 暫定的識別名稱是 `tw.thbtw.ledger.dev`、顯示名稱「記帳」，正式名稱定了再改。
+- App 暫定的識別名稱是 `tw.thbtw.ledger.dev`、顯示名稱 Afterbills（2026-11-12 定案）；識別名稱等申請開發者帳號時再定。
 
 **把舊帳放進模擬器：**
 
