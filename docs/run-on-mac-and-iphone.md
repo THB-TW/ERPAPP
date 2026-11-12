@@ -78,6 +78,8 @@ npx expo run:ios
 
 **訂閱（內購）**：免費 Apple ID 簽章的版本不能帶內購能力。目前程式還沒有接內購套件。要驗收月結精靈、貸款、投資等進階功能，執行指令前面加上 `EXPO_PUBLIC_IAP=off`（例如 `EXPO_PUBLIC_IAP=off npx expo run:ios --device`），這時是「開發版・未接內購」，進階功能全部開放，設定頁上方有黃色標示；不加就是免費版，可以看付費牆長什麼樣子。詳見 `docs/subscription.md`。
 
+**帶出門用要編 Release 版**：`npx expo run:ios --device` 編的是開發版，畫面程式從 Mac 即時載入，手機要和 Mac 同一個 Wi‑Fi 且指令開著才打得開。要隨身用，改用 `EXPO_PUBLIC_IAP=off npx expo run:ios --device --configuration Release`，程式整包裝進手機，不需要 Mac。
+
 **7 天後** App 會打不開：接回 Mac 再跑一次第 4 步即可，資料不會消失。保險起見，每次重裝前先在 App 裡匯出一份備份檔。
 
 ## 什麼時候才需要付費帳號
