@@ -70,7 +70,7 @@ npx expo run:ios
    若 `cd apps/mobile` 找不到，代表不在 repo 根目錄或分支不對：用 `pwd`、`ls`、`git branch --show-current` 檢查。
 
    選你的 iPhone。App 的識別名稱（bundle identifier）已在 `app.json` 設為暫定的 `tw.thbtw.ledger.dev`；之後改名等於另一個 App，資料要用備份檔搬。
-5. 若簽章失敗：在 `apps/mobile` 執行 `open ios/*.xcworkspace`，點左側藍色專案圖示 → TARGETS 選 Afterbills → Signing & Capabilities，勾 Automatically manage signing、Team 選你的 Personal Team，再重跑上面的指令。
+5. 若簽章失敗：在 `apps/mobile` 執行 `open ios/*.xcworkspace`，點左側最上面的藍色專案圖示 → 中間 TARGETS 選 App 的那一項（第一次編譯時的名稱決定；翰陞的 Mac 上叫 `app`，因為當時暫名「記帳」是中文） → Signing & Capabilities，勾 Automatically manage signing、Team 選你的 Personal Team，再重跑上面的指令。
 6. 第一次開 App 前：iPhone 設定 → 一般 → VPN 與裝置管理 → 信任你的開發者 App。
 7. 舊帳：把 `ledger-20261111.sqlite` 用 AirDrop 傳到 iPhone、存到「檔案」，第一次開 App 時在開帳畫面按「已有備份檔？還原帳本」匯入（不要先完成開帳）。
 
