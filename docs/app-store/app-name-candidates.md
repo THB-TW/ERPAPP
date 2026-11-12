@@ -44,7 +44,7 @@
 
 不推薦：有餘（太短）、月結本、存好預算、新 C。不月光、預算罐因辨識度與近似問題排後。
 
-商店名稱示例：「月底有餘－預算記帳」（9 字，上限 30）
+商店名稱示例：「月底有餘－預算記帳」（9 字，上限 30）（已被英文名稱取代，見文末）
 英文／bundle identifier 示例：`tw.<開發者代號>.monthend`（定案後才改 `app.json`，改了就不能再改 bundle id）
 
 ## 2026-11-12 翰陞提議：理財大師
@@ -105,3 +105,8 @@
 - Q3 商店名稱格式？建議：「Fullmonth－預算記帳」，副標題「清楚知道什麼可以花，什麼買不了」。
 
 法規審摘要（AI，非律師）：Fullmonth 低（至中）、Monthwell 低；Spendroom、Afterbills、Allotly、Roomful 中。名稱格式符合 2.3.7；網搜未查到相同商標，但無法查智慧局，請翰陞自查。詳見 [英文名稱法規審](../../.scratch/finance-product/research/launch-docs-english-name.md)。
+
+
+## 定案（2026-11-12）
+
+翰陞選 **Afterbills**，商店名稱「Afterbills－預算記帳」。上架前仍要：iPhone App Store 台灣帳號實搜一次、智慧局商標檢索（第 9、35、36、42 類）。bundle identifier（例如 `tw.<開發者代號>.afterbills`）要等申請 Apple Developer Program 時才定，定了就不能改。

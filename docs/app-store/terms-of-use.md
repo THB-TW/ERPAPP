@@ -1,10 +1,10 @@
-# 〈App 名稱〉使用條款（草稿）
+# Afterbills使用條款（草稿）
 
 > 草稿，2026-11-11。上架前須由律師核對：消保法通訊交易與七日解除權例外、責任限制條款效力、準據法與管轄法院。
 
 生效日：〈生效日〉
 
-本條款是你與〈開發者姓名〉（以下稱「開發者」）之間關於使用〈App 名稱〉（以下稱「本 App」）的約定。你下載或使用本 App，即表示你同意 Apple 的[標準授權條款（Licensed Application End User License Agreement）](https://www.apple.com/legal/internet-services/itunes/dev/stdeula/)以及以下補充條款；兩者不一致時，以本補充條款為準，但法律或 Apple 規定不得排除者（包括 Apple 標準授權條款中關於 Apple 的各項條款）除外。
+本條款是你與〈開發者姓名〉（以下稱「開發者」）之間關於使用Afterbills（以下稱「本 App」）的約定。你下載或使用本 App，即表示你同意 Apple 的[標準授權條款（Licensed Application End User License Agreement）](https://www.apple.com/legal/internet-services/itunes/dev/stdeula/)以及以下補充條款；兩者不一致時，以本補充條款為準，但法律或 Apple 規定不得排除者（包括 Apple 標準授權條款中關於 Apple 的各項條款）除外。
 
 ## 一、本 App 是什麼
 
