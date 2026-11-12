@@ -55,7 +55,7 @@ npx expo run:ios
 
 1. iPhone 用線接上 Mac，解鎖並按「信任這部電腦」。
 2. iPhone：設定 → 隱私權與安全性 → **開發者模式** → 打開（會要求重新開機）。
-3. Xcode → Settings → Accounts → 用你的 Apple ID 登入（會出現「Personal Team」）。
+3. Xcode → Settings → Accounts → 用你的 Apple ID 登入（會出現「Personal Team」）→ 選 Personal Team → **Manage Certificates…** → 左下 ＋ → **Apple Development**。少了這張憑證，第 4 步會停在 `No code signing certificates are available to use.`
 4. 在 **Mac 的「終端機」App** 執行（不是在 iPhone 上；手機只要開好開發者模式、用線接著）。先進到 repo 資料夾（翰陞的 Mac 是 `~/Documents/Account_app/ERPAPP`，也就是看得到 `apps` 的那一層），確認在整合分支：
 
    ```bash
@@ -70,7 +70,7 @@ npx expo run:ios
    若 `cd apps/mobile` 找不到，代表不在 repo 根目錄或分支不對：用 `pwd`、`ls`、`git branch --show-current` 檢查。
 
    選你的 iPhone。App 的識別名稱（bundle identifier）已在 `app.json` 設為暫定的 `tw.thbtw.ledger.dev`；之後改名等於另一個 App，資料要用備份檔搬。
-5. 若簽章失敗：用 Xcode 打開 `apps/mobile/ios/` 裡的 `.xcworkspace`，在 Signing & Capabilities 把 Team 選成你的 Personal Team，再重跑上面的指令。
+5. 若簽章失敗：在 `apps/mobile` 執行 `open ios/*.xcworkspace`，點左側藍色專案圖示 → TARGETS 選 Afterbills → Signing & Capabilities，勾 Automatically manage signing、Team 選你的 Personal Team，再重跑上面的指令。
 6. 第一次開 App 前：iPhone 設定 → 一般 → VPN 與裝置管理 → 信任你的開發者 App。
 7. 舊帳：把 `ledger-20261111.sqlite` 用 AirDrop 傳到 iPhone、存到「檔案」，第一次開 App 時在開帳畫面按「已有備份檔？還原帳本」匯入（不要先完成開帳）。
 
