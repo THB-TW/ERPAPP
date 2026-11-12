@@ -80,6 +80,12 @@ npx expo run:ios
 
 **帶出門用要編 Release 版**：`npx expo run:ios --device` 編的是開發版，畫面程式從 Mac 即時載入，手機要和 Mac 同一個 Wi‑Fi 且指令開著才打得開。要隨身用，改用 `EXPO_PUBLIC_IAP=off npx expo run:ios --device --configuration Release`，程式整包裝進手機，不需要 Mac。
 
+**實機編譯實際遇到的坑（2026-11-12 翰陞的 Mac）：**
+
+- pod install 一定要在 UTF-8 下跑（`export LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8`）。沒設時 CocoaPods 會中途停掉，看起來像跑過了，但 `ios/Podfile.lock` 時間沒變，之後編譯出現大量 `cannot find 'exsqlite3_…' in scope`。
+- Homebrew 升級 node 後，`ios/.xcode.env.local` 記的舊 node 路徑會失效，Release 打包 JS 時找不到 node。把它改成 `export NODE_BINARY=/opt/homebrew/bin/node`。
+- 第一次簽章會停在 `errSecInternalComponent`：要坐在 Mac 前、在終端機跑指令，鑰匙圈跳出「codesign 想要使用金鑰」時輸入 Mac 登入密碼並按「永遠允許」（可能跳 2～3 次）。
+
 **7 天後** App 會打不開：接回 Mac 再跑一次第 4 步即可，資料不會消失。保險起見，每次重裝前先在 App 裡匯出一份備份檔。
 
 ## 什麼時候才需要付費帳號
