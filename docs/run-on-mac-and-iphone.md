@@ -39,6 +39,7 @@ npx expo run:ios
 第一次會產生 iOS 專案並編譯，要十幾分鐘；之後會自動開模擬器並啟動 App。編譯產生的 `ios/` 資料夾已在 `.gitignore`，不會進 Git。
 
 - 若最後出現 `simctl openurl … Operation timed out`：這是剛開機的模擬器反應太慢，App 其實已經裝好。另開一個終端機執行 `npx expo start`，再在模擬器桌面點「記帳」圖示開啟即可。之後改程式只要 `npx expo start`，不必重新編譯。
+- **要驗收月結、貸款、投資等進階功能**：目前還沒接內購，指令前面要加 `EXPO_PUBLIC_IAP=off`（`EXPO_PUBLIC_IAP=off npx expo run:ios`，或之後的 `EXPO_PUBLIC_IAP=off npx expo start`）。設定頁上方出現黃色「開發版・未接內購」就對了；不加是免費版，按進月結會出付費牆。
 - App 暫定的識別名稱是 `tw.thbtw.ledger.dev`、顯示名稱「記帳」，正式名稱定了再改。
 
 **把舊帳放進模擬器：**
@@ -66,6 +67,8 @@ npx expo run:ios
 5. 若簽章失敗：用 Xcode 打開 `apps/mobile/ios/` 裡的 `.xcworkspace`，在 Signing & Capabilities 把 Team 選成你的 Personal Team，再重跑上面的指令。
 6. 第一次開 App 前：iPhone 設定 → 一般 → VPN 與裝置管理 → 信任你的開發者 App。
 7. 舊帳：把 `ledger-20261111.sqlite` 用 AirDrop 傳到 iPhone、存到「檔案」，第一次開 App 時在開帳畫面按「已有備份檔？還原帳本」匯入（不要先完成開帳）。
+
+**訂閱（內購）**：免費 Apple ID 簽章的版本不能帶內購能力。目前程式還沒有接內購套件。要驗收月結精靈、貸款、投資等進階功能，執行指令前面加上 `EXPO_PUBLIC_IAP=off`（例如 `EXPO_PUBLIC_IAP=off npx expo run:ios --device`），這時是「開發版・未接內購」，進階功能全部開放，設定頁上方有黃色標示；不加就是免費版，可以看付費牆長什麼樣子。詳見 `docs/subscription.md`。
 
 **7 天後** App 會打不開：接回 Mac 再跑一次第 4 步即可，資料不會消失。保險起見，每次重裝前先在 App 裡匯出一份備份檔。
 

@@ -8,7 +8,7 @@ import type { Account, LoanView, NotificationSettings, PlannedNotification } fro
 import { NotificationSettingsError } from '../ledger/index.ts';
 import { syncNotifications } from '../platform/notificationSync.ts';
 import { taipeiDateTime } from '../ui/backupText.ts';
-import { hasMonthlyCloseEntitlement } from '../ui/closeEntitlement.ts';
+import { hasMonthlyCloseEntitlement, useHasPaidAccess } from '../ui/closeEntitlement.ts';
 import { userMessage } from '../ui/format.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
 import { colors } from '../ui/theme.ts';
@@ -71,7 +71,7 @@ export default function NotificationsScreen() {
   const [message, setMessage] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
   const busyRef = useRef(false);
-  const hasEntitlement = hasMonthlyCloseEntitlement();
+  const hasEntitlement = useHasPaidAccess();
   const disabled = loading || busy !== null;
 
   useEffect(() => {

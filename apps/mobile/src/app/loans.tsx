@@ -11,7 +11,8 @@ import { syncNotifications } from '../platform/notificationSync.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
 import { LoanCards } from '../ui/LoanCards.tsx';
 import { closeErrorMessage } from '../ui/MonthlyCloseSummary.tsx';
-import { hasMonthlyCloseEntitlement } from '../ui/closeEntitlement.ts';
+import { hasMonthlyCloseEntitlement, useHasPaidAccess } from '../ui/closeEntitlement.ts';
+import { PaidLock } from '../ui/PaidLock.tsx';
 import { colors } from '../ui/theme.ts';
 
 interface FormFields { name: string; totalAmount: string; monthlyPayment: string; remainingPrincipal: string; expectedEndMonth: string; reason: string }
@@ -46,7 +47,7 @@ export default function LoansScreen() {
   const savingRef = useRef(false);
   const scroll = useRef<ScrollViewInstance>(null);
   const scrollIntent = useRef<'form' | 'preview' | null>(null);
-  const hasEntitlement = hasMonthlyCloseEntitlement();
+  const hasEntitlement = useHasPaidAccess();
   const readOnly = loading || saving || !hasEntitlement || status === null;
 
   useFocusEffect(useCallback(() => {
@@ -163,7 +164,7 @@ export default function LoansScreen() {
       }}>
         <Text style={styles.note}>{status ? `設定從開放月份 ${monthTitle(status.openMonth)}生效；已結月份保留當時快照。` : '讀取貸款設定後即可查看開放月份。'}</Text>
         <Text style={styles.note}>月結時自動提撥；繳款請到記帳新增一筆支出，分類選這筆貸款。儲備與剩餘本金在月結完成後扣減。</Text>
-        {!hasEntitlement ? <Text style={styles.note}>目前沒有有效的付費權益，貸款資料僅供檢視。</Text> : null}
+        {!hasEntitlement ? <PaidLock feature="loans" note="目前沒有有效的付費權益，貸款資料僅供檢視。" /> : null}
         {loading ? <ActivityIndicator accessibilityLabel="讀取貸款中" /> : null}
         {!loading && !formOpen ? <>
           <LoanCards loans={loans} onEdit={hasEntitlement ? edit : undefined} disabled={readOnly} />

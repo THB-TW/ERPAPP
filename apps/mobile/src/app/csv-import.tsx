@@ -8,7 +8,7 @@ import { csvFilePort, CsvFilePortError, type CsvFile } from '../csv/filePort.ts'
 import { CsvFormatError, LedgerError, type CsvImportResult } from '../ledger/index.ts';
 import { syncNotifications } from '../platform/notificationSync.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
-import { hasMonthlyCloseEntitlement } from '../ui/closeEntitlement.ts';
+import { hasMonthlyCloseEntitlement, requirePaidFeature } from '../ui/closeEntitlement.ts';
 import { colors } from '../ui/theme.ts';
 
 export default function CsvImportScreen() {
@@ -84,6 +84,7 @@ export default function CsvImportScreen() {
   }
 
   function exportBudget() {
+    if (!requirePaidFeature('budget_export')) return;
     void perform(async () => {
       const bytes = await ledger.exportBudgetCsv({ hasEntitlement: hasMonthlyCloseEntitlement() });
       if (!mounted.current) return;
