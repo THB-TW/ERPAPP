@@ -56,10 +56,10 @@ npx expo run:ios
 1. iPhone 用線接上 Mac，解鎖並按「信任這部電腦」。
 2. iPhone：設定 → 隱私權與安全性 → **開發者模式** → 打開（會要求重新開機）。
 3. Xcode → Settings → Accounts → 用你的 Apple ID 登入（會出現「Personal Team」）。
-4. 在 **Mac 的「終端機」App** 執行（不是在 iPhone 上；手機只要開好開發者模式、用線接著）。先進到 repo 資料夾（例如 `~/Documents/Account_app`，也就是看得到 `apps` 的那一層），確認在整合分支：
+4. 在 **Mac 的「終端機」App** 執行（不是在 iPhone 上；手機只要開好開發者模式、用線接著）。先進到 repo 資料夾（翰陞的 Mac 是 `~/Documents/Account_app/ERPAPP`，也就是看得到 `apps` 的那一層），確認在整合分支：
 
    ```bash
-   cd ~/Documents/Account_app            # 換成你放 repo 的資料夾
+   cd ~/Documents/Account_app/ERPAPP     # 翰陞的 Mac；Account_app 底下的 wt-* 是舊的平行工作副本，不要用
    git checkout claude/project-thread-xdtlp5
    git pull
    cd apps/mobile
