@@ -67,6 +67,8 @@ npx expo run:ios
    npx expo run:ios --device
    ```
 
+   **之前編譯過（`ios/` 資料夾已存在）又重跑了 `npm ci`**：先在 `apps/mobile` 執行 `cd ios && pod install && cd ..` 再編譯。`npm ci` 會清掉 pod install 複製進 `node_modules/expo-sqlite/ios/` 的 `sqlite3.h`，而 `expo run:ios` 看 Podfile 沒變就不重跑 pod install，編譯會停在 `cannot find 'exsqlite3_errmsg' in scope`。
+
    若 `cd apps/mobile` 找不到，代表不在 repo 根目錄或分支不對：用 `pwd`、`ls`、`git branch --show-current` 檢查。
 
    選你的 iPhone。App 的識別名稱（bundle identifier）已在 `app.json` 設為暫定的 `tw.thbtw.ledger.dev`；之後改名等於另一個 App，資料要用備份檔搬。
