@@ -54,3 +54,54 @@
 - 「大師」會讓人覺得 App 給理財建議；法規審建議避開「財務管理」這類字（審查指南 3.2.1(viii) 寫的是 money management，可能被要求改用公司身分送審），也避免最高級、專家式的用語。
 - 「理財」是很多記帳 App 名稱都有的通用詞，搜尋時不容易被認出，也不容易註冊商標。
 - 名稱沒有講到「預算」，跟定位比較遠。
+
+## 2026-11-12 英文名稱候選
+
+翰陞 2026-11-12 決定 App 名稱改用英文。核心目標：「幫忙管理個人財務」「清楚知道什麼可以花、什麼買不了」（後者已是副標題）。避開：Master／Advisor／Guru／Wealth／Invest、「最、唯一、保證」類字，以及任何近似現有記帳 App 的名稱。完整報告見 [.scratch/finance-product/research/launch-docs-english-name.md](../../.scratch/finance-product/research/launch-docs-english-name.md)。
+
+**查證限制（與前次相同）**：查證日 2026-11-12，用網路搜尋 apps.apple.com，本環境無法使用 App Store 搜尋介面，搜尋引擎也不會逐一回傳台灣區頁面。「未查到」只代表網搜沒找到，**不等於 App Store 內確認沒有**。商標只能查到第三方彙整站（Justia 等），**無法查台灣智慧局**，皆為線索。定案前請翰陞在 iPhone（台灣帳號）App Store 搜尋名稱，並查智慧局商標檢索與 USPTO TESS。
+
+### 候選與撞名結果
+
+| # | 名稱（字元數） | 美國／台灣區 App Store | 商標線索 | 結論 |
+|---|---|---|---|---|
+| 1 | **Fullmonth**（9） | 未查到同名。近似：Fullness（個人理財 App，名稱不同）、iMonth（備忘 App） | 未查到 | 可用，待實機確認 |
+| 2 | **Spendroom**（9） | 未查到同名。近似：Spendr、Spendlists、Spendful 等「Spend＋字尾」很多，辨識度中 | 未查到；同領域 Spendfully（YNAB 申請中）、Spendly（已註冊）字形相近 | 可用，注意近似 |
+| 3 | **Afterbills**（10） | 未查到同名 | 有舊的 AFTERBILL.COM 美國商標紀錄（帳務／收款服務，[Justia](https://trademark.justia.com/758/61/afterbill-com-75861552.html)），可能已失效，待查 | 可用，商標待確認 |
+| 4 | **Allotly**（7） | 未查到同名。近似：[Allowly（兒童零用錢）](https://apps.apple.com/app/id6762139161)、[Alotis](https://apps.apple.com/app/id1590967156) | 未查到 | 字形近似 Allowly，且 allot 台灣人不熟 |
+| 5 | **Monthwell**（9） | 未查到 | 未查到 | 可用，語意偏弱 |
+| 6 | **Roomful**（8） | 有 [Roomful Studio](https://apps.apple.com/us/app/roomful-studio/id1114016645)（3D 空間 App，非財務） | 未查到 | 語意偏「房間」，易誤解 |
+| 7 | **Keepable**（8） | 未查到 | 有 KEEPABLE LLC 美國註冊（第 39 類儲運服務，[紀錄](https://markinton.com/trademark/keepable-97741557)），不同類別但已被註冊 | 不推薦 |
+| 8 | **Spendable**（9） | **已被佔用**：[Spendable 預算 App，台灣區有頁面](https://apps.apple.com/tw/app/spendable-timely-bills/id6449970262)；另有 [Spendable - Managing Balance](https://apps.apple.com/us/app/-/id572236710) | — | 淘汰 |
+| 9 | **Leftover**（8） | 無完全同名，但 What's Left Over?、[Left. Budget Planner](https://apps.apple.com/app/id6761345386)、[Surplus](https://apps.apple.com/app/id1578612881) 概念與名稱都近 | — | 淘汰（近似） |
+| 10 | **CanSpend**（8） | [Can I Spend?](https://apps.apple.com/us/app/id6742256867) 預算 App，名稱近似 | — | 淘汰 |
+| 11 | **Earmark**（7） | **已被佔用**：[Earmark: Budget Privately](https://apps.apple.com/mx/app/earmark-budget-privately/id6742861817)（本機預算 App，與本產品幾乎同類） | — | 淘汰 |
+| 12 | **Monthend**（8） | 未查到 App，但 Monthend Apps 持有[會計軟體商標](https://trademark.justia.com/owners/monthend-apps-3916811) | 有 | 淘汰 |
+
+另在初篩就淘汰：Headroom（多個同名 App）、SetAside（[Sinking Funds App](https://apps.apple.com/us/app/-/id6754886161) 同類）、Sparely（[儲蓄 App](https://apps.apple.com/app/id6773452595)）、Marginly（[預算 App](https://apps.apple.com/jm/app/marginly/id6759874703)）、Roomly（多個同名 App）、Cushion（有 AI 理財產品同名）。
+
+### 評估（未淘汰者）
+
+| 名稱 | 好記 | 契合核心目標 | 主畫面 | 中文商店名稱 | bundle id（定案前不要改 app.json） |
+|---|---|---|---|---|---|
+| Fullmonth | 高：Full＋Month，一眼懂「整個月都夠」 | 高：對應「月底有剩」「不當月光族」 | 9 字元，放得下 | 「Fullmonth－預算記帳」（13 字，上限 30） | `tw.<開發者代號>.fullmonth` |
+| Spendroom | 中高：spend＋room（有空間花） | 高：直接對應「可以花多少」 | 9 字元 | 「Spendroom－預算記帳」 | `tw.<開發者代號>.spendroom` |
+| Afterbills | 中高：付完帳單之後 | 中高：對應「先分好、剩多少」；但可能被當成帳單提醒 App | 10 字元 | 「Afterbills－預算記帳」 | `tw.<開發者代號>.afterbills` |
+| Allotly | 中：allot＝分配 | 中：對應信封式分配，但字不常見 | 7 字元 | 「Allotly－預算記帳」 | `tw.<開發者代號>.allotly` |
+| Monthwell | 中 | 中：語意模糊 | 9 字元 | 「Monthwell－預算記帳」 | `tw.<開發者代號>.monthwell` |
+
+### 推薦前三名
+
+1. **Fullmonth**：最直接對應「月底有餘、不當月光族」，同時暗示月結；字母好唸，台灣上班族看得懂；網搜未查到同名與商標。
+2. **Spendroom**：最貼近翰陞的「清楚知道什麼可以花」（room to spend）；風險是「Spend＋字尾」命名擁擠，字形近 Spendfully／Spendly，須查商標。
+3. **Afterbills**：講「帳單付完後還能花多少」，貼近預算先分好；風險是易被當成帳單提醒 App，且有舊商標紀錄待查。
+
+備選：Allotly（若後兩者商標查出問題）。
+
+### 需翰陞決定
+
+- Q1 英文名稱選哪一個？建議：Fullmonth。
+- Q2 定案前是否先在 iPhone App Store（台灣帳號）搜尋該名稱，並查智慧局商標檢索？建議：是，兩者都做；有問題改用 Spendroom。
+- Q3 商店名稱格式？建議：「Fullmonth－預算記帳」，副標題「清楚知道什麼可以花，什麼買不了」。
+
+法規審摘要（AI，非律師）：Fullmonth 低（至中）、Monthwell 低；Spendroom、Afterbills、Allotly、Roomful 中。名稱格式符合 2.3.7；網搜未查到相同商標，但無法查智慧局，請翰陞自查。詳見 [英文名稱法規審](../../.scratch/finance-product/research/launch-docs-english-name.md)。
