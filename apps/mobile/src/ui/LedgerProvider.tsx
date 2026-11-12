@@ -3,6 +3,7 @@ import { ActivityIndicator, Text, View } from 'react-native';
 import type { Ledger } from '../ledger/index.ts';
 import { openMobileLedger } from '../platform/openMobileLedger.ts';
 import { startNotificationSync } from '../platform/notificationSync.ts';
+import { startAppSubscription } from '../platform/appSubscription.ts';
 import { colors } from './theme.ts';
 
 const LedgerContext = createContext<Ledger | null>(null);
@@ -26,6 +27,9 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
       cancelled = true;
     };
   }, []);
+
+  // App 啟動就監聽 App Store 交易更新（票 22）；權益判斷不依賴帳本。
+  useEffect(() => startAppSubscription(), []);
 
   useEffect(() => {
     if (ledger) return startNotificationSync(ledger);
