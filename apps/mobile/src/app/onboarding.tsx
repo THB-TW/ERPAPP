@@ -213,12 +213,12 @@ export default function OnboardingScreen() {
               <Text style={styles.label}>收入分類</Text>
               <Text style={styles.text}>{categories.filter((category) => category.flow === 'income').map((category) => category.name).join('、') || '尚無收入分類'}</Text>
               <View style={styles.card}>
-                <Field label="新增分類名稱" value={categoryName} onChangeText={setCategoryName} editable={!disabled} />
+                <Field label="新增分類名稱" value={categoryName} onChangeText={setCategoryName} editable={!disabled} onCard />
                 <View style={styles.choices}>
-                  <Choice label="支出" selected={categoryFlow === 'expense'} disabled={disabled} onPress={() => setCategoryFlow('expense')} />
-                  <Choice label="收入" selected={categoryFlow === 'income'} disabled={disabled} onPress={() => setCategoryFlow('income')} />
+                  <Choice label="支出" selected={categoryFlow === 'expense'} disabled={disabled} onPress={() => setCategoryFlow('expense')} onCard />
+                  <Choice label="收入" selected={categoryFlow === 'income'} disabled={disabled} onPress={() => setCategoryFlow('income')} onCard />
                 </View>
-                <Action label="確認新增分類" disabled={disabled || !categoryName.trim()} onPress={addCategory} secondary />
+                <Action label="確認新增分類" disabled={disabled || !categoryName.trim()} onPress={addCategory} secondary onCard />
               </View>
               <Action label="分類已準備好，前往匯入 CSV" disabled={disabled} onPress={() => router.push('/csv-import')} />
               <Text style={styles.hint}>匯入完成後按左上角返回，再繼續開帳。若有未知分類，返回這裡新增後重新匯入同一份 CSV，已成功的交易會略過。</Text>
@@ -265,10 +265,10 @@ export default function OnboardingScreen() {
                   <Text style={styles.label}>{row.name}</Text>
                   <Text style={styles.hint}>{row.averageExpense !== null ? `平均支出約 ${formatAmount(Math.round(row.averageExpense))} 元／月` : row.incomeRatio !== null ? `預設占收入 ${Math.round(row.incomeRatio * 100)}%` : '新分類預設照實支'}</Text>
                   <View style={styles.choices}>{GROUPS.map((group) => (
-                    <Choice key={group.value} label={group.label} selected={row.kind === group.value} disabled={disabled} onPress={() => editBudget(row.categoryId, { kind: group.value, ...(group.value === 'actual' ? { amount: '0' } : {}) })} />
+                    <Choice key={group.value} label={group.label} selected={row.kind === group.value} disabled={disabled} onPress={() => editBudget(row.categoryId, { kind: group.value, ...(group.value === 'actual' ? { amount: '0' } : {}) })} onCard />
                   ))}</View>
-                  {row.kind === 'actual' ? <Text style={styles.hint}>照實支，不設定上限。</Text> : <Field label={`${row.name}每月上限（元）`} value={row.amount} onChangeText={(value) => editBudget(row.categoryId, { amount: value })} editable={!disabled} numeric />}
-                  <Action label={row.confirmed ? '✓ 已確認' : '確認這項預算'} disabled={disabled || row.confirmed} onPress={() => confirmBudget(row)} secondary />
+                  {row.kind === 'actual' ? <Text style={styles.hint}>照實支，不設定上限。</Text> : <Field label={`${row.name}每月上限（元）`} value={row.amount} onChangeText={(value) => editBudget(row.categoryId, { amount: value })} editable={!disabled} numeric onCard />}
+                  <Action label={row.confirmed ? '✓ 已確認' : '確認這項預算'} disabled={disabled || row.confirmed} onPress={() => confirmBudget(row)} secondary onCard />
                 </View>
               ))}
               <Text style={styles.label}>已確認 {confirmedCount}／{budgetRows.length} 項</Text>
@@ -285,22 +285,25 @@ export default function OnboardingScreen() {
   );
 }
 
-function Field({ label, value, onChangeText, editable, numeric = false, signed = false }: {
-  label: string; value: string; onChangeText: (value: string) => void; editable: boolean; numeric?: boolean; signed?: boolean;
+function Field({ label, value, onChangeText, editable, numeric = false, signed = false, onCard = false }: {
+  label: string; value: string; onChangeText: (value: string) => void; editable: boolean; numeric?: boolean; signed?: boolean; onCard?: boolean;
 }) {
-  return <View style={{ gap: 6 }}><Text style={styles.label}>{label}</Text><TextInput value={value} onChangeText={onChangeText} editable={editable} keyboardType={numeric ? signed ? 'numbers-and-punctuation' : 'number-pad' : 'default'} accessibilityLabel={label} autoCorrect={false} style={styles.input} /></View>;
+  return <View style={{ gap: 6 }}><Text style={styles.label}>{label}</Text><TextInput value={value} onChangeText={onChangeText} editable={editable} keyboardType={numeric ? signed ? 'numbers-and-punctuation' : 'number-pad' : 'default'} accessibilityLabel={label} autoCorrect={false} style={[styles.input, onCard && styles.onCardFill]} /></View>;
 }
-function Action({ label, onPress, disabled = false, secondary = false }: { label: string; onPress: () => void; disabled?: boolean; secondary?: boolean }) {
-  return <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityState={{ disabled }} style={[styles.action, { backgroundColor: secondary ? colors.background : colors.accent, opacity: disabled ? 0.5 : 1, borderWidth: secondary ? 1 : 0 }]}><Text style={{ color: secondary ? colors.accent : '#fff', fontSize: 16, fontWeight: '600', textAlign: 'center' }}>{label}</Text></Pressable>;
+// onCard：控制項畫在白卡片內時，次要底色改用 colors.fill、不畫細框；直接在灰底頁面上維持白底。
+function Action({ label, onPress, disabled = false, secondary = false, onCard = false }: { label: string; onPress: () => void; disabled?: boolean; secondary?: boolean; onCard?: boolean }) {
+  return <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityState={{ disabled }} style={[styles.action, { backgroundColor: secondary ? (onCard ? colors.fill : colors.surface) : colors.accent, opacity: disabled ? 0.5 : 1, borderWidth: secondary && !onCard ? 1 : 0 }]}><Text style={{ color: secondary ? colors.accent : '#fff', fontSize: 16, fontWeight: '600', textAlign: 'center' }}>{label}</Text></Pressable>;
 }
-function Choice({ label, selected, disabled, onPress }: { label: string; selected: boolean; disabled: boolean; onPress: () => void }) {
-  return <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityState={{ selected, disabled }} style={{ minHeight: 44, paddingVertical: 10, paddingHorizontal: 12, justifyContent: 'center', borderRadius: 10, backgroundColor: selected ? colors.accent : colors.surface, opacity: disabled ? 0.5 : 1 }}><Text style={{ color: selected ? '#fff' : colors.text }}>{label}</Text></Pressable>;
+function Choice({ label, selected, disabled, onPress, onCard = false }: { label: string; selected: boolean; disabled: boolean; onPress: () => void; onCard?: boolean }) {
+  return <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityState={{ selected, disabled }} style={{ minHeight: 44, paddingVertical: 10, paddingHorizontal: 12, justifyContent: 'center', borderRadius: 10, backgroundColor: selected ? colors.accent : onCard ? colors.fill : colors.surface, borderWidth: selected || onCard ? 0 : 1, borderColor: colors.border, opacity: disabled ? 0.5 : 1 }}><Text style={{ color: selected ? '#fff' : colors.text }}>{label}</Text></Pressable>;
 }
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background }, content: { padding: 16, gap: 16 },
   title: { fontSize: 24, fontWeight: '700', color: colors.text }, label: { fontSize: 16, fontWeight: '600', color: colors.text },
   text: { fontSize: 16, color: colors.text }, hint: { fontSize: 14, lineHeight: 21, color: colors.muted }, error: { color: colors.expense, fontSize: 15 },
-  card: { padding: 14, gap: 12, borderRadius: 12, backgroundColor: colors.surface }, choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  input: { minHeight: 44, padding: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 8, backgroundColor: colors.background, color: colors.text, fontSize: 18 },
+  card: { padding: 14, gap: 12, borderRadius: 16, borderCurve: 'continuous', backgroundColor: colors.surface }, choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  input: { minHeight: 44, padding: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 8, backgroundColor: colors.surface, color: colors.text, fontSize: 18 },
+  // 畫在白卡片內的輸入框：用 fill 底色取代細框。
+  onCardFill: { backgroundColor: colors.fill, borderColor: colors.fill },
   action: { minHeight: 48, padding: 12, borderRadius: 8, borderColor: colors.border, justifyContent: 'center', alignItems: 'center' },
 });

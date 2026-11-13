@@ -237,8 +237,8 @@ const styles = StyleSheet.create({
   note: { color: colors.muted, fontSize: 14, lineHeight: 22 },
   link: { color: colors.accent, fontSize: 16 },
   input: { color: colors.text, fontSize: 19, borderBottomWidth: 1, borderBottomColor: colors.border, paddingVertical: 8 },
-  preview: { backgroundColor: colors.surface, borderRadius: 12, padding: 14, gap: 8 },
+  preview: { backgroundColor: colors.surface, borderRadius: 16, borderCurve: 'continuous', padding: 14, gap: 8 },
   error: { color: colors.expense, lineHeight: 22 },
-  button: { margin: 16, padding: 15, borderRadius: 10, alignItems: 'center', backgroundColor: colors.accent },
+  button: { margin: 16, padding: 15, minHeight: 50, borderRadius: 14, borderCurve: 'continuous', alignItems: 'center', backgroundColor: colors.accent },
   buttonText: { color: '#fff', fontSize: 17, fontWeight: '600' },
 });

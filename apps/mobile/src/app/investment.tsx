@@ -279,7 +279,7 @@ export default function InvestmentScreen() {
           {notice ? <Text accessibilityLiveRegion="polite" style={{ color: colors.income }}>{notice}</Text> : null}
           {error ? <Text accessibilityLiveRegion="polite" style={{ color: colors.expense }}>{error}</Text> : null}
         </ScrollView>
-        {form ? <Pressable accessibilityRole="button" onPress={save} disabled={disabled} style={{ margin: 16, padding: 14, borderRadius: 10, alignItems: 'center', backgroundColor: colors.accent, opacity: disabled ? 0.5 : 1 }}><Text style={{ color: '#fff', fontSize: 17, fontWeight: '600' }}>{saving ? '儲存中…' : '儲存'}</Text></Pressable> : null}
+        {form ? <Pressable accessibilityRole="button" onPress={save} disabled={disabled} style={{ margin: 16, padding: 14, minHeight: 50, justifyContent: 'center', borderRadius: 14, borderCurve: 'continuous', alignItems: 'center', backgroundColor: colors.accent, opacity: disabled ? 0.5 : 1 }}><Text style={{ color: '#fff', fontSize: 17, fontWeight: '600' }}>{saving ? '儲存中…' : '儲存'}</Text></Pressable> : null}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -298,7 +298,7 @@ function displayTime(value: string): string {
   return Number.isNaN(date.getTime()) ? value : new Date(date.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 16).replace('T', ' ');
 }
 function Card({ title, children }: { title: string; children: ReactNode }) {
-  return <View style={{ backgroundColor: colors.surface, padding: 14, borderRadius: 12, gap: 10 }}><Text style={{ color: colors.text, fontSize: 18, fontWeight: '600' }}>{title}</Text>{children}</View>;
+  return <View style={{ backgroundColor: colors.surface, padding: 14, borderRadius: 16, borderCurve: 'continuous', gap: 10 }}><Text style={{ color: colors.text, fontSize: 18, fontWeight: '600' }}>{title}</Text>{children}</View>;
 }
 function Amount({ value }: { value: number }) {
   return <Text style={{ color: value < 0 ? colors.expense : colors.text, fontSize: 21, fontWeight: '600' }}>{formatAmount(value)} 元</Text>;
@@ -314,7 +314,7 @@ function Choices({ children }: { children: ReactNode }) {
   return <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{children}</View>;
 }
 function Choice({ label, selected, disabled, onPress }: { label: string; selected: boolean; disabled: boolean; onPress: () => void }) {
-  return <Pressable accessibilityRole="button" accessibilityState={{ selected, disabled }} disabled={disabled} onPress={onPress} style={{ paddingVertical: 10, paddingHorizontal: 14, borderRadius: 18, backgroundColor: selected ? colors.accent : colors.background, opacity: disabled ? 0.5 : 1 }}><Text style={{ color: selected ? '#fff' : colors.text }}>{label}</Text></Pressable>;
+  return <Pressable accessibilityRole="button" accessibilityState={{ selected, disabled }} disabled={disabled} onPress={onPress} style={{ paddingVertical: 10, paddingHorizontal: 14, borderRadius: 18, backgroundColor: selected ? colors.accent : colors.fill, opacity: disabled ? 0.5 : 1 }}><Text style={{ color: selected ? '#fff' : colors.text }}>{label}</Text></Pressable>;
 }
 function Action({ label, disabled, onPress }: { label: string; disabled: boolean; onPress: () => void }) {
   return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={{ paddingVertical: 8, opacity: disabled ? 0.4 : 1 }}><Text style={{ color: colors.accent, fontSize: 15 }}>{label}</Text></Pressable>;

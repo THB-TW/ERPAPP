@@ -105,8 +105,8 @@ export default function CsvImportScreen() {
           <Text style={{ color: colors.muted }}>只需要類別與金額。交易的匯入與匯出皆免費，不需訂閱。</Text>
           <Action label="查看 CSV 規格說明" disabled={busy} onPress={() => router.push('/csv-spec')} secondary />
 
-          <View style={{ padding: 16, borderRadius: 12, backgroundColor: colors.surface, gap: 12 }}>
-            <Action label="選擇 CSV 檔案" disabled={busy} onPress={pickFile} secondary />
+          <View style={{ padding: 16, borderRadius: 16, borderCurve: 'continuous', backgroundColor: colors.surface, gap: 12 }}>
+            <Action label="選擇 CSV 檔案" disabled={busy} onPress={pickFile} secondary onCard />
             <Text style={{ color: colors.muted }}>可從「檔案」選擇 UTF-8 或 Big5 CSV，也可以貼上 CSV 內容。</Text>
             {file ? <Text style={{ color: colors.text }}>已選擇：{file.name}</Text> : null}
             <Text style={{ color: colors.text, fontWeight: '600' }}>或貼上 CSV 內容</Text>
@@ -125,7 +125,7 @@ export default function CsvImportScreen() {
               accessibilityLabel="CSV 內容"
               placeholder={'類別,金額\n飲食,120'}
               style={{ minHeight: 160, padding: 12, borderWidth: 1, borderColor: colors.border,
-                borderRadius: 8, color: colors.text, backgroundColor: colors.background, fontSize: 16 }}
+                borderRadius: 8, color: colors.text, backgroundColor: colors.fill, fontSize: 16 }}
             />
             <Text style={{ color: colors.muted }}>按下匯入會新增交易。通過驗證的重複交易會略過；已結月份一律拒收，並列出原因。</Text>
             <Action label={busy ? '處理中…' : '匯入 CSV'} disabled={busy || (file === null && text.trim() === '')} onPress={importCsv} />
@@ -160,16 +160,16 @@ export default function CsvImportScreen() {
             </View>
           ) : null}
 
-          <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 16, gap: 12 }}>
+          <View style={{ padding: 16, borderRadius: 16, borderCurve: 'continuous', backgroundColor: colors.surface, gap: 12 }}>
             <Text style={{ color: colors.text, fontWeight: '600', fontSize: 18 }}>帶走全部交易</Text>
             <Text style={{ color: colors.muted }}>匯出成 UTF-8 CSV，包含全部日期的收入與支出，可再次匯入。</Text>
-            <Action label="匯出全部交易 CSV" disabled={busy} onPress={exportCsv} secondary />
+            <Action label="匯出全部交易 CSV" disabled={busy} onPress={exportCsv} secondary onCard />
           </View>
 
-          <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 16, gap: 12 }}>
+          <View style={{ padding: 16, borderRadius: 16, borderCurve: 'continuous', backgroundColor: colors.surface, gap: 12 }}>
             <Text style={{ color: colors.text, fontWeight: '600', fontSize: 18 }}>匯出預算資料（付費）</Text>
             <Text style={{ color: colors.muted }}>把預算上限、各月月結、儲備餘額與貸款整理成一份 CSV 報表。要換手機或搬家請用「設定 → 備份」的備份檔，它永遠免費，也包含全部預算資料。</Text>
-            <Action label="匯出預算資料 CSV" disabled={busy} onPress={exportBudget} secondary />
+            <Action label="匯出預算資料 CSV" disabled={busy} onPress={exportBudget} secondary onCard />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -177,8 +177,8 @@ export default function CsvImportScreen() {
   );
 }
 
-function Action({ label, onPress, disabled = false, secondary = false }: {
-  label: string; onPress: () => void; disabled?: boolean; secondary?: boolean;
+function Action({ label, onPress, disabled = false, secondary = false, onCard = false }: {
+  label: string; onPress: () => void; disabled?: boolean; secondary?: boolean; onCard?: boolean;
 }) {
   return (
     <Pressable
@@ -187,8 +187,9 @@ function Action({ label, onPress, disabled = false, secondary = false }: {
       disabled={disabled}
       onPress={onPress}
       style={{ minHeight: 44, padding: 12, borderRadius: 8, alignItems: 'center', justifyContent: 'center',
-        backgroundColor: secondary ? colors.background : colors.accent,
-        borderWidth: secondary ? 1 : 0, borderColor: colors.border, opacity: disabled ? 0.45 : 1 }}
+        // 次要按鈕：灰底頁面上用白底＋細框；白卡片內（onCard）改用 fill 底色。
+        backgroundColor: secondary ? (onCard ? colors.fill : colors.surface) : colors.accent,
+        borderWidth: secondary && !onCard ? 1 : 0, borderColor: colors.border, opacity: disabled ? 0.45 : 1 }}
     >
       <Text style={{ color: secondary ? colors.accent : '#ffffff', fontSize: 16, fontWeight: '600' }}>{label}</Text>
     </Pressable>

@@ -45,7 +45,7 @@ export default function SubscriptionScreen() {
 function Row({ label, onPress, disabled = false }: { label: string; onPress: () => void; disabled?: boolean }) {
   return (
     <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityState={{ disabled }}
-      style={{ paddingVertical: 14, paddingHorizontal: 16, borderRadius: 12, backgroundColor: colors.surface, opacity: disabled ? 0.5 : 1 }}>
+      style={{ paddingVertical: 14, paddingHorizontal: 16, borderRadius: 14, borderCurve: 'continuous', backgroundColor: colors.surface, opacity: disabled ? 0.5 : 1 }}>
       <Text style={{ color: colors.text, fontSize: 16 }}>{label}</Text>
     </Pressable>
   );

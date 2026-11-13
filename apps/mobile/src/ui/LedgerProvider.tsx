@@ -37,14 +37,14 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
 
   if (error) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', padding: 24 }}>
+      <View style={{ flex: 1, justifyContent: 'center', padding: 24, backgroundColor: colors.background }}>
         <Text style={{ color: colors.expense, fontSize: 16 }}>{error}</Text>
       </View>
     );
   }
   if (!ledger) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center' }}>
+      <View style={{ flex: 1, justifyContent: 'center', backgroundColor: colors.background }}>
         <ActivityIndicator />
       </View>
     );

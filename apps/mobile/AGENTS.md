@@ -39,3 +39,13 @@ Docs: https://docs.expo.dev/eas/index.md
 - If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
 - Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
 - Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md
+
+## UI 風格（本專案）
+
+畫面採 Apple「分組清單」風格：淺灰底、白色圓角卡片、Apple 字級、克制使用強調色。新畫面或改畫面時：
+
+- 配色與字級只用 `src/ui/theme.ts` 的 `colors`、`typeScale`，不要直接寫色碼或字級。
+- 版面用 `src/ui/kit.tsx` 的零件（`Card`、`Group`、`Row`、`NavRow`、`SectionTitle`、`Footnote`、`MonthBar`、`PrimaryButton`、`Segmented`、`Chip`、`Banner`）與 `kit.*`／`text.*` 樣式；規則寫在該檔開頭。參考畫面：`src/app/(tabs)/budget/index.tsx`。
+- 分頁在 `src/app/(tabs)/<分頁>/index.tsx`（記帳是 `(home)/`），底部是原生分頁列（`expo-router/native-tabs`），標題是原生大標題（`src/ui/TabStack.tsx`）。分頁畫面最外層必須是設了 `contentInsetAdjustmentBehavior="automatic"` 的 `ScrollView`，大標題才會收合。
+- 長頁面的區段跳轉用 `src/ui/sectionNav.ts`。
+- 記帳、轉帳表單以 iOS 面板（modal）呈現；面板裡不要用 `KeyboardAvoidingView`，用 `src/ui/useKeyboardHeight.ts`。

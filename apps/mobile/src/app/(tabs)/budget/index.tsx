@@ -8,7 +8,8 @@ import { monthOf, shiftMonth, taipeiDate } from '../../../calc/dates.ts';
 import type { BudgetMonthView, BudgetProgress, BudgetProgressRow, LoanView } from '../../../ledger/index.ts';
 import { formatAmount, monthTitle, userMessage } from '../../../ui/format.ts';
 import { useLedger } from '../../../ui/LedgerProvider.tsx';
-import { groupColors, grouped, typeScale } from '../../../ui/theme.ts';
+import { Card, Footnote, Group, MonthBar, NavRow, Row, SectionTitle, kit, text } from '../../../ui/kit.tsx';
+import { colors, groupColors, typeScale } from '../../../ui/theme.ts';
 import { jumpOffset, reachedTarget, sectionAt } from '../../../ui/sectionNav.ts';
 import { MonthlyCloseSummary } from '../../../ui/MonthlyCloseSummary.tsx';
 import { LoanCards } from '../../../ui/LoanCards.tsx';
@@ -133,7 +134,7 @@ export default function BudgetScreen() {
   return (
     <ScrollView
       ref={scroll}
-      style={styles.screen}
+      style={kit.screen}
       contentContainerStyle={styles.content}
       contentInsetAdjustmentBehavior="automatic"
       stickyHeaderIndices={[RAIL_INDEX]}
@@ -144,21 +145,16 @@ export default function BudgetScreen() {
       scrollEventThrottle={16}
     >
       {/* 0：月份切換 */}
-      <View style={styles.monthPicker}>
-        <Pressable onPress={() => changeMonth(shiftMonth(month, -1))} disabled={month <= '1900-01'} hitSlop={12} accessibilityLabel="上個月" style={styles.monthArrow}>
-          <Text style={styles.arrow}>‹</Text>
-        </Pressable>
-        <View style={{ alignItems: 'center', gap: 2 }}>
-          <Text style={styles.monthTitle}>{monthTitle(month)}</Text>
-          {isCurrentMonth ? <Text style={styles.monthHint}>本月</Text> : (
-            <Pressable onPress={() => changeMonth(monthOf(taipeiDate(new Date())))} accessibilityRole="button" hitSlop={8}>
-              <Text style={styles.monthLink}>回到本月</Text>
-            </Pressable>
-          )}
-        </View>
-        <Pressable onPress={() => changeMonth(shiftMonth(month, 1))} disabled={month >= '9998-12'} hitSlop={12} accessibilityLabel="下個月" style={styles.monthArrow}>
-          <Text style={styles.arrow}>›</Text>
-        </Pressable>
+      <View style={styles.monthBarWrap}>
+        <MonthBar
+          title={monthTitle(month)}
+          hint={isCurrentMonth ? '本月' : '回到本月'}
+          onHintPress={isCurrentMonth ? undefined : () => changeMonth(monthOf(taipeiDate(new Date())))}
+          onPrev={() => changeMonth(shiftMonth(month, -1))}
+          onNext={() => changeMonth(shiftMonth(month, 1))}
+          prevDisabled={month <= '1900-01'}
+          nextDisabled={month >= '9998-12'}
+        />
       </View>
 
       {/* 1：區段頁籤列，捲動時吸在頂端（文字在色條上方，五格平分寬度、不可橫向捲動）。 */}
@@ -187,61 +183,61 @@ export default function BudgetScreen() {
 
       {loading ? <ActivityIndicator style={{ marginTop: 32 }} accessibilityLabel="讀取預算中" /> : null}
       {error ? (
-        <View style={[styles.card, { gap: 12, marginHorizontal: 16, marginTop: 16 }]}>
-          <Text style={{ ...typeScale.body, color: grouped.expense }} accessibilityRole="alert">{error}</Text>
+        <Card style={styles.errorCard}>
+          <Text style={styles.errorText} accessibilityRole="alert">{error}</Text>
           <Pressable onPress={() => setRetry((value) => value + 1)} accessibilityRole="button">
-            <Text style={styles.link}>重新讀取</Text>
+            <Text style={text.link}>重新讀取</Text>
           </Pressable>
-        </View>
+        </Card>
       ) : null}
 
       {ready ? <>
         <View onLayout={measure('overview')} style={styles.section}>
-          <View style={[styles.card, styles.summary]}>
+          <Card style={styles.summary}>
             <View style={{ gap: 2 }}>
-              <Text style={styles.label}>本月全部已花</Text>
-              <Text style={styles.bigAmount}>NT$ {formatAmount(progress.totalSpent)}</Text>
+              <Text style={text.footnote}>本月全部已花</Text>
+              <Text style={text.amount}>NT$ {formatAmount(progress.totalSpent)}</Text>
             </View>
-            <View style={styles.hairline} />
-            <View style={styles.rowBetween}>
-              <Text style={styles.body}>有上限分類合計</Text>
-              <Text style={styles.value}>NT$ {formatAmount(progress.totalCap)}</Text>
+            <View style={kit.hairline} />
+            <View style={kit.rowBetween}>
+              <Text style={text.body}>有上限分類合計</Text>
+              <Text style={text.value}>NT$ {formatAmount(progress.totalCap)}</Text>
             </View>
-          </View>
-          <Text style={styles.footnote}>上限合計不含照實支；本月已花包含照實支與尚未設定歸屬的支出。可編輯的開放月份：{monthTitle(progress.openMonth)}。已結月份沿用當時的上限快照。</Text>
+          </Card>
+          <Footnote>上限合計不含照實支；本月已花包含照實支與尚未設定歸屬的支出。可編輯的開放月份：{monthTitle(progress.openMonth)}。已結月份沿用當時的上限快照。</Footnote>
 
           {progress.rows.length === 0 ? (
-            <Text style={styles.footnote}>這個月還沒有預算上限設定，請到「設定 → 預算與分類」建立。</Text>
+            <Footnote>這個月還沒有預算上限設定，請到「設定 → 預算與分類」建立。</Footnote>
           ) : null}
           {progress.unmapped.length > 0 ? (
-            <View style={[styles.card, styles.warning]}>
-              <Text style={styles.headline}>以下支出尚未設定預算歸屬</Text>
+            <Card style={styles.warning}>
+              <Text style={text.headline}>以下支出尚未設定預算歸屬</Text>
               {progress.unmapped.map((category) => (
-                <View key={category.categoryId} style={styles.rowBetween}>
-                  <Text style={[styles.body, { flex: 1 }]}>{category.name}</Text>
-                  <Text style={styles.value}>已花 {formatAmount(category.spent)}</Text>
+                <View key={category.categoryId} style={kit.rowBetween}>
+                  <Text style={[text.body, { flex: 1 }]}>{category.name}</Text>
+                  <Text style={text.value}>已花 {formatAmount(category.spent)}</Text>
                 </View>
               ))}
-              <Text style={styles.footnote}>請到設定指定歸屬，這些金額才會計入對應分類的進度。</Text>
-            </View>
+              <Footnote>請到設定指定歸屬，這些金額才會計入對應分類的進度。</Footnote>
+            </Card>
           ) : null}
 
           {closed ? <>
-            <SectionTitle>{monthTitle(closed.month)}已結資產</SectionTitle>
+            <SectionHead>{monthTitle(closed.month)}已結資產</SectionHead>
             <MonthlyCloseSummary summary={closed} cardStyle={styles.card} />
-            <Text style={styles.footnote}>以下累積儲備截至{monthTitle(closed.month)}，包含已生效調整；尚未包含未結月份的預估變動。</Text>
-            <View style={[styles.card, styles.list]}>
-              {closed.reserves.map((reserve, index) => (
-                <View key={reserve.categoryId} style={[styles.listRow, index > 0 && styles.listDivider]}>
-                  <Text style={[styles.body, { flex: 1 }]}>{reserve.name}累積儲備</Text>
-                  <Text style={[styles.value, reserve.balance < 0 && { color: grouped.expense }]}>{formatAmount(reserve.balance)}</Text>
-                </View>
+            <Footnote>以下累積儲備截至{monthTitle(closed.month)}，包含已生效調整；尚未包含未結月份的預估變動。</Footnote>
+            <Group>
+              {closed.reserves.map((reserve) => (
+                <Row key={reserve.categoryId}>
+                  <Text style={[text.body, { flex: 1 }]}>{reserve.name}累積儲備</Text>
+                  <Text style={[text.value, reserve.balance < 0 && { color: colors.expense }]}>{formatAmount(reserve.balance)}</Text>
+                </Row>
               ))}
-              <LinkRow first={closed.reserves.length === 0} label="挪用儲備" onPress={() => router.push({ pathname: '/adjustments', params: { action: 'transfer' } })} />
-              <LinkRow label="可用餘額補入儲備" onPress={() => router.push({ pathname: '/adjustments', params: { action: 'fund' } })} />
-              <LinkRow label="查看這個月的月結快照" onPress={() => router.push({ pathname: '/close-snapshot', params: { month: closed.month } })} />
-            </View>
-          </> : <Text style={styles.footnote}>這個月份尚無已結資產；完成月結後會顯示可用餘額、累積儲備與帳面總資產。</Text>}
+              <NavRow tone="accent" title="挪用儲備" onPress={() => router.push({ pathname: '/adjustments', params: { action: 'transfer' } })} />
+              <NavRow tone="accent" title="可用餘額補入儲備" onPress={() => router.push({ pathname: '/adjustments', params: { action: 'fund' } })} />
+              <NavRow tone="accent" title="查看這個月的月結快照" onPress={() => router.push({ pathname: '/close-snapshot', params: { month: closed.month } })} />
+            </Group>
+          </> : <Footnote>這個月份尚無已結資產；完成月結後會顯示可用餘額、累積儲備與帳面總資產。</Footnote>}
         </View>
 
         {SECTIONS.filter((section) => section.id !== 'overview' && section.id !== 'loan').map((section) => {
@@ -249,47 +245,34 @@ export default function BudgetScreen() {
           const rows = progress.rows.filter((row) => row.kind === kind);
           return (
             <View key={kind} style={styles.section} onLayout={measure(kind)}>
-              <SectionTitle color={section.color}>{section.label}</SectionTitle>
-              <Text style={styles.footnote}>{GROUP_NOTES[kind]}</Text>
-              {rows.length === 0 ? <Text style={styles.footnote}>這一組還沒有分類。</Text> : (
-                <View style={[styles.card, styles.list]}>
-                  {rows.map((row, index) => <ProgressRow key={row.categoryId} row={row} color={section.color} divider={index > 0} />)}
-                </View>
+              <SectionHead color={section.color}>{section.label}</SectionHead>
+              <Footnote>{GROUP_NOTES[kind]}</Footnote>
+              {rows.length === 0 ? <Footnote>這一組還沒有分類。</Footnote> : (
+                <Group>
+                  {rows.map((row) => <ProgressRow key={row.categoryId} row={row} color={section.color} />)}
+                </Group>
               )}
             </View>
           );
         })}
 
         <View style={styles.section} onLayout={measure('loan')}>
-          <SectionTitle color={groupColors.loan}>貸款／分期</SectionTitle>
-          <Text style={styles.footnote}>月結時提撥每月繳款；實際繳款選這筆貸款分類，月結後扣減儲備與剩餘本金。未結月份尚未計入新的提撥與繳款。</Text>
+          <SectionHead color={groupColors.loan}>貸款／分期</SectionHead>
+          <Footnote>月結時提撥每月繳款；實際繳款選這筆貸款分類，月結後扣減儲備與剩餘本金。未結月份尚未計入新的提撥與繳款。</Footnote>
           <LoanCards loans={loans} cardStyle={styles.card} />
-          <View style={[styles.card, styles.list]}>
-            <LinkRow first label="到設定管理貸款／分期" onPress={() => router.push('/loans')} />
-            <LinkRow label="到設定修改預算與分類" onPress={() => router.navigate('/(tabs)/settings')} />
-          </View>
+          <Group>
+            <NavRow tone="accent" title="到設定管理貸款／分期" onPress={() => router.push('/loans')} />
+            <NavRow tone="accent" title="到設定修改預算與分類" onPress={() => router.navigate('/(tabs)/settings')} />
+          </Group>
         </View>
       </> : null}
     </ScrollView>
   );
 }
 
-function SectionTitle({ children, color }: { children: ReactNode; color?: string }) {
-  return (
-    <View style={styles.sectionTitle}>
-      {color ? <View style={[styles.dot, { backgroundColor: color }]} /> : null}
-      <Text style={styles.title} accessibilityRole="header">{children}</Text>
-    </View>
-  );
-}
-
-function LinkRow({ label, onPress, first = false }: { label: string; onPress: () => void; first?: boolean }) {
-  return (
-    <Pressable onPress={onPress} accessibilityRole="button" style={({ pressed }) => [styles.listRow, !first && styles.listDivider, pressed && styles.pressed]}>
-      <Text style={[styles.body, { flex: 1, color: grouped.accent }]}>{label}</Text>
-      <Text style={styles.chevron}>›</Text>
-    </Pressable>
-  );
+/** 區段標題：kit 的 SectionTitle 自帶左右 4 內距，這裡以 -4 外距抵銷，讓標題與卡片左緣對齊；上方再留 8。 */
+function SectionHead({ children, color }: { children: ReactNode; color?: string }) {
+  return <View style={styles.sectionHead}><SectionTitle color={color}>{children}</SectionTitle></View>;
 }
 
 /** 進度條：出現或數值改變時，用 0.5 秒緩出長到目前比例（系統「減少動態效果」開啟時直接到位）。 */
@@ -302,15 +285,15 @@ function ProgressBar({ ratio, color }: { ratio: number; color: string }) {
   return <Animated.View style={[styles.progressFill, { backgroundColor: color }, fill]} />;
 }
 
-function ProgressRow({ row, color, divider }: { row: BudgetProgressRow; color: string; divider: boolean }) {
+function ProgressRow({ row, color }: { row: BudgetProgressRow; color: string }) {
   const over = row.remaining !== null && row.remaining < 0;
   const ratio = row.cap === null ? 0 : row.cap > 0 ? Math.min(1, row.spent / row.cap) : row.spent > 0 ? 1 : 0;
   return (
-    <View style={[styles.progressRow, divider && styles.listDivider]}>
-      <View style={styles.rowBetween}>
-        <Text style={[styles.headline, { flex: 1 }]}>{row.name}</Text>
+    <View style={styles.progressRow}>
+      <View style={kit.rowBetween}>
+        <Text style={[text.headline, { flex: 1 }]}>{row.name}</Text>
         {row.remaining === null ? null : (
-          <Text style={[styles.value, over && { color: grouped.expense }]}>
+          <Text style={[text.value, over && { color: colors.expense }]}>
             {over ? '超支' : '剩餘'} {formatAmount(Math.abs(row.remaining))}
           </Text>
         )}
@@ -320,9 +303,9 @@ function ProgressRow({ row, color, divider }: { row: BudgetProgressRow; color: s
           accessibilityRole="progressbar"
           accessibilityLabel={`${row.name}本月預算進度`}
           accessibilityValue={{ min: 0, max: 100, now: Math.round(ratio * 100), text: `已花 ${formatAmount(row.spent)}，上限 ${formatAmount(row.cap)}` }}
-          style={styles.progressTrack}
+          style={kit.progressTrack}
         >
-          <ProgressBar ratio={ratio} color={over ? grouped.expense : color} />
+          <ProgressBar ratio={ratio} color={over ? colors.expense : color} />
         </View>
       ) : null}
       <Text style={styles.footnoteInCard}>已花 {formatAmount(row.spent)}{row.cap === null ? '・照實支' : ` ／ 上限 ${formatAmount(row.cap)}`}</Text>
@@ -331,49 +314,30 @@ function ProgressRow({ row, color, divider }: { row: BudgetProgressRow; color: s
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: grouped.background },
   content: { paddingBottom: 40 },
-  monthPicker: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingTop: 4, paddingBottom: 8 },
-  monthArrow: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  arrow: { color: grouped.accent, fontSize: 30, lineHeight: 34 },
-  monthTitle: { ...typeScale.headline, color: grouped.text },
-  monthHint: { ...typeScale.footnote, color: grouped.secondary },
-  monthLink: { ...typeScale.footnote, color: grouped.accent },
+  // MonthBar 設計成放在 16 的左右內距裡。
+  monthBarWrap: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 8 },
   rail: {
     flexDirection: 'row',
     gap: 4,
     paddingHorizontal: 12,
-    backgroundColor: grouped.background,
+    backgroundColor: colors.background,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: grouped.separator,
+    borderBottomColor: colors.border,
   },
   railButton: { flex: 1, minWidth: 0, gap: 6, paddingHorizontal: 2, paddingTop: 10, paddingBottom: 8 },
-  railLabel: { ...typeScale.subhead, textAlign: 'center', color: grouped.secondary },
-  railLabelActive: { color: grouped.text, fontWeight: '600' },
+  railLabel: { ...typeScale.subhead, textAlign: 'center', color: colors.muted },
+  railLabelActive: { color: colors.text, fontWeight: '600' },
   railBar: { height: 3, borderRadius: 1.5 },
   section: { paddingHorizontal: 16, paddingTop: 24, gap: 8 },
-  sectionTitle: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
-  title: { ...typeScale.title3, color: grouped.text },
-  card: { backgroundColor: grouped.card, borderRadius: 16, borderCurve: 'continuous', borderWidth: 0, padding: 16 },
+  sectionHead: { marginTop: 8, marginHorizontal: -4 },
+  // 傳給 MonthlyCloseSummary／LoanCards 的 cardStyle（它們自己有排版，只要白卡片＋內距）。
+  card: { backgroundColor: colors.surface, borderRadius: 16, borderCurve: 'continuous', borderWidth: 0, padding: 16 },
+  errorCard: { marginHorizontal: 16, marginTop: 16 },
+  errorText: { ...typeScale.body, color: colors.expense },
   summary: { gap: 14 },
-  list: { paddingVertical: 0, paddingHorizontal: 0 },
-  listRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48, paddingHorizontal: 16, paddingVertical: 12 },
-  listDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: grouped.separator },
   progressRow: { paddingHorizontal: 16, paddingVertical: 14, gap: 8 },
-  pressed: { backgroundColor: grouped.track },
-  hairline: { height: StyleSheet.hairlineWidth, backgroundColor: grouped.separator },
   warning: { gap: 8, borderWidth: 1, borderColor: '#f5d0a9' },
-  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  label: { ...typeScale.footnote, color: grouped.secondary },
-  bigAmount: { ...typeScale.amount, color: grouped.text },
-  body: { ...typeScale.body, color: grouped.text },
-  headline: { ...typeScale.headline, color: grouped.text },
-  value: { ...typeScale.body, color: grouped.text, fontVariant: ['tabular-nums'] },
-  footnote: { ...typeScale.footnote, color: grouped.secondary, paddingHorizontal: 4 },
-  footnoteInCard: { ...typeScale.footnote, color: grouped.secondary, fontVariant: ['tabular-nums'] },
-  link: { ...typeScale.body, color: grouped.accent },
-  chevron: { fontSize: 22, color: '#c7c7cc' },
-  progressTrack: { height: 6, backgroundColor: grouped.track, borderRadius: 3, overflow: 'hidden' },
+  footnoteInCard: { ...typeScale.footnote, color: colors.muted, fontVariant: ['tabular-nums'] },
   progressFill: { height: 6, borderRadius: 3 },
 });

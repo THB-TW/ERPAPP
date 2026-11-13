@@ -227,7 +227,7 @@ export default function AdjustmentsScreen() {
             <Text style={styles.label}>原因：{row.reason}</Text>
             <Text style={styles.note}>{displayTime(row.time)}（台北時間）</Text>
             <Text style={styles.note}>{[row.reverses ? '沖銷紀錄' : row.reversed ? '已沖銷' : '未沖銷', row.pending ? '待重結' : '已生效'].join('・')}</Text>
-            {reversible(row) ? <Button title="沖銷這筆調整" secondary disabled={disabled} onPress={() => chooseReversal(row)} /> : null}
+            {reversible(row) ? <Button title="沖銷這筆調整" secondary onCard disabled={disabled} onPress={() => chooseReversal(row)} /> : null}
           </View>)}
         </> : null}
       </ScrollView>
@@ -251,8 +251,9 @@ function Chip({ title, selected, disabled, onPress }: { title: string; selected:
   return <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityState={{ selected, disabled }} style={[styles.chip, selected && styles.selected, disabled && { opacity: 0.45 }]}><Text style={{ color: selected ? colors.accent : colors.text }}>{title}</Text></Pressable>;
 }
 
-function Button({ title, disabled, onPress, secondary = false }: { title: string; disabled: boolean; onPress: () => void; secondary?: boolean }) {
-  return <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityState={{ disabled }} style={[styles.button, { backgroundColor: secondary ? colors.surface : colors.accent }, disabled && { opacity: 0.45 }]}><Text style={{ color: secondary ? colors.accent : '#fff', fontSize: 15, fontWeight: '600' }}>{title}</Text></Pressable>;
+// onCard：按鈕放在白卡片裡時，次要按鈕改用 fill，否則白底會和卡片融在一起。
+function Button({ title, disabled, onPress, secondary = false, onCard = false }: { title: string; disabled: boolean; onPress: () => void; secondary?: boolean; onCard?: boolean }) {
+  return <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityState={{ disabled }} style={[styles.button, !secondary && styles.primary, { backgroundColor: secondary ? (onCard ? colors.fill : colors.surface) : colors.accent }, disabled && { opacity: 0.45 }]}><Text style={{ color: secondary ? colors.accent : '#fff', fontSize: 15, fontWeight: '600' }}>{title}</Text></Pressable>;
 }
 
 const styles = StyleSheet.create({
@@ -263,15 +264,17 @@ const styles = StyleSheet.create({
   note: { color: colors.muted, fontSize: 13, lineHeight: 21 },
   error: { color: colors.expense, lineHeight: 22 },
   success: { color: colors.income, lineHeight: 22 },
-  card: { backgroundColor: colors.surface, borderRadius: 12, padding: 14, gap: 10 },
+  card: { backgroundColor: colors.surface, borderRadius: 16, borderCurve: 'continuous', padding: 14, gap: 10 },
   field: { gap: 10 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { minHeight: 44, justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: 18, padding: 10, backgroundColor: colors.surface },
-  selected: { borderWidth: 1, borderColor: colors.accent },
+  selected: { borderWidth: 1, borderColor: colors.accent, backgroundColor: colors.accentSoft },
   monthPicker: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  input: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 12, minHeight: 46, color: colors.text, fontSize: 16 },
+  input: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 12, minHeight: 46, color: colors.text, fontSize: 16 },
   reason: { minHeight: 88, textAlignVertical: 'top' },
   button: { minHeight: 46, justifyContent: 'center', alignItems: 'center', borderRadius: 10, padding: 12 },
-  preview: { borderWidth: 1, borderColor: colors.accent, borderRadius: 12, padding: 14, gap: 16 },
+  // 滿版主要按鈕（預覽、確認生效）：與其他子頁一致的 14 圓角、50 高。
+  primary: { minHeight: 50, borderRadius: 14, borderCurve: 'continuous' },
+  preview: { borderWidth: 1, borderColor: colors.accent, borderRadius: 16, borderCurve: 'continuous', padding: 14, gap: 16 },
   links: { gap: 8 },
 });

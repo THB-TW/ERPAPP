@@ -237,7 +237,7 @@ function Field(props: { label: string; value: string; onChangeText: (text: strin
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: 16, paddingBottom: 32, gap: 16 },
-  card: { backgroundColor: colors.surface, padding: 16, borderRadius: 12, gap: 12 },
+  card: { backgroundColor: colors.surface, padding: 16, borderRadius: 16, borderCurve: 'continuous', gap: 12 },
   heading: { color: colors.text, fontSize: 18, fontWeight: '600' },
   label: { color: colors.text, fontSize: 15, lineHeight: 22 },
   note: { color: colors.muted, fontSize: 13, lineHeight: 20 },
@@ -247,6 +247,6 @@ const styles = StyleSheet.create({
   secondaryButton: { paddingVertical: 12, alignItems: 'center' },
   error: { color: colors.expense, lineHeight: 22 },
   success: { color: colors.income, lineHeight: 22 },
-  button: { margin: 16, padding: 15, borderRadius: 10, alignItems: 'center', backgroundColor: colors.accent },
+  button: { margin: 16, padding: 15, minHeight: 50, justifyContent: 'center', borderRadius: 14, borderCurve: 'continuous', alignItems: 'center', backgroundColor: colors.accent },
   buttonText: { color: '#fff', fontSize: 17, fontWeight: '600' },
 });

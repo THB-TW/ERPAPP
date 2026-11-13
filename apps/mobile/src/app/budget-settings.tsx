@@ -379,7 +379,7 @@ function Chip({ label, selected, disabled, onPress }: { label: string; selected:
 
 function Button({ label, disabled, onPress, secondary }: { label: string; disabled: boolean; onPress: () => void; secondary?: boolean }) {
   return (
-    <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityState={{ disabled }} style={[styles.button, { backgroundColor: secondary ? colors.surface : colors.accent, opacity: disabled ? 0.5 : 1 }]}>
+    <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityState={{ disabled }} style={[styles.button, { backgroundColor: secondary ? colors.fill : colors.accent, opacity: disabled ? 0.5 : 1 }]}>
       <Text style={{ color: secondary ? colors.text : '#fff', fontSize: 16, fontWeight: '600' }}>{label}</Text>
     </Pressable>
   );
@@ -392,13 +392,15 @@ const styles = StyleSheet.create({
   label: { color: colors.text, fontSize: 15, fontWeight: '600' },
   note: { color: colors.muted, fontSize: 13, lineHeight: 20 },
   link: { color: colors.accent, fontSize: 15 },
-  card: { backgroundColor: colors.surface, padding: 14, borderRadius: 12, gap: 10 },
+  card: { backgroundColor: colors.surface, padding: 14, borderRadius: 16, borderCurve: 'continuous', gap: 10 },
   field: { gap: 10 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18 },
-  input: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 12, fontSize: 16, color: colors.text, minHeight: 46 },
-  button: { minHeight: 48, alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 10 },
+  // 輸入框直接放在灰底頁面上，用白底才分得出來。
+  input: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 12, fontSize: 16, color: colors.text, minHeight: 46 },
+  button: { minHeight: 50, alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 14, borderCurve: 'continuous' },
   textButton: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start', paddingHorizontal: 4 },
-  preview: { borderWidth: 1, borderColor: colors.accent, borderRadius: 12, padding: 14, gap: 14 },
+  // 預覽框在灰底頁面上，補白底成為卡片，保留強調色框線。
+  preview: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.accent, borderRadius: 16, borderCurve: 'continuous', padding: 14, gap: 14 },
   historyButton: { minHeight: 44, gap: 6 },
 });

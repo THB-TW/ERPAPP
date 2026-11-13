@@ -211,6 +211,7 @@ export function Segmented<T extends string>(props: {
             key={option.key}
             onPress={() => onChange(option.key)}
             disabled={disabled}
+            hitSlop={{ top: 5, bottom: 5 }}
             accessibilityRole="tab"
             accessibilityState={{ selected, disabled }}
             style={[styles.segment, selected && styles.segmentSelected]}
@@ -230,6 +231,7 @@ export function Chip(props: { label: string; active: boolean; disabled?: boolean
     <Pressable
       onPress={onPress}
       disabled={disabled}
+      hitSlop={{ top: 4, bottom: 4 }}
       accessibilityRole="button"
       accessibilityState={{ selected: active, disabled }}
       style={[styles.chip, { backgroundColor: active ? colors.accent : colors.fill }, disabled && !active && { opacity: 0.5 }]}

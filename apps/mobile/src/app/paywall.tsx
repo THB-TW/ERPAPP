@@ -64,7 +64,7 @@ export default function PaywallScreen() {
           ? `訂閱已到期，「${label}」目前只能檢視。重新訂閱後可繼續使用，缺的月結會從最早的開放月份依序補做。`
           : `「${label}」是進階版功能。`}</Text> : null}
         {!appSubscription.storeAvailable ? (
-          <View style={{ padding: 14, borderRadius: 12, backgroundColor: colors.surface }}>
+          <View style={{ padding: 14, borderRadius: 16, borderCurve: 'continuous', backgroundColor: colors.surface }}>
             <Text style={{ color: colors.text }}>這個版本沒有接上 App Store 內購，無法訂閱或還原購買。</Text>
           </View>
         ) : null}
@@ -102,7 +102,7 @@ export default function PaywallScreen() {
 function Button({ label, onPress, disabled = false, secondary = false }: { label: string; onPress: () => void; disabled?: boolean; secondary?: boolean }) {
   return (
     <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityState={{ disabled }}
-      style={{ paddingVertical: 14, borderRadius: 12, alignItems: 'center', opacity: disabled ? 0.5 : 1,
+      style={{ minHeight: 50, justifyContent: 'center', paddingVertical: 14, borderRadius: 14, borderCurve: 'continuous', alignItems: 'center', opacity: disabled ? 0.5 : 1,
         backgroundColor: secondary ? colors.surface : colors.accent }}>
       <Text style={{ color: secondary ? colors.text : '#fff', fontSize: 16, fontWeight: '600' }}>{label}</Text>
     </Pressable>

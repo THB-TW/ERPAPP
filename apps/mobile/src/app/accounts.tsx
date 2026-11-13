@@ -109,7 +109,7 @@ export default function AccountsScreen() {
               disabled={readOnly}
               accessibilityRole="button"
               accessibilityHint="修改名稱、開帳餘額或停用狀態"
-              style={{ padding: 12, borderRadius: 10, backgroundColor: colors.surface, gap: 6 }}
+              style={{ padding: 12, borderRadius: 16, borderCurve: 'continuous', backgroundColor: colors.surface, gap: 6 }}
             >
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}>
                 <Text style={{ color: colors.text, fontSize: 17, flexShrink: 1 }}>{account.name}{account.active ? '' : '（已停用）'}</Text>
@@ -180,7 +180,7 @@ export default function AccountsScreen() {
             onPress={save}
             disabled={readOnly}
             accessibilityRole="button"
-            style={{ margin: 16, padding: 14, borderRadius: 10, alignItems: 'center', backgroundColor: colors.accent, opacity: readOnly ? 0.6 : 1 }}
+            style={{ margin: 16, padding: 14, minHeight: 50, justifyContent: 'center', borderRadius: 14, borderCurve: 'continuous', alignItems: 'center', backgroundColor: colors.accent, opacity: readOnly ? 0.6 : 1 }}
           >
             <Text style={{ color: '#fff', fontSize: 17, fontWeight: '600' }}>儲存帳戶</Text>
           </Pressable>
@@ -197,7 +197,7 @@ function Choice(props: { label: string; selected: boolean; disabled: boolean; on
       disabled={props.disabled}
       accessibilityRole="button"
       accessibilityState={{ selected: props.selected, disabled: props.disabled }}
-      style={{ paddingVertical: 8, paddingHorizontal: 14, borderRadius: 16, backgroundColor: props.selected ? colors.accent : colors.surface, opacity: props.disabled && !props.selected ? 0.5 : 1 }}
+      style={{ minHeight: 44, justifyContent: 'center', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 16, backgroundColor: props.selected ? colors.accent : colors.surface, opacity: props.disabled && !props.selected ? 0.5 : 1 }}
     >
       <Text style={{ color: props.selected ? '#fff' : colors.text }}>{props.label}</Text>
     </Pressable>

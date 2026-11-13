@@ -2,13 +2,13 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 import type { LoanView } from '../ledger/index.ts';
 import { formatAmount, monthTitle } from './format.ts';
-import { colors } from './theme.ts';
+import { colors, groupColors } from './theme.ts';
 
 export function LoanCards({ loans, onEdit, disabled = false, cardStyle }: {
   loans: LoanView[];
   onEdit?: (loan: LoanView) => void;
   disabled?: boolean;
-  /** 放在淺灰底的分組畫面（預算頁試做）時改成白卡片，其他畫面不用傳。 */
+  /** 只用來覆寫內距或圓角等；白卡片底色已是預設。 */
   cardStyle?: StyleProp<ViewStyle>;
 }) {
   return <View style={{ gap: 12 }}>
@@ -27,7 +27,7 @@ export function LoanCards({ loans, onEdit, disabled = false, cardStyle }: {
           accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }}
           style={styles.track}
         >
-          <View style={{ height: 6, width: `${progress * 100}%`, borderRadius: 3, backgroundColor: '#7a5ea8' }} />
+          <View style={{ height: 6, width: `${progress * 100}%`, borderRadius: 3, backgroundColor: groupColors.loan }} />
         </View> : null}
         <Text style={styles.note}>每月繳款 {formatAmount(loan.monthlyPayment)} 元・總額 {loan.totalAmount === null ? '待補資料' : `${formatAmount(loan.totalAmount)} 元`}</Text>
         <Text style={styles.note}>預計結清：{loan.expectedEndMonth === null ? '待補資料' : monthTitle(loan.expectedEndMonth)}</Text>
@@ -44,10 +44,11 @@ export function LoanCards({ loans, onEdit, disabled = false, cardStyle }: {
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: colors.surface, padding: 14, borderRadius: 12, gap: 8 },
+  card: { backgroundColor: colors.surface, padding: 14, borderRadius: 16, borderCurve: 'continuous', gap: 8 },
   row: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
   name: { color: colors.text, fontSize: 17, fontWeight: '600', flexShrink: 1 },
   amount: { color: colors.text, fontWeight: '600', fontVariant: ['tabular-nums'] },
   note: { color: colors.muted, fontSize: 13, lineHeight: 20 },
-  track: { height: 6, backgroundColor: colors.border, borderRadius: 3, overflow: 'hidden' },
+  // 軌道在白卡片裡，要用 fill 才看得出來。
+  track: { height: 6, backgroundColor: colors.fill, borderRadius: 3, overflow: 'hidden' },
 });

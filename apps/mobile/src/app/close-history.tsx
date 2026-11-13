@@ -32,7 +32,7 @@ export default function CloseHistoryScreen() {
         <CloseButton title="重新讀取" onPress={() => setRetry((n) => n + 1)} />
       </> : <>
         {months.length === 0 ? <Text style={styles.note}>尚未有月結快照。</Text> : null}
-        {months.map((month) => <Pressable key={month.month} accessibilityRole="button" style={styles.card}
+        {months.map((month) => <Pressable key={month.month} accessibilityRole="button" style={({ pressed }) => [styles.card, pressed && { opacity: 0.6 }]}
           onPress={() => router.push({ pathname: '/close-snapshot', params: { month: month.month } })}>
           <Text style={styles.heading}>{monthTitle(month.month)} ›</Text>
           <Text style={styles.note}>當月盈餘 NT$ {formatAmount(month.surplus)}</Text>

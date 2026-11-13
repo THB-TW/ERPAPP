@@ -1,19 +1,21 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { PanResponder, Pressable, ScrollView, Text, View } from 'react-native';
+import { PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { monthOf, shiftMonth, taipeiDate } from '../../../calc/dates.ts';
 import { REST_SLICE_KEY, pieSlices, type PieSlice } from '../../../calc/shares.ts';
 import type { DayTransaction, Flow, MonthBreakdown } from '../../../ledger/index.ts';
 import { Donut } from '../../../ui/Donut.tsx';
 import { formatAmount, formatPermille, monthTitle, userMessage } from '../../../ui/format.ts';
 import { useLedger } from '../../../ui/LedgerProvider.tsx';
-import { chartColors, colors } from '../../../ui/theme.ts';
+import { Footnote, Group, MonthBar, SectionTitle, Segmented, kit, text } from '../../../ui/kit.tsx';
+import { chartColors, colors, typeScale } from '../../../ui/theme.ts';
 
 // 明細（票 09）：選定月份的圓餅圖＋類別列表。支出／收入用上方切換或在圓餅圖上左右滑；
 // 點類別展開該類別當月的交易，點交易進記帳表單（可改可刪，已結月份為唯讀）。
 const MAX_SLICES = chartColors.length - 1; // 最後一色留給合併的「其他分類」
 const FLOW_NAME: Record<Flow, string> = { expense: '支出', income: '收入' };
 const otherFlow = (flow: Flow): Flow => (flow === 'expense' ? 'income' : 'expense');
+const FLOW_OPTIONS = (['expense', 'income'] as const).map((f) => ({ key: f, label: FLOW_NAME[f] }));
 
 export default function ReportScreen() {
   const ledger = useLedger();
@@ -100,139 +102,147 @@ export default function ReportScreen() {
   const isLatestMonth = month >= thisMonth;
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: 12, gap: 12 }} contentInsetAdjustmentBehavior="automatic">
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Pressable onPress={() => changeMonth(-1)} hitSlop={12} accessibilityRole="button" accessibilityLabel="上個月">
-          <Text style={{ fontSize: 22, color: colors.accent }}>‹</Text>
-        </Pressable>
-        <Text style={{ fontSize: 18, fontWeight: '600', color: colors.text }}>{monthTitle(month)}</Text>
-        <Pressable
-          onPress={() => changeMonth(1)}
-          disabled={isLatestMonth}
-          hitSlop={12}
-          accessibilityRole="button"
-          accessibilityLabel="下個月"
-          accessibilityState={{ disabled: isLatestMonth }}
+    <ScrollView style={kit.screen} contentContainerStyle={kit.content} contentInsetAdjustmentBehavior="automatic">
+      <MonthBar
+        title={monthTitle(month)}
+        onPrev={() => changeMonth(-1)}
+        onNext={() => changeMonth(1)}
+        nextDisabled={isLatestMonth}
+        hint={month === thisMonth ? '本月' : '回到本月'}
+        onHintPress={
+          month === thisMonth
+            ? undefined
+            : () => {
+                setMonth(thisMonth);
+                setOpenKey(null);
+              }
+        }
+      />
+
+      <Segmented options={FLOW_OPTIONS} value={flow} onChange={chooseFlow} />
+
+      <View style={styles.chartBlock}>
+        {/* kit 的 Card 不收手勢與無障礙屬性，所以這裡直接用 kit.card 樣式的 View。 */}
+        <View
+          style={[kit.card, styles.donutCard]}
+          {...swipe.panHandlers}
+          accessible
+          accessibilityRole="image"
+          accessibilityLabel={`${monthTitle(month)}${kind}分類圓餅圖，合計 ${formatAmount(current?.total ?? 0)} 元。左右滑可切換支出與收入。`}
         >
-          <Text style={{ fontSize: 22, color: isLatestMonth ? colors.border : colors.accent }}>›</Text>
-        </Pressable>
+          <Donut slices={slices.map((s, i) => ({ key: s.key, amount: s.amount, color: colorOf(i, s) }))}>
+            <Text style={text.footnote}>本月{kind}</Text>
+            <Text style={styles.donutTotal} numberOfLines={1} adjustsFontSizeToFit>
+              {formatAmount(current?.total ?? 0)}
+            </Text>
+          </Donut>
+        </View>
+
+        <View style={styles.dots} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          {(['expense', 'income'] as const).map((f) => (
+            <View key={f} style={[styles.pageDot, { backgroundColor: flow === f ? colors.accent : colors.chevron }]} />
+          ))}
+        </View>
       </View>
 
-      <View style={{ flexDirection: 'row', backgroundColor: colors.border, borderRadius: 10, padding: 3, gap: 3 }} accessibilityRole="tablist">
-        {(['expense', 'income'] as const).map((f) => (
-          <Pressable
-            key={f}
-            onPress={() => chooseFlow(f)}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: flow === f }}
-            style={{
-              flex: 1,
-              alignItems: 'center',
-              padding: 7,
-              borderRadius: 8,
-              backgroundColor: flow === f ? colors.background : 'transparent',
-            }}
-          >
-            <Text style={{ fontWeight: '600', color: colors.text }}>{FLOW_NAME[f]}</Text>
-          </Pressable>
-        ))}
+      <View style={kit.section}>
+        <SectionTitle
+          right={
+            <Text style={styles.otherTotal}>
+              {FLOW_NAME[otherFlow(flow)]} {formatAmount(current?.otherFlowTotal ?? 0)}
+            </Text>
+          }
+        >
+          {kind}分類
+        </SectionTitle>
+
+        {error ? <Text style={[text.error, kit.outsideText]}>{error}</Text> : null}
+        {current && slices.length === 0 && !error ? <Footnote>這個月沒有{kind}。</Footnote> : null}
+
+        <Group>
+          {slices.map((slice, i) => {
+            const open = openKey === slice.key;
+            return (
+              <View key={slice.key}>
+                <Pressable
+                  onPress={() => setOpenKey(open ? null : slice.key)}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: open }}
+                  style={({ pressed }) => [kit.row, pressed && kit.pressed]}
+                >
+                  <View style={[styles.colorDot, { backgroundColor: colorOf(i, slice) }]} />
+                  <Text style={[text.body, styles.name]} numberOfLines={1}>
+                    {slice.name}
+                  </Text>
+                  <Text style={[text.footnote, styles.tabular]}>{formatPermille(slice.permille)}</Text>
+                  <Text style={[text.value, styles.amountBold]}>{formatAmount(slice.amount)}</Text>
+                </Pressable>
+                {open && slice.key === REST_SLICE_KEY
+                  ? current?.categories
+                      .filter((c) => slice.categoryIds.includes(c.categoryId))
+                      .map((c) => (
+                        <SubRow key={c.categoryId} label={`${c.categoryName}・${formatPermille(c.permille)}`} amount={c.amount} />
+                      ))
+                  : null}
+                {open && slice.key !== REST_SLICE_KEY && openList?.key === slice.key && openList.month === month
+                  ? openList.rows.map((t) => (
+                      <SubRow
+                        key={t.id}
+                        label={`${Number(t.date.slice(5, 7))}/${Number(t.date.slice(8))}・${t.accountName}${t.note ? `・${t.note}` : ''}`}
+                        amount={t.amount}
+                        onPress={() => router.push({ pathname: '/entry', params: { id: String(t.id) } })}
+                      />
+                    ))
+                  : null}
+                {open ? <View style={styles.subEnd} /> : null}
+              </View>
+            );
+          })}
+        </Group>
       </View>
-
-      <View
-        {...swipe.panHandlers}
-        style={{ alignItems: 'center', backgroundColor: colors.surface, borderRadius: 12, padding: 16 }}
-        accessible
-        accessibilityRole="image"
-        accessibilityLabel={`${monthTitle(month)}${kind}分類圓餅圖，合計 ${formatAmount(current?.total ?? 0)} 元。左右滑可切換支出與收入。`}
-      >
-        <Donut slices={slices.map((s, i) => ({ key: s.key, amount: s.amount, color: colorOf(i, s) }))}>
-          <Text style={{ fontSize: 13, color: colors.muted }}>本月{kind}</Text>
-          <Text style={{ fontSize: 22, fontWeight: '700', color: colors.text, fontVariant: ['tabular-nums'] }}>
-            {formatAmount(current?.total ?? 0)}
-          </Text>
-        </Donut>
-      </View>
-
-      <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 6 }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        {(['expense', 'income'] as const).map((f) => (
-          <View key={f} style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: flow === f ? colors.accent : colors.border }} />
-        ))}
-      </View>
-
-      <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
-        <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text }}>{kind}分類</Text>
-        <Text style={{ fontSize: 13, color: colors.muted, fontVariant: ['tabular-nums'] }}>
-          {FLOW_NAME[otherFlow(flow)]} {formatAmount(current?.otherFlowTotal ?? 0)}
-        </Text>
-      </View>
-
-      {error ? <Text style={{ color: colors.expense }}>{error}</Text> : null}
-      {current && slices.length === 0 && !error ? <Text style={{ color: colors.muted }}>這個月沒有{kind}。</Text> : null}
-
-      {slices.map((slice, i) => {
-        const open = openKey === slice.key;
-        return (
-          <View key={slice.key} style={{ gap: 4 }}>
-            <Pressable
-              onPress={() => setOpenKey(open ? null : slice.key)}
-              accessibilityRole="button"
-              accessibilityState={{ expanded: open }}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 10,
-                backgroundColor: colors.surface,
-                borderRadius: 12,
-                paddingVertical: 10,
-                paddingHorizontal: 12,
-              }}
-            >
-              <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: colorOf(i, slice) }} />
-              <Text style={{ flex: 1, color: colors.text, fontSize: 16 }} numberOfLines={1}>
-                {slice.name}
-              </Text>
-              <Text style={{ color: colors.muted, fontSize: 13, fontVariant: ['tabular-nums'] }}>{formatPermille(slice.permille)}</Text>
-              <Text style={{ color: colors.text, fontWeight: '700', fontVariant: ['tabular-nums'] }}>{formatAmount(slice.amount)}</Text>
-            </Pressable>
-            {open && slice.key === REST_SLICE_KEY
-              ? current?.categories
-                  .filter((c) => slice.categoryIds.includes(c.categoryId))
-                  .map((c) => (
-                    <SubRow key={c.categoryId} label={`${c.categoryName}・${formatPermille(c.permille)}`} amount={c.amount} />
-                  ))
-              : null}
-            {open && slice.key !== REST_SLICE_KEY && openList?.key === slice.key && openList.month === month
-              ? openList.rows.map((t) => (
-                  <SubRow
-                    key={t.id}
-                    label={`${Number(t.date.slice(5, 7))}/${Number(t.date.slice(8))}・${t.accountName}${t.note ? `・${t.note}` : ''}`}
-                    amount={t.amount}
-                    onPress={() => router.push({ pathname: '/entry', params: { id: String(t.id) } })}
-                  />
-                ))
-              : null}
-          </View>
-        );
-      })}
     </ScrollView>
   );
 }
 
+// 展開後的子列：縮排到和類別名稱對齊；可點的（交易）按下時變淺灰。
 function SubRow(props: { label: string; amount: number; onPress?: () => void }) {
   const content = (
     <>
-      <Text style={{ flex: 1, color: colors.text, fontSize: 14 }} numberOfLines={1}>
+      <Text style={[text.subheadMuted, styles.name]} numberOfLines={1}>
         {props.label}
       </Text>
-      <Text style={{ color: colors.text, fontSize: 14, fontVariant: ['tabular-nums'] }}>{formatAmount(props.amount)}</Text>
+      <Text style={styles.subAmount}>{formatAmount(props.amount)}</Text>
     </>
   );
-  const style = { flexDirection: 'row', gap: 10, paddingVertical: 8, paddingLeft: 34, paddingRight: 12 } as const;
   return props.onPress ? (
-    <Pressable onPress={props.onPress} accessibilityRole="button" accessibilityHint="檢視或修改這筆交易" style={style}>
+    <Pressable
+      onPress={props.onPress}
+      accessibilityRole="button"
+      accessibilityHint="檢視或修改這筆交易"
+      style={({ pressed }) => [styles.subRow, styles.subRowPressable, pressed && kit.pressed]}
+    >
       {content}
     </Pressable>
   ) : (
-    <View style={style}>{content}</View>
+    <View style={styles.subRow}>{content}</View>
   );
 }
+
+const styles = StyleSheet.create({
+  chartBlock: { gap: 10 },
+  donutCard: { alignItems: 'center', padding: 20 },
+  // 甜甜圈中空只有約 126pt 寬，金額太長時縮字而不是換行。
+  donutTotal: { fontSize: 22, fontWeight: '700', color: colors.text, fontVariant: ['tabular-nums'], maxWidth: 116 },
+  dots: { flexDirection: 'row', justifyContent: 'center', gap: 6 },
+  pageDot: { width: 6, height: 6, borderRadius: 3 },
+  otherTotal: { ...typeScale.footnote, color: colors.muted, fontVariant: ['tabular-nums'] },
+  colorDot: { width: 12, height: 12, borderRadius: 6 },
+  name: { flex: 1 },
+  tabular: { fontVariant: ['tabular-nums'] },
+  amountBold: { fontWeight: '600' },
+  subRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, paddingLeft: 40, paddingRight: 16 },
+  // 可點的交易子列至少 44pt 高（純顯示的類別子列維持緊湊）。
+  subRowPressable: { minHeight: 44 },
+  subAmount: { ...typeScale.subhead, color: colors.text, fontVariant: ['tabular-nums'] },
+  subEnd: { height: 6 },
+});
