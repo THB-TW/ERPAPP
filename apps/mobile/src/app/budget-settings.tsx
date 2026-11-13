@@ -297,7 +297,7 @@ export default function BudgetSettingsScreen() {
                   <Text style={styles.label}>儲存後的完整上限與歸屬</Text>
                   {preview.result.after.currentRevision ? <RevisionDetails revision={preview.result.after.currentRevision} status={preview.result.after} /> : null}
                   <Button label="確認儲存" disabled={disabled} onPress={savePreview} />
-                  <Button label="返回修改" secondary disabled={disabled} onPress={() => { setPreview(null); scroll.current?.scrollTo({ y: 0, animated: true }); }} />
+                  <Button label="返回修改" secondary onCard disabled={disabled} onPress={() => { setPreview(null); scroll.current?.scrollTo({ y: 0, animated: true }); }} />
                 </View>
               ) : null}
 
@@ -373,10 +373,11 @@ function Chip({ label, selected, disabled, onPress }: { label: string; selected:
   return <KitChip label={label} active={selected} disabled={disabled} onPress={onPress} />;
 }
 
-function Button({ label, disabled, onPress, secondary }: { label: string; disabled: boolean; onPress: () => void; secondary?: boolean }) {
+// 次要按鈕和 kit 的 PrimaryButton（tone secondary）一樣是白底藍字；onCard：放在白卡片裡時改用 fill，免得和卡片融在一起。
+function Button({ label, disabled, onPress, secondary, onCard = false }: { label: string; disabled: boolean; onPress: () => void; secondary?: boolean; onCard?: boolean }) {
   return (
-    <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityState={{ disabled }} style={[styles.button, { backgroundColor: secondary ? colors.fill : colors.accent, opacity: disabled ? 0.5 : 1 }]}>
-      <Text style={{ color: secondary ? colors.text : '#fff', fontSize: 16, fontWeight: '600' }}>{label}</Text>
+    <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityState={{ disabled }} style={[styles.button, { backgroundColor: secondary ? (onCard ? colors.fill : colors.surface) : colors.accent, opacity: disabled ? 0.5 : 1 }]}>
+      <Text style={{ color: secondary ? colors.accent : '#fff', fontSize: 16, fontWeight: '600' }}>{label}</Text>
     </Pressable>
   );
 }
