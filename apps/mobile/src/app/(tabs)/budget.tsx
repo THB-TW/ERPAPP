@@ -8,6 +8,7 @@ import type { BudgetMonthView, BudgetProgress, BudgetProgressRow, LoanView } fro
 import { formatAmount, monthTitle, userMessage } from '../../ui/format.ts';
 import { useLedger } from '../../ui/LedgerProvider.tsx';
 import { colors } from '../../ui/theme.ts';
+import { jumpOffset, reachedTarget, sectionAt } from '../../ui/sectionNav.ts';
 import { MonthlyCloseSummary } from '../../ui/MonthlyCloseSummary.tsx';
 import { LoanCards } from '../../ui/LoanCards.tsx';
 
@@ -19,6 +20,7 @@ const SECTIONS = [
   { id: 'loan', label: '貸款', color: '#7a5ea8' },
 ] as const;
 type SectionId = (typeof SECTIONS)[number]['id'];
+const SECTION_ORDER = SECTIONS.map((section) => section.id);
 const GROUP_NOTES = {
   reserve: '月結時，上限減實支累積為分類儲備。',
   fixed: '月結時，結餘回到當月盈餘。',
@@ -37,6 +39,15 @@ export default function BudgetScreen() {
   const [activeSection, setActiveSection] = useState<SectionId>('overview');
   const scroll = useRef<ScrollViewInstance>(null);
   const sectionY = useRef<Partial<Record<SectionId, number>>>({});
+  const viewport = useRef(0);
+  const contentHeight = useRef(0);
+  // 點頁籤後的程式捲動進行中：動畫途中經過的區段不要改亮頁籤，抵達或使用者自己拖動才恢復跟隨。
+  const pendingJump = useRef<{ target: number; timer: ReturnType<typeof setTimeout> } | null>(null);
+
+  function clearPendingJump() {
+    if (pendingJump.current) clearTimeout(pendingJump.current.timer);
+    pendingJump.current = null;
+  }
 
   // 返回預算分頁時重查，包含剛記的交易與設定頁儲存的新上限版本。
   useFocusEffect(useCallback(() => {
@@ -45,6 +56,7 @@ export default function BudgetScreen() {
     setError(null);
     setActiveSection('overview');
     sectionY.current = {};
+    clearPendingJump();
     Promise.all([ledger.getBudgetProgress(month), ledger.listBudgetMonths(), ledger.listLoans(month)]).then(async ([result, months, loanRows]) => {
       // 已結月份用自己快照；未結月份只顯示不晚於所選月份的最近已結結果。
       const latest = months.filter((item) => item.month <= month).at(-1);
@@ -66,58 +78,74 @@ export default function BudgetScreen() {
         setLoading(false);
       },
     );
-    return () => { cancelled = true; };
+    return () => { cancelled = true; clearPendingJump(); };
   }, [ledger, month, retry]));
 
   function changeMonth(next: string) {
     setMonth(next);
     setProgress(null);
     setActiveSection('overview');
+    clearPendingJump();
     scroll.current?.scrollTo({ y: 0, animated: false });
   }
 
   function jumpTo(section: SectionId) {
     const y = sectionY.current[section];
     if (y === undefined) return;
+    // 目標限制在可捲範圍內：後段短區段捲不到頂端時，停在頁底且仍亮所點的頁籤。
+    const target = jumpOffset(y, viewport.current, contentHeight.current);
+    clearPendingJump();
+    // 保險：若沒收到抵達的捲動事件（例如本來就在目標位置），稍後自動解除。
+    pendingJump.current = { target, timer: setTimeout(() => { pendingJump.current = null; }, 900) };
     setActiveSection(section);
-    scroll.current?.scrollTo({ y: Math.max(0, y - 12), animated: true });
+    scroll.current?.scrollTo({ y: target, animated: true });
   }
 
   function syncSection(event: NativeSyntheticEvent<NativeScrollEvent>) {
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
-    let current: SectionId = 'overview';
-    for (const section of SECTIONS) {
-      const y = sectionY.current[section.id];
-      if (y !== undefined && y <= contentOffset.y + 16) current = section.id;
+    viewport.current = layoutMeasurement.height;
+    contentHeight.current = contentSize.height;
+    const pending = pendingJump.current;
+    if (pending) {
+      if (reachedTarget(contentOffset.y, pending.target)) clearPendingJump();
+      return;
     }
-    // 最後一區可能太短，標題無法捲到頂端；到頁底仍應標示貸款。
-    if (contentSize.height > layoutMeasurement.height &&
-        contentOffset.y + layoutMeasurement.height >= contentSize.height - 2) current = 'loan';
-    setActiveSection(current);
+    setActiveSection(sectionAt(SECTION_ORDER, sectionY.current, {
+      offset: contentOffset.y,
+      viewport: layoutMeasurement.height,
+      content: contentSize.height,
+    }));
   }
 
   return (
     <SafeAreaView style={styles.screen} edges={[]}>
       {/* 跳轉列放在垂直捲動區外，長頁面捲到底時仍固定於頂端。 */}
       <View style={styles.rail}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.railContent}>
+        {/* 五個頁籤平分寬度、不可橫向捲動：放在橫向 ScrollView 裡時，手指稍微滑動就會被判成捲動而吃掉點擊。 */}
+        <View style={styles.railContent}>
           {SECTIONS.map((section) => (
             <Pressable
               key={section.id}
               onPress={() => jumpTo(section.id)}
+              hitSlop={{ top: 4, bottom: 4 }}
               disabled={loading || progress === null}
               accessibilityRole="button"
               accessibilityLabel={`跳到${section.label}`}
               accessibilityState={{ selected: activeSection === section.id, disabled: loading || progress === null }}
               style={styles.railButton}
             >
-              <Text style={{ color: activeSection === section.id ? colors.text : colors.muted, fontWeight: activeSection === section.id ? '700' : '400' }}>
+              <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.8}
+                style={{ textAlign: 'center', fontSize: 14, color: activeSection === section.id ? colors.text : colors.muted, fontWeight: activeSection === section.id ? '700' : '400' }}
+              >
                 {section.label}
               </Text>
               <View style={{ height: 4, borderRadius: 2, backgroundColor: section.color, opacity: activeSection === section.id ? 1 : 0.3 }} />
             </Pressable>
           ))}
-        </ScrollView>
+        </View>
       </View>
 
       <View style={styles.monthPicker}>
@@ -151,6 +179,9 @@ export default function BudgetScreen() {
           style={{ flex: 1 }}
           contentContainerStyle={styles.content}
           onScroll={syncSection}
+          onScrollBeginDrag={clearPendingJump}
+          onLayout={(event) => { viewport.current = event.nativeEvent.layout.height; }}
+          onContentSizeChange={(_width, height) => { contentHeight.current = height; }}
           scrollEventThrottle={16}
           contentInsetAdjustmentBehavior="never"
         >
@@ -269,8 +300,8 @@ function ProgressRow({ row, color }: { row: BudgetProgressRow; color: string }) 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   rail: { backgroundColor: colors.background, borderBottomWidth: 1, borderBottomColor: colors.border },
-  railContent: { paddingHorizontal: 12, gap: 8, flexGrow: 1 },
-  railButton: { minWidth: 72, flex: 1, gap: 8, paddingHorizontal: 6, paddingTop: 12, paddingBottom: 8 },
+  railContent: { flexDirection: 'row', paddingHorizontal: 8, gap: 4 },
+  railButton: { flex: 1, minWidth: 0, gap: 8, paddingHorizontal: 2, paddingTop: 12, paddingBottom: 8 },
   monthPicker: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12 },
   title: { color: colors.text, fontSize: 18, fontWeight: '600' },
   arrow: { color: colors.accent, fontSize: 28 },
