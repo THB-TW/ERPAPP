@@ -9,6 +9,7 @@ import type { AdjustmentPreview, BudgetCommand, BudgetCommandPreview, BudgetRevi
 import { formatAmount, monthTitle } from '../ui/format.ts';
 import { syncNotifications } from '../platform/notificationSync.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
+import { Chip as KitChip } from '../ui/kit.tsx';
 import { colors } from '../ui/theme.ts';
 import { hasMonthlyCloseEntitlement, useHasPaidAccess } from '../ui/closeEntitlement.ts';
 import { PaidLock } from '../ui/PaidLock.tsx';
@@ -195,9 +196,7 @@ export default function BudgetSettingsScreen() {
           {loading ? <ActivityIndicator accessibilityLabel="讀取預算設定中" /> : null}
           {success ? <Text style={{ color: colors.income }} accessibilityLiveRegion="polite">{success}</Text> : null}
           {error ? <Text style={{ color: colors.expense }} accessibilityRole="alert">{error}</Text> : null}
-          <Pressable onPress={() => { setSuccess(null); setReload((value) => value + 1); }} disabled={disabled} accessibilityRole="button" style={styles.textButton}>
-            <Text style={styles.link}>重新讀取</Text>
-          </Pressable>
+          <Button label="重新讀取" secondary disabled={disabled} onPress={() => { setSuccess(null); setReload((value) => value + 1); }} />
 
           {!loading && status ? (
             <>
@@ -369,12 +368,9 @@ function RevisionDetails({ revision, status }: { revision: BudgetRevision; statu
   );
 }
 
+// 選項一律用共用的 kit Chip，選中樣式才和其他頁一致。
 function Chip({ label, selected, disabled, onPress }: { label: string; selected: boolean; disabled: boolean; onPress: () => void }) {
-  return (
-    <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityState={{ selected, disabled }} style={[styles.chip, { backgroundColor: selected ? colors.accent : colors.surface, opacity: disabled ? 0.5 : 1 }]}>
-      <Text style={{ color: selected ? '#fff' : colors.text }}>{label}</Text>
-    </Pressable>
-  );
+  return <KitChip label={label} active={selected} disabled={disabled} onPress={onPress} />;
 }
 
 function Button({ label, disabled, onPress, secondary }: { label: string; disabled: boolean; onPress: () => void; secondary?: boolean }) {
@@ -391,15 +387,12 @@ const styles = StyleSheet.create({
   heading: { color: colors.text, fontSize: 18, fontWeight: '700' },
   label: { color: colors.text, fontSize: 15, fontWeight: '600' },
   note: { color: colors.muted, fontSize: 13, lineHeight: 20 },
-  link: { color: colors.accent, fontSize: 15 },
   card: { backgroundColor: colors.surface, padding: 14, borderRadius: 16, borderCurve: 'continuous', gap: 10 },
   field: { gap: 10 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18 },
   // 輸入框直接放在灰底頁面上，用白底才分得出來。
   input: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 12, fontSize: 16, color: colors.text, minHeight: 46 },
   button: { minHeight: 50, alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 14, borderCurve: 'continuous' },
-  textButton: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start', paddingHorizontal: 4 },
   // 預覽框在灰底頁面上，補白底成為卡片，保留強調色框線。
   preview: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.accent, borderRadius: 16, borderCurve: 'continuous', padding: 14, gap: 14 },
   historyButton: { minHeight: 44, gap: 6 },

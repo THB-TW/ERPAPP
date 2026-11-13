@@ -101,8 +101,8 @@ export default function CsvImportScreen() {
         keyboardVerticalOffset={headerHeight}
       >
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 16 }}>
-          <Text style={{ fontSize: 24, fontWeight: '700', color: colors.text }}>其他 App 搬家（匯入 CSV）</Text>
-          <Text style={{ color: colors.muted }}>只需要類別與金額。交易的匯入與匯出皆免費，不需訂閱。</Text>
+          {/* 頁名「匯入 CSV」已在導覽列，頁內不再放第二個大標題。 */}
+          <Text style={{ color: colors.muted }}>從其他 App 搬家也用這裡。只需要類別與金額。交易的匯入與匯出皆免費，不需訂閱。</Text>
           <Action label="查看 CSV 規格說明" disabled={busy} onPress={() => router.push('/csv-spec')} secondary />
 
           <View style={{ padding: 16, borderRadius: 16, borderCurve: 'continuous', backgroundColor: colors.surface, gap: 12 }}>

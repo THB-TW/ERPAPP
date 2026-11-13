@@ -12,6 +12,7 @@ import { formatAmount, monthTitle } from '../ui/format.ts';
 import { syncNotifications } from '../platform/notificationSync.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
 import { closeErrorMessage } from '../ui/MonthlyCloseSummary.tsx';
+import { Chip as KitChip } from '../ui/kit.tsx';
 import { colors } from '../ui/theme.ts';
 
 type Mode = 'transfer' | 'fund' | 'correct' | 'reverse' | 'rollback';
@@ -247,8 +248,9 @@ function Comparison({ before, after }: { before: BudgetMonthView; after: BudgetM
   </View>;
 }
 
+// 選項一律用共用的 kit Chip，選中樣式才和其他頁一致。
 function Chip({ title, selected, disabled, onPress }: { title: string; selected: boolean; disabled: boolean; onPress: () => void }) {
-  return <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityState={{ selected, disabled }} style={[styles.chip, selected && styles.selected, disabled && { opacity: 0.45 }]}><Text style={{ color: selected ? colors.accent : colors.text }}>{title}</Text></Pressable>;
+  return <KitChip label={title} active={selected} disabled={disabled} onPress={onPress} />;
 }
 
 // onCard：按鈕放在白卡片裡時，次要按鈕改用 fill，否則白底會和卡片融在一起。
@@ -267,7 +269,6 @@ const styles = StyleSheet.create({
   card: { backgroundColor: colors.surface, borderRadius: 16, borderCurve: 'continuous', padding: 14, gap: 10 },
   field: { gap: 10 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { minHeight: 44, justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: 18, padding: 10, backgroundColor: colors.surface },
   selected: { borderWidth: 1, borderColor: colors.accent, backgroundColor: colors.accentSoft },
   monthPicker: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   input: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 12, minHeight: 46, color: colors.text, fontSize: 16 },

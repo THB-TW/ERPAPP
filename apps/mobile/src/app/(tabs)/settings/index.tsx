@@ -1,7 +1,8 @@
 import { router, type Href } from 'expo-router';
-import { ScrollView, View } from 'react-native';
+import { View } from 'react-native';
 import { useSubscriptionStatus } from '../../../ui/closeEntitlement.ts';
 import { Banner, Footnote, Group, kit, NavRow } from '../../../ui/kit.tsx';
+import { TabScrollView } from '../../../ui/LargeTitle.tsx';
 
 // 區段順序（由上到下）只由這個陣列決定；SettingsGroup 型別由它推得，名稱只寫這一次。
 // 新增列時 group 要用這裡出現過的名稱；要新開區段就加進這個陣列。
@@ -25,7 +26,7 @@ const ROWS: { group: SettingsGroup; title: string; hint: string; href: Href }[] 
 export default function SettingsScreen() {
   const status = useSubscriptionStatus();
   return (
-    <ScrollView style={kit.screen} contentContainerStyle={kit.content} contentInsetAdjustmentBehavior="automatic">
+    <TabScrollView title="設定">
       {status.kind === 'dev_unlocked' ? (
         <Banner tone="warning">開發版・未接內購：進階功能全部開放，上架版本不會有這個狀態。</Banner>
       ) : null}
@@ -43,6 +44,6 @@ export default function SettingsScreen() {
           </View>
         );
       })}
-    </ScrollView>
+    </TabScrollView>
   );
 }

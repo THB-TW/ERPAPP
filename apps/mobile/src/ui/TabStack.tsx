@@ -1,23 +1,18 @@
 import { Stack } from 'expo-router';
 import { colors } from './theme.ts';
 
-// 每個分頁各自一層原生堆疊，才有 iOS 原生導覽列（含捲動收合的大標題）。
-// 原生分頁列（expo-router/native-tabs）不畫標題，標題由這一層負責。
-// 大標題要能收合，分頁畫面最外層必須直接是 ScrollView，且設 contentInsetAdjustmentBehavior="automatic"。
+// 每個分頁各自一層原生堆疊，負責上方的導覽列（原生分頁列 expo-router/native-tabs 不畫標題）。
+// 導覽列不透明、與畫面同為淺灰底。大標題不是原生的：由分頁畫面用 src/ui/LargeTitle.tsx 畫在捲動內容最上方，
+// 捲過之後才在導覽列中央淡入小標題（原因寫在該檔）。所以這裡的 headerTitle 先留空，title 只給無障礙與返回鍵用。
 export function TabStack({ title }: { title: string }) {
   return (
     <Stack
       screenOptions={{
-        // 與根堆疊一致：導覽列不透明，內容不跑到列底下。
         headerTransparent: false,
         headerShadowVisible: false,
-        headerLargeTitleEnabled: true,
-        headerLargeTitleShadowVisible: false,
         headerStyle: { backgroundColor: colors.background },
-        headerLargeStyle: { backgroundColor: colors.background },
-        headerTitleStyle: { color: colors.text },
-        headerLargeTitleStyle: { color: colors.text },
         headerTintColor: colors.accent,
+        headerTitle: () => null,
         contentStyle: { backgroundColor: colors.background },
         headerBackTitle: '返回',
       }}

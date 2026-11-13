@@ -11,11 +11,11 @@ import { useLedger } from '../../../ui/LedgerProvider.tsx';
 import { Card, Footnote, Group, MonthBar, NavRow, Row, SectionTitle, kit, text } from '../../../ui/kit.tsx';
 import { colors, groupColors, typeScale } from '../../../ui/theme.ts';
 import { jumpOffset, reachedTarget, sectionAt } from '../../../ui/sectionNav.ts';
+import { useLargeTitle } from '../../../ui/LargeTitle.tsx';
 import { MonthlyCloseSummary } from '../../../ui/MonthlyCloseSummary.tsx';
 import { LoanCards } from '../../../ui/LoanCards.tsx';
 
-// 預算頁（UI 質感試做版）：iOS 原生大標題「預算」由 budget/_layout.tsx 的堆疊負責，
-// 本頁最外層必須直接是 ScrollView，大標題才會隨捲動收合。
+// 預算頁：大標題「預算」是捲動內容的第一項（src/ui/LargeTitle.tsx），捲過後導覽列中央淡入小標題。
 // 版面採 Apple「分組清單」做法：淺灰底、白色圓角卡片、卡片外放小字說明。
 
 const SECTIONS = [
@@ -32,8 +32,8 @@ const GROUP_NOTES = {
   fixed: '月結時，結餘回到當月盈餘。',
   actual: '花多少算多少，不設定上限。',
 };
-// ScrollView 的子節點順序：0 月份列、1 頁籤列（吸頂）、之後是內容。
-const RAIL_INDEX = 1;
+// ScrollView 的子節點順序：0 大標題、1 月份列、2 頁籤列（吸頂）、之後是內容。
+const RAIL_INDEX = 2;
 
 export default function BudgetScreen() {
   const ledger = useLedger();
@@ -53,6 +53,7 @@ export default function BudgetScreen() {
   // 點頁籤後的程式捲動進行中：動畫途中經過的區段不要改亮頁籤，抵達或使用者自己拖動才恢復跟隨。
   const pendingJump = useRef<{ target: number; timer: ReturnType<typeof setTimeout> } | null>(null);
   const isCurrentMonth = month === monthOf(taipeiDate(new Date()));
+  const largeTitle = useLargeTitle('預算');
 
   function clearPendingJump() {
     if (pendingJump.current) clearTimeout(pendingJump.current.timer);
@@ -112,6 +113,7 @@ export default function BudgetScreen() {
   }
 
   function syncSection(event: NativeSyntheticEvent<NativeScrollEvent>) {
+    largeTitle.onScroll(event);
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
     viewport.current = layoutMeasurement.height;
     contentHeight.current = contentSize.height;
@@ -144,7 +146,10 @@ export default function BudgetScreen() {
       onContentSizeChange={(_width, height) => { contentHeight.current = height; }}
       scrollEventThrottle={16}
     >
-      {/* 0：月份切換 */}
+      {/* 0：大標題 */}
+      <View style={styles.titleWrap}>{largeTitle.element}</View>
+
+      {/* 1：月份切換 */}
       <View style={styles.monthBarWrap}>
         <MonthBar
           title={monthTitle(month)}
@@ -157,7 +162,10 @@ export default function BudgetScreen() {
         />
       </View>
 
-      {/* 1：區段頁籤列，捲動時吸在頂端（文字在色條上方，五格平分寬度、不可橫向捲動）。 */}
+      {/* 2：區段頁籤列，捲動時吸在頂端（文字在色條上方，五格平分寬度、不可橫向捲動）。
+          外面多包一層沒有樣式的 View：React Native 會把吸頂子節點的樣式搬到它自己的外框，
+          直接把橫排樣式放在吸頂子節點上，五個頁籤會變成直排。 */}
+      <View>
       <View style={styles.rail} onLayout={(event) => { railHeight.current = event.nativeEvent.layout.height; }}>
         {SECTIONS.map((section) => {
           const active = activeSection === section.id;
@@ -179,6 +187,7 @@ export default function BudgetScreen() {
             </Pressable>
           );
         })}
+      </View>
       </View>
 
       {loading ? <ActivityIndicator style={{ marginTop: 32 }} accessibilityLabel="讀取預算中" /> : null}
@@ -315,6 +324,7 @@ function ProgressRow({ row, color }: { row: BudgetProgressRow; color: string }) 
 
 const styles = StyleSheet.create({
   content: { paddingBottom: 40 },
+  titleWrap: { paddingHorizontal: 16, paddingTop: 8 },
   // MonthBar 設計成放在 16 的左右內距裡。
   monthBarWrap: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 8 },
   rail: {

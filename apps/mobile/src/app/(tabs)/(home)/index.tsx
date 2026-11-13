@@ -1,12 +1,13 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { monthGrid } from '../../../calc/calendarGrid.ts';
 import { monthOf, shiftMonth, taipeiDate } from '../../../calc/dates.ts';
 import type { CalendarDay, DayTransaction, TransferDetail } from '../../../ledger/index.ts';
 import { formatAmount, dayTitle, monthTitle, userMessage } from '../../../ui/format.ts';
 import { useLedger } from '../../../ui/LedgerProvider.tsx';
 import { Banner, Card, Group, kit, MonthBar, SectionTitle, text } from '../../../ui/kit.tsx';
+import { TabScrollView } from '../../../ui/LargeTitle.tsx';
 import { colors, typeScale } from '../../../ui/theme.ts';
 
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
@@ -106,8 +107,8 @@ export default function HomeScreen() {
   const thisMonth = month === monthOf(today);
 
   return (
-    // 整頁就是一個 ScrollView，原生大標題「記帳」才會隨捲動收合。
-    <ScrollView style={kit.screen} contentContainerStyle={kit.content} contentInsetAdjustmentBehavior="automatic">
+    // 整頁就是一個捲動區：大標題「記帳」、月曆與當日清單一起捲動。
+    <TabScrollView title="記帳">
       <View style={kit.section}>
         <MonthBar
           title={monthTitle(month)}
@@ -212,7 +213,7 @@ export default function HomeScreen() {
           ]}
         </Group>
       </View>
-    </ScrollView>
+    </TabScrollView>
   );
 }
 

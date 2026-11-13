@@ -92,7 +92,7 @@ export default function TransferScreen() {
         options={{
           title: editingId === null ? '新增轉帳' : locked ? '檢視轉帳' : '修改轉帳',
           headerLeft: () => (
-            <Pressable onPress={() => router.back()} hitSlop={8} accessibilityRole="button">
+            <Pressable onPress={() => router.back()} hitSlop={8} accessibilityRole="button" style={{ paddingHorizontal: 8 }}>
               <Text style={text.link}>{readOnly ? '關閉' : '取消'}</Text>
             </Pressable>
           ),

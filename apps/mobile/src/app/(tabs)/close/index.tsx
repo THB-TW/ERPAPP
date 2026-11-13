@@ -6,7 +6,8 @@ import { requirePaidFeature, useSubscriptionStatus } from '../../../ui/closeEnti
 import { monthTitle } from '../../../ui/format.ts';
 import { useLedger } from '../../../ui/LedgerProvider.tsx';
 import { Banner, Footnote, Group, NavRow } from '../../../ui/kit.tsx';
-import { CloseAmount, CloseButton, ClosePage, closeErrorMessage, closeStyles as styles } from '../../../ui/MonthlyCloseSummary.tsx';
+import { TabScrollView } from '../../../ui/LargeTitle.tsx';
+import { CloseAmount, CloseButton, closeErrorMessage, closeStyles as styles } from '../../../ui/MonthlyCloseSummary.tsx';
 
 export default function MonthlyCloseScreen() {
   const ledger = useLedger();
@@ -29,7 +30,7 @@ export default function MonthlyCloseScreen() {
   }, [ledger, retry]));
 
   return (
-    <ClosePage>
+    <TabScrollView title="月結精靈" contentContainerStyle={styles.content}>
       <Footnote>① 月份與收入 → ② 信用卡 → ③ 計算 → ④ 總資產</Footnote>
       {subscription.kind === 'dev_unlocked' ? <Banner tone="warning">開發版・未接內購：月結精靈開放使用。</Banner> : null}
       {subscription.kind === 'expired' ? <Footnote>訂閱已到期，歷史月結仍可檢視；重新訂閱後從最早的開放月份依序補做月結。</Footnote> : null}
@@ -54,6 +55,6 @@ export default function MonthlyCloseScreen() {
         <NavRow tone="accent" title="查看歷史月結" onPress={() => router.push('/close-history')} />
         {draft?.latestMonth ? <NavRow tone="accent" title="撤銷最近一次月結（先預覽）" onPress={() => router.push({ pathname: '/adjustments', params: { action: 'rollback' } })} /> : null}
       </Group>
-    </ClosePage>
+    </TabScrollView>
   );
 }

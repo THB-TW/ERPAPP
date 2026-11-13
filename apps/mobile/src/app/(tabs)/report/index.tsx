@@ -1,6 +1,6 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { monthOf, shiftMonth, taipeiDate } from '../../../calc/dates.ts';
 import { REST_SLICE_KEY, pieSlices, type PieSlice } from '../../../calc/shares.ts';
 import type { DayTransaction, Flow, MonthBreakdown } from '../../../ledger/index.ts';
@@ -8,6 +8,7 @@ import { Donut } from '../../../ui/Donut.tsx';
 import { formatAmount, formatPermille, monthTitle, userMessage } from '../../../ui/format.ts';
 import { useLedger } from '../../../ui/LedgerProvider.tsx';
 import { Footnote, Group, MonthBar, SectionTitle, Segmented, kit, text } from '../../../ui/kit.tsx';
+import { TabScrollView } from '../../../ui/LargeTitle.tsx';
 import { chartColors, colors, typeScale } from '../../../ui/theme.ts';
 
 // 明細（票 09）：選定月份的圓餅圖＋類別列表。支出／收入用上方切換或在圓餅圖上左右滑；
@@ -102,7 +103,7 @@ export default function ReportScreen() {
   const isLatestMonth = month >= thisMonth;
 
   return (
-    <ScrollView style={kit.screen} contentContainerStyle={kit.content} contentInsetAdjustmentBehavior="automatic">
+    <TabScrollView title="明細">
       <MonthBar
         title={monthTitle(month)}
         onPrev={() => changeMonth(-1)}
@@ -200,7 +201,7 @@ export default function ReportScreen() {
           })}
         </Group>
       </View>
-    </ScrollView>
+    </TabScrollView>
   );
 }
 
