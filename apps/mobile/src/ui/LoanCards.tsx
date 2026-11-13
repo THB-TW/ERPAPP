@@ -1,19 +1,22 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import type { StyleProp, ViewStyle } from 'react-native';
 import type { LoanView } from '../ledger/index.ts';
 import { formatAmount, monthTitle } from './format.ts';
 import { colors } from './theme.ts';
 
-export function LoanCards({ loans, onEdit, disabled = false }: {
+export function LoanCards({ loans, onEdit, disabled = false, cardStyle }: {
   loans: LoanView[];
   onEdit?: (loan: LoanView) => void;
   disabled?: boolean;
+  /** 放在淺灰底的分組畫面（預算頁試做）時改成白卡片，其他畫面不用傳。 */
+  cardStyle?: StyleProp<ViewStyle>;
 }) {
   return <View style={{ gap: 12 }}>
     {loans.length === 0 ? <Text style={styles.note}>這個月份還沒有貸款／分期。</Text> : null}
     {loans.map((loan) => {
       const progress = loan.totalAmount !== null && loan.totalAmount > 0 && loan.remainingPrincipal !== null
         ? Math.max(0, Math.min(1, 1 - loan.remainingPrincipal / loan.totalAmount)) : null;
-      return <View key={loan.id} style={styles.card}>
+      return <View key={loan.id} style={[styles.card, cardStyle]}>
         <View style={styles.row}>
           <Text style={styles.name}>{loan.name}</Text>
           <Text style={styles.amount}>{loan.remainingPrincipal === null ? '本金待補' : loan.remainingPrincipal === 0 ? '已結清' : `剩 ${formatAmount(loan.remainingPrincipal)} 元`}</Text>

@@ -11,6 +11,8 @@ export interface ScrollMetrics {
   viewport: number;
   /** 內容總高度。 */
   content: number;
+  /** 捲動區頂端被吸頂元件（例如頁籤列）蓋住的高度。 */
+  topInset?: number;
 }
 
 /** 可捲到的最大位置；內容比畫面短時為 0。 */
@@ -19,11 +21,11 @@ export function maxOffset(viewport: number, content: number): number {
 }
 
 /**
- * 點頁籤後要捲到的位置：區段頂端減上方空白，並限制在可捲範圍內。
+ * 點頁籤後要捲到的位置：區段頂端減吸頂元件高度與上方空白，並限制在可捲範圍內。
  * 不限制的話，最後幾個短區段的目標會超過頁底，捲動動畫停在別處，判斷「到了沒」也永遠不成立。
  */
-export function jumpOffset(sectionY: number, viewport: number, content: number): number {
-  return Math.min(Math.max(0, sectionY - SECTION_TOP_GAP), maxOffset(viewport, content));
+export function jumpOffset(sectionY: number, viewport: number, content: number, topInset = 0): number {
+  return Math.min(Math.max(0, sectionY - topInset - SECTION_TOP_GAP), maxOffset(viewport, content));
 }
 
 /**
@@ -38,7 +40,7 @@ export function sectionAt<T extends string>(
   let current = order[0];
   for (const id of order) {
     const y = positions[id];
-    if (y !== undefined && y - SECTION_TOP_GAP <= metrics.offset + 4) current = id;
+    if (y !== undefined && y - SECTION_TOP_GAP <= metrics.offset + (metrics.topInset ?? 0) + 4) current = id;
   }
   const last = order[order.length - 1];
   const scrollable = metrics.content > metrics.viewport;

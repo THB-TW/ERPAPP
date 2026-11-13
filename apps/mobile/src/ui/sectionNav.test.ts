@@ -45,3 +45,11 @@ test('抵達判斷有 2px 容差', () => {
   assert.equal(reachedTarget(887.5, 888), true);
   assert.equal(reachedTarget(880, 888), false);
 });
+
+test('有吸頂頁籤列時，跳轉與判定都扣掉它的高度', () => {
+  const RAIL = 48;
+  const offset = jumpOffset(Y.reserve, VIEW, CONTENT, RAIL);
+  assert.equal(offset, 840);
+  assert.equal(sectionAt(ORDER, Y, { offset, viewport: VIEW, content: CONTENT, topInset: RAIL }), 'reserve');
+  assert.equal(sectionAt(ORDER, Y, { offset: offset - 20, viewport: VIEW, content: CONTENT, topInset: RAIL }), 'overview');
+});

@@ -1,13 +1,13 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { PanResponder, Pressable, ScrollView, Text, View } from 'react-native';
-import { monthOf, shiftMonth, taipeiDate } from '../../calc/dates.ts';
-import { REST_SLICE_KEY, pieSlices, type PieSlice } from '../../calc/shares.ts';
-import type { DayTransaction, Flow, MonthBreakdown } from '../../ledger/index.ts';
-import { Donut } from '../../ui/Donut.tsx';
-import { formatAmount, formatPermille, monthTitle, userMessage } from '../../ui/format.ts';
-import { useLedger } from '../../ui/LedgerProvider.tsx';
-import { chartColors, colors } from '../../ui/theme.ts';
+import { monthOf, shiftMonth, taipeiDate } from '../../../calc/dates.ts';
+import { REST_SLICE_KEY, pieSlices, type PieSlice } from '../../../calc/shares.ts';
+import type { DayTransaction, Flow, MonthBreakdown } from '../../../ledger/index.ts';
+import { Donut } from '../../../ui/Donut.tsx';
+import { formatAmount, formatPermille, monthTitle, userMessage } from '../../../ui/format.ts';
+import { useLedger } from '../../../ui/LedgerProvider.tsx';
+import { chartColors, colors } from '../../../ui/theme.ts';
 
 // 明細（票 09）：選定月份的圓餅圖＋類別列表。支出／收入用上方切換或在圓餅圖上左右滑；
 // 點類別展開該類別當月的交易，點交易進記帳表單（可改可刪，已結月份為唯讀）。
@@ -100,7 +100,7 @@ export default function ReportScreen() {
   const isLatestMonth = month >= thisMonth;
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: 12, gap: 12 }}>
+    <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: 12, gap: 12 }} contentInsetAdjustmentBehavior="automatic">
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <Pressable onPress={() => changeMonth(-1)} hitSlop={12} accessibilityRole="button" accessibilityLabel="上個月">
           <Text style={{ fontSize: 22, color: colors.accent }}>‹</Text>

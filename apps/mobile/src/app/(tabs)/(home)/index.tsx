@@ -2,12 +2,12 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { monthGrid } from '../../calc/calendarGrid.ts';
-import { monthOf, shiftMonth, taipeiDate } from '../../calc/dates.ts';
-import type { CalendarDay, DayTransaction, TransferDetail } from '../../ledger/index.ts';
-import { formatAmount, dayTitle, monthTitle, userMessage } from '../../ui/format.ts';
-import { useLedger } from '../../ui/LedgerProvider.tsx';
-import { colors } from '../../ui/theme.ts';
+import { monthGrid } from '../../../calc/calendarGrid.ts';
+import { monthOf, shiftMonth, taipeiDate } from '../../../calc/dates.ts';
+import type { CalendarDay, DayTransaction, TransferDetail } from '../../../ledger/index.ts';
+import { formatAmount, dayTitle, monthTitle, userMessage } from '../../../ui/format.ts';
+import { useLedger } from '../../../ui/LedgerProvider.tsx';
+import { colors } from '../../../ui/theme.ts';
 
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
 
@@ -162,7 +162,7 @@ export default function HomeScreen() {
         </Text>
       ) : null}
 
-      <ScrollView style={{ flex: 1 }}>
+      <ScrollView style={{ flex: 1 }} contentInsetAdjustmentBehavior="automatic">
         {error ? <Text style={{ color: colors.expense, padding: 12 }}>{error}</Text> : null}
         {list.length === 0 && transfers.length === 0 && !error ? (
           <Text style={{ color: colors.muted, padding: 12 }}>這天還沒有交易</Text>

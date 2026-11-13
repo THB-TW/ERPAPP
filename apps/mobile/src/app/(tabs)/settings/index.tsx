@@ -1,7 +1,7 @@
 import { router, type Href } from 'expo-router';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import { useSubscriptionStatus } from '../../ui/closeEntitlement.ts';
-import { colors } from '../../ui/theme.ts';
+import { useSubscriptionStatus } from '../../../ui/closeEntitlement.ts';
+import { colors } from '../../../ui/theme.ts';
 
 // 設定分頁：各票在 ROWS 加一列，指到自己放在 src/app/ 底下的子頁面（由根堆疊推入）。
 const ROWS: { title: string; hint: string; href: Href }[] = [
@@ -19,7 +19,7 @@ const ROWS: { title: string; hint: string; href: Href }[] = [
 export default function SettingsScreen() {
   const status = useSubscriptionStatus();
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.background }}>
+    <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentInsetAdjustmentBehavior="automatic">
       {status.kind === 'dev_unlocked' ? (
         <Text style={{ padding: 12, backgroundColor: '#fef3c7', color: '#92400e' }}>開發版・未接內購：進階功能全部開放，上架版本不會有這個狀態。</Text>
       ) : null}
