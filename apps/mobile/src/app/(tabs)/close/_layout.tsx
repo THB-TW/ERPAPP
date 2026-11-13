@@ -1,5 +1,5 @@
 import { TabStack } from '../../../ui/TabStack.tsx';
 
 export default function Layout() {
-  return <TabStack title="月結" />;
+  return <TabStack title="月結精靈" />;
 }
