@@ -1,0 +1,74 @@
+# 台灣 iOS 訂閱制完整財務管理產品（資料存在手機）：決策地圖
+
+Labels: wayfinder:map
+Status: resolved
+Created: 2026-11-08
+Cleared: 2026-11-11（所有決策票已結案，交給 /to-spec）
+
+## Destination
+
+第一版產品規格定案：可直接拆成實作票的**單機 iOS App**。所有帳務只存在使用者手機上的同一個資料庫，沒有自家伺服器；涵蓋訂閱方案與權益、備份與換機、舊帳私有匯入，以及「用翰陞自己 58 個月舊帳驗收月結一致」的切換條件。走完地圖＝沒有剩下要決定的事，接著拆實作票。
+
+> 2026-11-08 08:06 目的地重劃（使用者）：「接口應該是統一的，也就是同一個 db；理論上也不是 server 服務，而是存在手機本身；做成 App 的話本來就不會打開電腦了。」取代原先「iOS＋電腦網頁版同一訂閱同一份雲端資料」的第 3 題答案。
+
+## Notes
+
+- 目的地四題（2026-11-08 使用者回覆「都照建議」）：
+  1. 規劃先做到**規格定案**，再拆實作票。
+  2. 第一版只做**台灣／繁體中文／新台幣**。
+  3. ~~iOS 與網頁版同一訂閱、同一份雲端資料、同時上架~~ → 已於 08:06 改為：**只做 iPhone App，資料存在手機本機同一個資料庫，不做自家伺服器與電腦網頁版**。月結、CSV 匯入、投資、報表都要在手機上能完成。
+  4. **先用翰陞自己的舊帳驗收 58 個月月結**；通過前舊系統（ASP.NET Core + SQL Server ERPDB）照常使用，不退役、不覆寫、不重算。
+- 交接檔的既定決策見[交接](handoff-20261108.md)「最新且優先於舊文件的使用者決策」，不重問：完整財務管理（預算儲備、月結、投資）是第一版價值、快速輸入是體驗要求；一開始就訂閱制；Apple 年費另計、初期雲端 NT$200／月內；LINE 提醒已選但公開產品可重審；技術棧可重審；個人舊帳只匯入本人帳號，絕不成為公開種子資料。
+- 舊個人 PWA 地圖在 [mobile-finance-legacy](../mobile-finance-legacy/map.md)：只作歷史與已答個人規則（1–月底生活預算、5 號發薪、7 號信用卡結帳、月結由本人確認、缺資料不完成月結）的來源。它的「私人 Cloudflare Access／單人免費額度／PWA 優先」方向已被本地圖取代。
+- 領域語言以 `CONTEXT.md` 為準；不要混用「預算／儲備／帳面總資產」。舊計算核心在 `Services/Budgeting/BudgetEngine.cs`，ADR 0001–0004 仍有效。
+- 技能：每張 grilling 票用 grilling＋domain-modeling；research 票用 research（背景 subagent）；prototype 票用 prototype。
+- **所有 subagent 一律 Sonnet。**
+- 2026-11-08 08:18 使用者確認單機方向四題：不另做電腦版（Apple 晶片 Mac 能跑 iPhone App 當附帶）；只支援一台 iPhone，換機用備份還原、不做即時同步；不需註冊或登入，訂閱綁 Apple ID；提醒不用 LINE，改用 App 本身的本機通知。
+- 2026-11-09 使用者對產品定位的一句話：「有點像天天記帳 App，再加上我預算規劃的架構。」快速記帳體驗對標天天記帳，差異化是預算儲備與月結。
+- 2026-11-10 翰陞選定手機資料庫用 **SQLite**（一個檔案，方便匯出備份、換機還原）；程式語言照[票 18](issues/18-local-first-stack.md)建議用 TypeScript＋Expo：翰陞確認可正常上架 App Store、聽過相容性注意事項（內購需開發版或 TestFlight 測、iOS 新功能較晚支援、小工具類需另寫 Swift）後說「往下規劃」。
+- 改成單機後，Cloudflare Workers/D1、自建登入與 LINE 推播都不再是第一版的必要元件；`cloudflare/` 雛形保留不刪，僅作為帳務規則移植的參考。
+- 研究成果放在 `research/`（本 repo 只允許推指定分支，因此不另開 `research/<name>` 分支）。
+- 雲端作業：不在使用者 Windows 電腦上執行；成果推 GitHub。`.private/` 私人備份不在 Git，需要時請使用者提供，絕不提交。
+
+- 2026-11-11 地圖走完後已整理成[規格](spec.md)；寫規格時修正了票 14 的驗收門檻、補了貸款繳款與轉帳（見票 14、09 的 Comments）。
+
+## Decisions so far
+
+<!-- 每張結案票一行 -->
+
+- [查明 App Store 訂閱與上架規則](issues/01-apple-subscription-rules.md)：訂閱必須用 IAP；台灣 App 內不能導向網頁付款；必須能在 App 內刪帳號；有 Google 登入就要提供 Apple 登入；財務類 App 可能被要求以法人提交。
+- [比較訂閱權益驗證與網頁收款方案的成本](issues/02-entitlement-platforms.md)：iOS 用 RevenueCat（US$2,500 MTR 內免費），或改單機後直接用 StoreKit 2 在手機上驗證；Stripe 不支援台灣，網頁收款不做。
+- [查明 iOS＋網頁共用程式與離線同步的技術選項](issues/03-stack-and-sync.md)：（改單機後雲端部分失效，見重劃）Expo 58＋Router 共用 iOS／網頁；自建操作佇列＋expo-sqlite；Workers＋共用 D1、以 owner_id 隔離；CPU 待實測。
+- [查明登入方案與 NT$200／月可支撐的使用者規模](issues/04-auth-and-cost.md)：（改單機後大多失效：沒有伺服器就不需自建登入與雲端費用）Better Auth 自架（Apple／Google／magic link）；Workers Paid 約 900 人在 NT$200 內，每多 100 人約 NT$36。
+- [調查台灣記帳 App 的功能與訂閱定價](issues/05-competitors-pricing.md)：在地年費 NT$600–1,500；競品未見累積儲備、月結核對、台股成本追蹤與網頁版。
+- [查明多人通知：LINE 配額與 iOS 原生推播](issues/06-notification-channel.md)：（改單機後：LINE 需要伺服器才能發，待重新決定）公開產品預設用原生推播／Email，LINE 改為可選；本人的 LINE 仍在免費額度內。
+- [查明純本機 iOS 財務 App 的技術選項、備份與訂閱驗證](issues/18-local-first-stack.md)：Expo 58＋expo-sqlite、規則移植 TS；備份用 iCloud 裝置備份＋手動匯出檔；StoreKit 2 手機驗證即可；Apple 晶片 Mac 可直接跑 iPhone App。
+- [決定公開產品的提醒管道](issues/11-reminder-channel.md)：不用 LINE，所有提醒都用 App 本身的 iPhone 本機通知。
+- [決定哪些舊規則是產品預設、哪些是個人設定](issues/09-personal-vs-defaults.md)：三種預算組照舊為核心；學費儲備一般化為「貸款／分期」；有資料者依平均開銷建議預算、否則用翰陞的預設；匯入規格只強制類別與金額，未知分類報錯不自動新增；新增電子支付帳戶；成員選填。
+- [做可操作的手機快速記帳與儲備預算原型](issues/12-mobile-entry-prototype.md)：第五版定案；首頁是記帳（上方月曆、點日期看當天帳再新增）、明細是可左右滑切支出／收入的圓餅圖、預算有頂端橫排跳轉列、月結精靈四步且收入與核對自動帶出、調整類功能放設定。
+- [決定 58 個月舊帳月結的驗收方法](issues/14-legacy-acceptance.md)：逐月 0 元誤差比對八項月結數字＋交易／信用卡／投資總量；舊帳原樣匯入不重算，再用移植規則重算 58 個月比對；17 個月舊差異原樣保留須同額重現；用 11/08 唯讀備份在翰陞 Mac 上比對、私資料不進 Git；再並行 2 個月後由翰陞簽核。
+- [決定備份、換機與舊帳匯入的規則](issues/19-backup-and-import.md)：三層備份（iCloud 裝置備份、匯出 SQLite 備份檔、匯出 CSV）；月結後提示匯出、35 天未備份通知；第一版不加密；換機靠整機搬移或匯入備份檔；匯入整本取代並先自動另存；舊帳由只給翰陞用的轉換程式在 Mac 上轉成備份檔再匯入，不搬舊登入資料與外部原始檔。
+- [決定目標客群與差異化定位](issues/15-positioning.md)：「主動規劃預算，不要當月光族」；主打想替大筆開銷先存錢的上班族、從天天記帳轉來；支援天天記帳 CSV；投資市值手動填不接報價；不做多人共用、發票載具、銀行連動、Android、小工具。
+- [決定上架賣家身分與財務類審查對策](issues/17-seller-identity.md)：先個人上架，被審查要求才設有限公司，不因稅設公司；審查備註用法規審核修訂版；稅務（執行業務所得、稅籍）上架前請會計師確認。
+- [決定訂閱方案、價格、試用與到期行為](issues/08-subscription-plans.md)：免費含記帳、圓餅圖、預算上限與進度、CSV、備份、記帳提醒；付費為月結、儲備累積、貸款／分期、投資；月 NT$90／年 NT$690；試用 3 個月、碰付費功能才出付費牆；到期付費唯讀、匯出備份永遠可用、寬限期照常；本人用優惠代碼或自付，無後門。
+- [決定新使用者的開帳流程與預算建議算法](issues/20-new-user-opening.md)：第一畫面「其他 App 搬家（匯入 CSV）」或「從零開始」；開帳日為某月 1 號（可選上個月）、各帳戶填開帳餘額；有資料取近 3 個月平均進位百元、無資料按翰陞的收入比例縮放；未知分類預設照實支；開帳免費、按開始月結才出試用。
+- [決定第一版信用卡帳單 CSV 的支援範圍](issues/21-card-csv-scope.md)：只支援舊系統的銀行原始匯出檔與三欄檔；每張卡一個帳戶、匯入前選卡；配對規則沿用舊系統；銀行對帳單不匯入。
+
+## Not yet specified
+
+- 產品名稱、品牌、App Store 文案與截圖：上架前再定（需避開天天記帳等競品名稱與圖示，見[票 17 報告](research/17-seller-tax-legal-review.md)第 6 節）；不擋規格與實作。
+- 新使用者的開帳體驗 → 已成為[票 20](issues/20-new-user-opening.md)。
+- 銀行／信用卡 CSV 對一般使用者的支援範圍 → 已成為[票 21](issues/21-card-csv-scope.md)。
+- 投資模組：第一版只有台股個股＋虛擬貨幣桶、市值手動填（[票 15](issues/15-positioning.md)）；之後是否接報價與授權成本未定。
+- 隱私權政策、服務條款、客服、消保法告知：清單見[票 17 報告](research/17-seller-tax-legal-review.md)第 6 節與[票 08 審核](research/08-subscription-legal-review.md)；上架前實作，不擋規格。
+- 手機上月結精靈、CSV 匯入核對、投資頁的大表格在小螢幕的版面：實作時依原型延伸，必要時另做原型。
+- Android：第一版明確不做（[票 15](issues/15-positioning.md)），之後未定。
+- 舊系統退役的最後切換步驟：58 個月驗收與 2 個月並行通過、翰陞簽核之後再定（[票 14](issues/14-legacy-acceptance.md)）。
+
+## Out of scope
+
+- 自家伺服器、雲端資料庫與電腦網頁版（08:06 目的地重劃）：[離線同步規則](issues/07-sync-rules.md)、[登入與帳號模型](issues/10-account-model.md)、[電腦網頁版原型](issues/13-desktop-web-prototype.md)、[Worker 實測](issues/16-measure-worker-cpu.md) 已關閉。
+
+- 台灣以外市場、多語系、多幣別（目的地第 2 題）。
+- 通過完整驗收前退役、覆寫或重新計算舊平台與舊帳。
+- 把翰陞的個人帳務放進公開產品的種子資料、demo 或測試 fixture。

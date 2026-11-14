@@ -24,6 +24,10 @@ CSV 匯入的流程與數量式去重只在 `Services/Import/ImportRun.cs` 寫�
 資料結構依 `docs/sql/` 的腳本升級，先備份並在副本驗證。
 「為什麼投資要記兩個成本數字」見 `docs/adr/0001`。
 
+## 專案 agent 團隊
+
+產品化（iOS App）的工作依模組分給 `.claude/agents/` 的長期 agent，名冊與交叉審核規則見 `docs/agents/team.md`；入口 `/chief-of-staff`。所有 subagent 一律用 Sonnet。稅務／法規／上架文字一律經 `tw-legal-tax-counsel` 審核；訂閱方案與定價由 `marketing-pricing` 研究提案。
+
 ## Agent skills
 
 ### Issue tracker
