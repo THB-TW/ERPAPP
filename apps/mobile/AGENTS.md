@@ -39,3 +39,16 @@ Docs: https://docs.expo.dev/eas/index.md
 - If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
 - Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
 - Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md
+
+## UI 風格（本專案）
+
+畫面採 Apple「分組清單」風格：淺灰底、白色圓角卡片、Apple 字級、克制使用強調色。新畫面或改畫面時：
+
+- 配色與字級只用 `src/ui/theme.ts` 的 `colors`、`typeScale`，不要直接寫色碼或字級。
+- 版面用 `src/ui/kit.tsx` 的零件（`Card`、`Group`、`Row`、`NavRow`、`SectionTitle`、`Footnote`、`MonthBar`、`PrimaryButton`、`Segmented`、`Chip`、`Banner`）與 `kit.*`／`text.*` 樣式；規則寫在該檔開頭。參考畫面：`src/app/(tabs)/budget/index.tsx`。
+- 分頁在 `src/app/(tabs)/<分頁>/index.tsx`（記帳是 `(home)/`），底部是原生分頁列（`expo-router/native-tabs`），每個分頁一個不透明導覽列（`src/ui/TabStack.tsx`）。
+- 分頁大標題**不用**原生 `headerLargeTitleEnabled`：iOS 26 導覽列有底色時，原生大標題收合後小標題看不見（模擬器實測）。改用 `src/ui/LargeTitle.tsx`：一般分頁最外層用 `<TabScrollView title=…>`；需要自己的 ScrollView（例如預算頁的吸頂頁籤）就用 `useLargeTitle()`，把 `element` 放第一項、`onScroll` 接上。
+- `stickyHeaderIndices` 指到的子節點外面要多包一層沒樣式的 `View`：React Native 會把吸頂子節點的樣式搬到它自己的外框，橫排會變直排。
+- 頁內不要再放和導覽列同名的標題。
+- 長頁面的區段跳轉用 `src/ui/sectionNav.ts`。
+- 記帳、轉帳表單以 iOS 面板（modal）呈現；面板裡不要用 `KeyboardAvoidingView`，用 `src/ui/useKeyboardHeight.ts`。

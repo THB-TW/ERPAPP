@@ -1,30 +1,41 @@
+// 全 App 共用配色（Apple「分組清單」風格）：淺灰底、白卡片、系統藍強調色。
+// 2026-11-13 起由原本的白底灰卡片對調過來；畫面一律用這些名稱，不要直接寫色碼。
 export const colors = {
-  background: '#ffffff',
-  surface: '#f3f4f6',
-  text: '#111827',
-  muted: '#6b7280',
-  border: '#e5e7eb',
-  accent: '#2563eb',
-  expense: '#dc2626',
-  income: '#059669',
+  /** 畫面底色（淺灰）。 */
+  background: '#f2f2f7',
+  /** 卡片、清單列的底色（白）。 */
+  surface: '#ffffff',
+  /** 卡片「裡面」的填色：未選取的選項、輸入框、進度條軌道。 */
+  fill: '#ececf0',
+  text: '#1d1d1f',
+  /** 次要文字（說明、註解）。 */
+  muted: '#6e6e73',
+  /** 分隔線與框線。 */
+  border: '#e5e5ea',
+  accent: '#007aff',
+  /** 強調色的淡底：被選取的日期、提示區塊。 */
+  accentSoft: '#e5f1ff',
+  expense: '#dc3b40',
+  income: '#12855a',
+  /** 清單列右側的「›」。 */
+  chevron: '#c7c7cc',
+  warningBackground: '#fff4d6',
+  warningText: '#8a5a00',
 };
 
 /** 圓餅圖切片的顏色（原型第五版的 c1–c8），依切片順序取用；最後一色給合併的「其他分類」。 */
 export const chartColors = ['#16705a', '#d08a2e', '#3f6fb5', '#c2544b', '#7a5ea8', '#3c97a8', '#8a7a3a', '#7d8a86'];
 
-/**
- * Apple 風格的分組畫面配色（試做中，目前只有預算頁與分頁列使用）：淺灰底＋白卡片，
- * 文字用 iOS 系統的主要／次要標籤色，強調色用 iOS 系統藍。確認方向後再推到其他畫面。
- */
+/** 舊名稱（預算頁使用），與 colors 是同一組顏色；新程式請直接用 colors。 */
 export const grouped = {
-  background: '#f2f2f7',
-  card: '#ffffff',
-  text: '#1d1d1f',
-  secondary: '#6e6e73',
-  separator: '#e5e5ea',
-  track: '#ececf0',
-  accent: '#007aff',
-  expense: '#e5484d',
+  background: colors.background,
+  card: colors.surface,
+  text: colors.text,
+  secondary: colors.muted,
+  separator: colors.border,
+  track: colors.fill,
+  accent: colors.accent,
+  expense: colors.expense,
 };
 
 /** 預算各組的識別色：比原本的飽和度低，在白卡片上不搶金額的視線。 */

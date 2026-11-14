@@ -12,7 +12,7 @@ export default function CsvSpecScreen() {
         <Section title="檔案格式">
           第一列放欄位名稱，以逗號分隔。支援 UTF-8（可含 BOM）與 Big5。欄位順序可調整，也支援下列其他 App 搬家用的 12 欄格式。
         </Section>
-        <View style={{ backgroundColor: colors.surface, padding: 12, borderRadius: 8, gap: 8 }}>
+        <View style={{ backgroundColor: colors.surface, padding: 12, borderRadius: 16, borderCurve: 'continuous', gap: 8 }}>
           <Text style={{ color: colors.text, fontWeight: '600' }}>12 欄標題</Text>
           <Text selectable style={{ color: colors.text, lineHeight: 24 }}>
             日期,類別,大類別,金額,幣別,成員,帳戶,標籤,備註,收支區分,上次更新,UUID
@@ -34,7 +34,7 @@ export default function CsvSpecScreen() {
         <Section title="逗號、雙引號與換行">
           欄位內有逗號、雙引號或換行時，請以雙引號包住整個欄位；欄位內的雙引號寫成連續兩個雙引號。備註可以有多行。
         </Section>
-        <View style={{ backgroundColor: colors.surface, padding: 12, borderRadius: 8, gap: 8 }}>
+        <View style={{ backgroundColor: colors.surface, padding: 12, borderRadius: 16, borderCurve: 'continuous', gap: 8 }}>
           <Text style={{ color: colors.text, fontWeight: '600' }}>範例（虛構資料）</Text>
           <Text selectable style={{ color: colors.text, lineHeight: 24 }}>
             {'日期,類別,金額,帳戶,收支別,備註,成員\n2026-11-11,飲食,120,現金,支出,午餐,\n2026-11-11,薪資,30000,銀行,收入,薪水,'}

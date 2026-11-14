@@ -38,7 +38,7 @@ export function Donut({ slices, children }: { slices: DonutSlice[]; children?: R
             height: OUTER * 2,
             borderRadius: OUTER,
             borderWidth: RING,
-            borderColor: colors.border,
+            borderColor: colors.fill,
           }}
         />
       ) : (

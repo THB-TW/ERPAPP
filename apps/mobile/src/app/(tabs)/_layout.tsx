@@ -1,5 +1,5 @@
 import { NativeTabs } from 'expo-router/native-tabs';
-import { grouped } from '../../ui/theme.ts';
+import { colors } from '../../ui/theme.ts';
 
 // 底部五個分頁（依原型第五版）：記帳、明細、預算、月結、設定。
 // 使用 iOS 原生分頁列（UITabBarController）：iOS 26 起由系統畫 Liquid Glass 背景，圖示用 SF Symbols，
@@ -7,7 +7,7 @@ import { grouped } from '../../ui/theme.ts';
 // 原生分頁列不能在執行時增減分頁，五個分頁固定寫在這裡。
 export default function TabLayout() {
   return (
-    <NativeTabs tintColor={grouped.accent}>
+    <NativeTabs tintColor={colors.accent}>
       <NativeTabs.Trigger name="(home)">
         <NativeTabs.Trigger.Icon sf={{ default: 'square.and.pencil', selected: 'square.and.pencil' }} />
         <NativeTabs.Trigger.Label>記帳</NativeTabs.Trigger.Label>

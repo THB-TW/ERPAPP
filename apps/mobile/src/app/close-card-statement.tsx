@@ -13,7 +13,7 @@ import { monthTitle } from '../ui/format.ts';
 import { syncNotifications } from '../platform/notificationSync.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
 import { CloseButton, closeStyles as styles } from '../ui/MonthlyCloseSummary.tsx';
-import { colors } from '../ui/theme.ts';
+import { colors, typeScale } from '../ui/theme.ts';
 
 const ENCODINGS: { value: CsvEncoding; label: string }[] = [
   { value: 'auto', label: '自動辨識' }, { value: 'utf-8', label: 'UTF-8' }, { value: 'big5', label: 'Big5' },
@@ -130,12 +130,12 @@ export default function CloseCardStatementScreen() {
 function Choice({ label, selected, disabled, onPress }: { label: string; selected: boolean; disabled: boolean; onPress: () => void }) {
   return <Pressable accessibilityRole="button" accessibilityState={{ selected, disabled }} disabled={disabled} onPress={onPress}
     style={[localStyles.choice, selected && { backgroundColor: colors.accent }, disabled && { opacity: 0.5 }]}>
-    <Text style={{ color: selected ? '#fff' : colors.text }}>{label}</Text>
+    <Text style={{ color: selected ? '#ffffff' : colors.text }}>{label}</Text>
   </Pressable>;
 }
 
 const localStyles = StyleSheet.create({
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  choice: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 16, backgroundColor: colors.background },
-  csv: { minHeight: 150, borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 12, color: colors.text, backgroundColor: colors.background },
+  choice: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 16, backgroundColor: colors.fill },
+  csv: { ...typeScale.body, minHeight: 150, borderWidth: 1, borderColor: colors.border, borderRadius: 10, borderCurve: 'continuous', padding: 12, color: colors.text, backgroundColor: colors.fill },
 });

@@ -4,7 +4,7 @@ import type { StyleProp, ViewStyle } from 'react-native';
 import { BudgetRuleError, LedgerError } from '../ledger/index.ts';
 import type { BudgetMonthView } from '../ledger/index.ts';
 import { formatAmount } from './format.ts';
-import { colors } from './theme.ts';
+import { colors, typeScale } from './theme.ts';
 
 export function closeErrorMessage(error: unknown): string {
   return error instanceof BudgetRuleError || error instanceof LedgerError
@@ -18,7 +18,7 @@ export function ClosePage({ children }: { children: ReactNode }) {
 export function CloseButton({ title, onPress, disabled = false }: { title: string; onPress: () => void; disabled?: boolean }) {
   return (
     <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityState={{ disabled }}
-      style={[closeStyles.button, disabled && { opacity: 0.45 }]}>
+      style={({ pressed }) => [closeStyles.button, pressed && { opacity: 0.75 }, disabled && { opacity: 0.45 }]}>
       <Text style={closeStyles.buttonText}>{title}</Text>
     </Pressable>
   );
@@ -43,18 +43,19 @@ export function MonthlyCloseSummary({ summary, cardStyle }: { summary: BudgetMon
   );
 }
 
+// 數值對齊 ui/kit.tsx：白色圓角卡片、Apple 字級、主要按鈕同 PrimaryButton。
 export const closeStyles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  content: { padding: 16, gap: 18, paddingBottom: 40 },
-  title: { color: colors.text, fontSize: 22, fontWeight: '700' },
-  heading: { color: colors.text, fontSize: 18, fontWeight: '600' },
-  note: { color: colors.muted, fontSize: 14, lineHeight: 22 },
-  label: { color: colors.text, flex: 1, lineHeight: 22 },
-  amount: { color: colors.text, fontSize: 16, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  content: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 40, gap: 16 },
+  title: { ...typeScale.title3, color: colors.text },
+  heading: { ...typeScale.headline, color: colors.text },
+  note: { ...typeScale.subhead, color: colors.muted },
+  label: { ...typeScale.body, color: colors.text, flex: 1 },
+  amount: { ...typeScale.body, color: colors.text, fontWeight: '600', fontVariant: ['tabular-nums'] },
   row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  card: { backgroundColor: colors.surface, padding: 16, borderRadius: 12, gap: 12 },
-  error: { color: colors.expense, fontSize: 14, lineHeight: 22 },
-  link: { color: colors.accent, fontSize: 15, paddingVertical: 8 },
-  button: { backgroundColor: colors.accent, padding: 15, borderRadius: 10, alignItems: 'center' },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  card: { backgroundColor: colors.surface, padding: 16, borderRadius: 16, borderCurve: 'continuous', gap: 12 },
+  error: { ...typeScale.subhead, color: colors.expense },
+  link: { ...typeScale.body, color: colors.accent, paddingVertical: 10 },
+  button: { backgroundColor: colors.accent, minHeight: 50, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 14, borderCurve: 'continuous', alignItems: 'center', justifyContent: 'center' },
+  buttonText: { ...typeScale.headline, color: '#ffffff' },
 });

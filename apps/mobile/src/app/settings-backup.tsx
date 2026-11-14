@@ -148,7 +148,7 @@ export default function BackupScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['bottom']}>
       <Stack.Screen options={{ title: '備份與還原', headerBackTitle: '返回' }} />
       <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
-        <View style={{ backgroundColor: colors.surface, borderRadius: 12, padding: 16, gap: 4 }}>
+        <View style={{ backgroundColor: colors.surface, borderRadius: 16, borderCurve: 'continuous', padding: 16, gap: 4 }}>
           <Text style={{ color: colors.muted, fontSize: 13 }}>上次備份日期</Text>
           <Text style={{ color: colors.text, fontSize: 18, fontWeight: '600' }}>{last ? last.text : '讀取中…'}</Text>
           {last?.overdue ? (
@@ -192,7 +192,10 @@ function ActionButton(props: { label: string; working: boolean; disabled: boolea
       accessibilityState={{ disabled, busy: working }}
       style={{
         backgroundColor: primary ? colors.accent : colors.surface,
-        borderRadius: 10,
+        borderRadius: 14,
+        borderCurve: 'continuous',
+        minHeight: 50,
+        justifyContent: 'center',
         paddingVertical: 14,
         alignItems: 'center',
         opacity: disabled && !working ? 0.5 : 1,

@@ -1,5 +1,5 @@
 import { TabStack } from '../../../ui/TabStack.tsx';
 
 export default function Layout() {
-  return <TabStack title="預算" large />;
+  return <TabStack title="預算" />;
 }

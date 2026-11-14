@@ -1,20 +1,23 @@
 import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { monthOf, taipeiDate } from '../calc/dates.ts';
 import type { Account, Category, Flow, Member } from '../ledger/index.ts';
 import { dayTitle, monthTitle, userMessage } from '../ui/format.ts';
 import { syncNotifications } from '../platform/notificationSync.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
-import { colors } from '../ui/theme.ts';
+import { Banner, Card, Chip, PrimaryButton, Segmented, text } from '../ui/kit.tsx';
+import { colors, typeScale } from '../ui/theme.ts';
+import { useKeyboardHeight } from '../ui/useKeyboardHeight.ts';
 
 // 記帳表單。新增：/entry?date=YYYY-MM-DD；修改：/entry?id=交易編號（帶出原本的內容，可改可刪）。
 // 已結月份的交易以唯讀顯示並說明原因；真正的鎖定檢查在帳本服務，這裡只是提早告知。
+// 本頁以 iOS 底部面板（modal）呈現：沒有自動返回鈕，左上角自備「取消／關閉」。
 export default function EntryScreen() {
   const ledger = useLedger();
-  const headerHeight = useHeaderHeight(); // 鍵盤避讓要扣掉上方標題列的高度，「儲存」才不會被鍵盤蓋住
+  const insets = useSafeAreaInsets();
+  const keyboardHeight = useKeyboardHeight();
   const params = useLocalSearchParams<{ date?: string; id?: string; flow?: string }>();
   const editingId = params.id ? Number(params.id) : null;
 
@@ -133,121 +136,138 @@ export default function EntryScreen() {
   const shownCategories = categories.filter((c) => c.flow === flow);
   const readOnly = locked || !loaded;
   const title = editingId === null ? '新增交易' : locked ? '檢視交易' : '修改交易';
+  const flowOptions: readonly { key: 'expense' | 'income' | 'transfer'; label: string }[] =
+    editingId === null
+      ? [{ key: 'expense', label: '支出' }, { key: 'income', label: '收入' }, { key: 'transfer', label: '轉帳' }]
+      : [{ key: 'expense', label: '支出' }, { key: 'income', label: '收入' }];
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['bottom']}>
-      <Stack.Screen options={{ title }} />
-      <KeyboardAvoidingView
+    // 面板底緣就是螢幕底緣，KeyboardAvoidingView 在面板裡會算錯：改成自己量鍵盤高度，
+    // 鍵盤開著時底部留白＝鍵盤高度（「儲存」停在鍵盤上方），沒開時留出底部安全區。
+    <View style={{ flex: 1, backgroundColor: colors.background, paddingBottom: keyboardHeight > 0 ? keyboardHeight : insets.bottom }}>
+      <Stack.Screen
+        options={{
+          title,
+          headerLeft: () => (
+            <Pressable onPress={() => router.back()} hitSlop={8} accessibilityRole="button" style={{ paddingHorizontal: 8 }}>
+              <Text style={text.link}>{readOnly ? '關閉' : '取消'}</Text>
+            </Pressable>
+          ),
+        }}
+      />
+      <ScrollView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={headerHeight}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        contentContainerStyle={styles.content}
       >
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 16 }}>
-          <Text style={{ color: colors.muted }}>{dayTitle(date)}</Text>
+        <Text style={text.subheadMuted}>{dayTitle(date)}</Text>
 
-          {locked ? (
-            <Text style={{ color: colors.text, backgroundColor: colors.surface, padding: 12, borderRadius: 8 }}>
-              🔒 {monthTitle(monthOf(date))}已月結，這筆交易已鎖定，不能修改或刪除。要更改請先撤銷該月的月結，或做前期更正。
-            </Text>
-          ) : null}
+        {locked ? (
+          <Banner tone="locked">
+            🔒 {monthTitle(monthOf(date))}已月結，這筆交易已鎖定，不能修改或刪除。要更改請先撤銷該月的月結，或做前期更正。
+          </Banner>
+        ) : null}
 
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <Chip label="支出" active={flow === 'expense'} disabled={readOnly} onPress={() => chooseFlow('expense')} />
-            <Chip label="收入" active={flow === 'income'} disabled={readOnly} onPress={() => chooseFlow('income')} />
-            {editingId === null ? <Chip label="轉帳" active={false} disabled={readOnly || saving} onPress={() => router.replace({ pathname: '/transfer', params: { date } })} /> : null}
+        <Segmented
+          options={flowOptions}
+          value={flow}
+          disabled={readOnly}
+          onChange={(key) => {
+            if (key === 'transfer') {
+              if (!saving) router.replace({ pathname: '/transfer', params: { date } });
+              return;
+            }
+            chooseFlow(key);
+          }}
+        />
+
+        <Card>
+          <View style={styles.amountRow}>
+            <Text style={text.bodyMuted} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">NT$</Text>
+            <TextInput
+              value={amountText}
+              onChangeText={setAmountText}
+              keyboardType="number-pad"
+              placeholder="金額"
+              placeholderTextColor={colors.chevron}
+              autoFocus={editingId === null}
+              editable={!readOnly}
+              style={styles.amountInput}
+            />
           </View>
+        </Card>
 
-          <TextInput
-            value={amountText}
-            onChangeText={setAmountText}
-            keyboardType="number-pad"
-            placeholder="金額"
-            autoFocus={editingId === null}
-            editable={!readOnly}
-            style={{ fontSize: 32, color: colors.text, borderBottomWidth: 1, borderBottomColor: colors.border }}
-          />
-
-          <Text style={{ color: colors.muted }}>分類</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+        <Card>
+          <Text style={text.footnote}>分類</Text>
+          <View style={styles.chips}>
             {shownCategories.map((c) => (
               <Chip key={c.id} label={c.name} active={c.id === categoryId} disabled={readOnly} onPress={() => setCategoryId(c.id)} />
             ))}
           </View>
           {loaded && shownCategories.length === 0 ? (
-            <Text style={{ color: colors.muted }}>還沒有{flow === 'expense' ? '支出' : '收入'}分類，請先到設定新增分類。</Text>
+            <Text style={text.footnote}>還沒有{flow === 'expense' ? '支出' : '收入'}分類，請先到設定新增分類。</Text>
           ) : null}
+        </Card>
 
-          <Text style={{ color: colors.muted }}>帳戶</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+        <Card>
+          <Text style={text.footnote}>帳戶</Text>
+          <View style={styles.chips}>
             {accounts.filter((a) => a.active || a.id === originalAccountId).map((a) => (
               <Chip key={a.id} label={`${a.name}${a.active ? '' : '（已停用）'}`} active={a.id === accountId} disabled={readOnly} onPress={() => setAccountId(a.id)} />
             ))}
           </View>
+        </Card>
 
+        <Card>
           <TextInput
             value={note}
             onChangeText={setNote}
             placeholder="備註（選填）"
+            placeholderTextColor={colors.muted}
             editable={!readOnly}
-            style={{ fontSize: 16, color: colors.text, borderBottomWidth: 1, borderBottomColor: colors.border, paddingVertical: 8 }}
+            style={styles.noteInput}
           />
+        </Card>
 
-          {members.length > 0 && !showMember && !readOnly ? (
-            <Pressable onPress={() => setShowMember(true)} hitSlop={8} accessibilityRole="button">
-              <Text style={{ color: colors.accent }}>＋ 成員（選填）</Text>
-            </Pressable>
-          ) : null}
-          {members.length > 0 && showMember ? (
-            <>
-              <Text style={{ color: colors.muted }}>成員（選填）</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                <Chip label="不指定" active={memberId === null} disabled={readOnly} onPress={() => setMemberId(null)} />
-                {members.map((m) => (
-                  <Chip key={m.id} label={m.name} active={m.id === memberId} disabled={readOnly} onPress={() => setMemberId(m.id)} />
-                ))}
-              </View>
-            </>
-          ) : null}
-
-          {error ? <Text style={{ color: colors.expense }}>{error}</Text> : null}
-
-          {editingId !== null && !readOnly ? (
-            <Pressable onPress={confirmDelete} disabled={saving} accessibilityRole="button" style={{ alignSelf: 'center', padding: 8 }}>
-              <Text style={{ color: colors.expense }}>刪除這筆交易</Text>
-            </Pressable>
-          ) : null}
-        </ScrollView>
-
-        {readOnly ? null : (
-          <Pressable
-            onPress={save}
-            disabled={saving}
-            accessibilityRole="button"
-            style={{ margin: 16, padding: 14, borderRadius: 10, alignItems: 'center', backgroundColor: colors.accent, opacity: saving ? 0.6 : 1 }}
-          >
-            <Text style={{ color: '#fff', fontSize: 17, fontWeight: '600' }}>儲存</Text>
+        {members.length > 0 && !showMember && !readOnly ? (
+          <Pressable onPress={() => setShowMember(true)} hitSlop={8} accessibilityRole="button">
+            <Text style={text.link}>＋ 成員（選填）</Text>
           </Pressable>
-        )}
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+        ) : null}
+        {members.length > 0 && showMember ? (
+          <Card>
+            <Text style={text.footnote}>成員（選填）</Text>
+            <View style={styles.chips}>
+              <Chip label="不指定" active={memberId === null} disabled={readOnly} onPress={() => setMemberId(null)} />
+              {members.map((m) => (
+                <Chip key={m.id} label={m.name} active={m.id === memberId} disabled={readOnly} onPress={() => setMemberId(m.id)} />
+              ))}
+            </View>
+          </Card>
+        ) : null}
+
+        {error ? <Text style={text.error}>{error}</Text> : null}
+
+        {editingId !== null && !readOnly ? (
+          <PrimaryButton tone="destructive" title="刪除這筆交易" onPress={confirmDelete} disabled={saving} />
+        ) : null}
+      </ScrollView>
+
+      {readOnly ? null : (
+        <View style={styles.saveBar}>
+          <PrimaryButton title="儲存" onPress={save} disabled={saving} />
+        </View>
+      )}
+    </View>
   );
 }
 
-function Chip(props: { label: string; active: boolean; disabled?: boolean; onPress: () => void }) {
-  return (
-    <Pressable
-      onPress={props.onPress}
-      disabled={props.disabled}
-      accessibilityState={{ selected: props.active, disabled: props.disabled }}
-      style={{
-        paddingVertical: 8,
-        paddingHorizontal: 14,
-        borderRadius: 16,
-        backgroundColor: props.active ? colors.accent : colors.surface,
-        opacity: props.disabled && !props.active ? 0.5 : 1,
-      }}
-    >
-      <Text style={{ color: props.active ? '#fff' : colors.text }}>{props.label}</Text>
-    </Pressable>
-  );
-}
+const styles = StyleSheet.create({
+  content: { padding: 16, gap: 16 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  amountRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  amountInput: { flex: 1, fontSize: 34, fontWeight: '600', fontVariant: ['tabular-nums'], color: colors.text, padding: 0, minHeight: 44 },
+  noteInput: { ...typeScale.body, color: colors.text, minHeight: 24, padding: 0 },
+  saveBar: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8 },
+});

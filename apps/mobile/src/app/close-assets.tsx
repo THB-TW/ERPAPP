@@ -1,8 +1,7 @@
 import { Stack, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { isValidDate } from '../calc/dates.ts';
 import type { AssetCheckPreview, AssetCheckRecord, AssetCheckRequest } from '../ledger/index.ts';
 import { CardStatementMismatchError, type CardReconciliation } from '../ledger/index.ts';
@@ -13,7 +12,7 @@ import { formatAmount, monthTitle } from '../ui/format.ts';
 import { syncNotifications } from '../platform/notificationSync.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
 import { CloseAmount, CloseButton, closeStyles as styles } from '../ui/MonthlyCloseSummary.tsx';
-import { colors } from '../ui/theme.ts';
+import { colors, typeScale } from '../ui/theme.ts';
 
 function newOperationId(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (character) => {
@@ -186,7 +185,7 @@ export default function CloseAssetsScreen() {
     ], { cancelable: true, onDismiss: () => { confirming.current = false; } });
   }
 
-  return <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['bottom']}>
+  return <View style={localStyles.screen}>
     <Stack.Screen options={{ title: '總資產核對', headerBackTitle: '返回' }} />
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={headerHeight}>
       <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -210,7 +209,7 @@ export default function CloseAssetsScreen() {
               <Text style={styles.note}>可選 {preview.minDate} 至 {preview.maxDate}。更換日期會重新帶入 App 餘額。</Text>
               <TextInput value={dateText} editable={!busy} accessibilityLabel="餘額日期" placeholder="YYYY-MM-DD"
                 autoCapitalize="none" autoCorrect={false} keyboardType="numbers-and-punctuation"
-                style={{ color: colors.text, backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1, borderRadius: 8, padding: 12 }}
+                style={localStyles.input}
                 onChangeText={(value) => { setDateText(value); changed(); }} />
               <CloseButton title="套用日期" onPress={() => { void selectDate(dateText); }} disabled={busy} />
               <View style={styles.row}>
@@ -228,7 +227,7 @@ export default function CloseAssetsScreen() {
                 <Text style={styles.label}>{preview.asOf} 實際餘額（元）</Text>
                 <TextInput value={balances[account.accountId] ?? ''} editable={!busy}
                   accessibilityLabel={`${account.name}實際餘額`} keyboardType="numbers-and-punctuation" autoCorrect={false}
-                  style={{ color: colors.text, backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1, borderRadius: 8, padding: 12 }}
+                  style={localStyles.input}
                   onChangeText={(value) => { setBalances((current) => ({ ...current, [account.accountId]: value })); changed(); }} />
                 <CloseAmount label="該日期 App 餘額" amount={account.appBalance} />
               </> : <CloseAmount label="月底餘額（App 計算）" amount={account.appMonthEndBalance} />}
@@ -261,11 +260,17 @@ export default function CloseAssetsScreen() {
         <DateButton title="查看本月核對紀錄 ›" disabled={busy} onPress={() => router.push({ pathname: '/asset-check-history', params: { month } })} />
       </ScrollView>
     </KeyboardAvoidingView>
-  </SafeAreaView>;
+  </View>;
 }
 
 function DateButton({ title, onPress, disabled }: { title: string; onPress: () => void; disabled: boolean }) {
-  return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={{ opacity: disabled ? 0.45 : 1 }}>
+  return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={({ pressed }) => ({ opacity: disabled ? 0.45 : pressed ? 0.6 : 1 })}>
     <Text style={styles.link}>{title}</Text>
   </Pressable>;
 }
+
+// 底部安全區由 ScrollView 的 paddingBottom 負責，避免鍵盤升起時重複加上 inset。
+const localStyles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.background },
+  input: { ...typeScale.body, color: colors.text, backgroundColor: colors.fill, borderColor: colors.border, borderWidth: StyleSheet.hairlineWidth, borderRadius: 10, borderCurve: 'continuous', paddingHorizontal: 12, paddingVertical: 12 },
+});
