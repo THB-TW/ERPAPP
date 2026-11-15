@@ -265,7 +265,7 @@ export default function OnboardingScreen() {
                   <Text style={styles.label}>{row.name}</Text>
                   <Text style={styles.hint}>{row.averageExpense !== null ? `平均支出約 ${formatAmount(Math.round(row.averageExpense))} 元／月` : row.incomeRatio !== null ? `預設占收入 ${Math.round(row.incomeRatio * 100)}%` : '新分類預設照實支'}</Text>
                   <View style={styles.choices}>{GROUPS.map((group) => (
-                    <Choice key={group.value} label={group.label} selected={row.kind === group.value} disabled={disabled} onPress={() => editBudget(row.categoryId, { kind: group.value, ...(group.value === 'actual' ? { amount: '0' } : {}) })} onCard />
+                    <Choice key={group.value} label={group.label} selected={row.kind === group.value} disabled={disabled || row.name === '其他'} onPress={() => editBudget(row.categoryId, { kind: group.value, ...(group.value === 'actual' ? { amount: '0' } : {}) })} onCard />
                   ))}</View>
                   {row.kind === 'actual' ? <Text style={styles.hint}>照實支，不設定上限。</Text> : <Field label={`${row.name}每月上限（元）`} value={row.amount} onChangeText={(value) => editBudget(row.categoryId, { amount: value })} editable={!disabled} numeric onCard />}
                   <Action label={row.confirmed ? '✓ 已確認' : '確認這項預算'} disabled={disabled || row.confirmed} onPress={() => confirmBudget(row)} secondary onCard />

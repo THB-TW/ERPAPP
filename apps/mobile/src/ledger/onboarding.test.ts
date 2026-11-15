@@ -88,7 +88,8 @@ test('期初加總帳戶及投入額、儲備零；首月保存零差額核對�
   const input = await opening(ledger);
   input.accounts = input.accounts.map((a, i) => ({ ...a, openingBalance: [1000, 5000, -300, 200][i] }));
   input.openingDeployed = 2500;
-  input.budgets = input.budgets.map((r) => ({ ...r, kind: 'actual', amount: 0 }));
+  const other = (await ledger.listCategories()).find(c => c.name === '其他')!.id;
+  input.budgets = input.budgets.map((r) => ({ ...r, kind: r.categoryId === other ? 'reserve' : 'actual', amount: 0 }));
   await ledger.completeOnboarding(input);
   const b = await ledger.getBudgetMonth('2026-10');
   assert.deepEqual([b.income, b.surplus, b.spare, b.tuition, b.reserve, b.total], [0, 0, 8400, 0, 0, 8400]);
