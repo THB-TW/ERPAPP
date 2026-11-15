@@ -9,7 +9,7 @@ import { useLedger } from './LedgerProvider.tsx';
 import { hasMonthlyCloseEntitlement, useHasPaidAccess } from './closeEntitlement.ts';
 import { warning, success } from './haptics.ts';
 import { formatAmount, userMessage } from './format.ts';
-import { Card, Chip, Footnote, NavRow, PrimaryButton, SectionTitle, kit, text } from './kit.tsx';
+import { Card, Chip, Footnote, Group, NavRow, PrimaryButton, SectionTitle, kit, text } from './kit.tsx';
 import { colors } from './theme.ts';
 import { useKeyboardHeight } from './useKeyboardHeight.ts';
 import { PaidLock } from './PaidLock.tsx';
@@ -130,12 +130,12 @@ export function VisualAdjustments() {
       <Footnote>水位依各罐的累積儲備比例顯示；負儲備仍列出，可從其他罐子補入。</Footnote>
       <SectionTitle>最近搬錢紀錄</SectionTitle>
       {recent.length === 0 ? <Footnote>還沒有搬錢紀錄。</Footnote> : null}
-      {recent.map(row => <Card key={row.id}>
-        <Text style={text.headline}>{row.kind === 'fund' ? '存進罐子' : '搬錢'} {formatAmount(row.amount)} 元</Text>
-        <Text style={text.body}>{nameOf(row.from)} → {nameOf(row.to)}</Text>
-        <Text style={text.footnote}>{row.kind === 'fund' ? '補入' : '挪用'}・{row.month}・{row.reverses ? '沖銷紀錄' : row.reversed ? '已沖銷' : row.pending ? '待重結' : '已生效'}</Text>
+      {<Group>{recent.map(row => <View key={row.id} style={kit.cardPadding}>
+        <Text style={text.headline}>{row.kind === 'fund' ? row.amount < 0 ? '退回錢包' : '存進罐子' : '搬錢'} {formatAmount(Math.abs(row.amount))} 元</Text>
+        <Text style={text.body}>{row.kind === 'fund' && row.amount < 0 ? `${nameOf(row.to)} → 可用餘額` : `${nameOf(row.from)} → ${nameOf(row.to)}`}</Text>
+        <Text style={text.footnote}>{row.kind === 'fund' ? '補入' : '挪用'}・{row.month}・{row.reverses ? '沖銷紀錄・' : row.reversed ? '已沖銷・' : ''}{row.pending ? '待重結' : '已生效'}</Text>
         <Text style={text.body}>{row.reason}</Text>
-      </Card>)}
+      </View>)}</Group>}
     </ScrollView>
     <Modal visible={move !== null} animationType="slide" presentationStyle="pageSheet" onRequestClose={close}>
       <SafeAreaView style={kit.screen}>
