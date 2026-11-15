@@ -60,8 +60,8 @@ test('挪用先預覽前後金額且不寫入，確認守恆、原快照不變�
   const document = await ledger.exportFinanceDocument();
   const input = await request(ledger, 'transfer', { from: 'food', to: 'trip', amount: 300 });
   const preview = await ledger.previewAdjustment(input);
-  assert.deepEqual(balances(preview.latestBefore!), [['food', 1600], ['trip', 1000]]);
-  assert.deepEqual(balances(preview.latestAfter!), [['food', 1300], ['trip', 1300]]);
+  assert.deepEqual(balances(preview.latestBefore!), [['food', 1600], ['trip', 1000], ['app-other-reserve', 0]]);
+  assert.deepEqual(balances(preview.latestAfter!), [['food', 1300], ['trip', 1300], ['app-other-reserve', 0]]);
   assert.equal(preview.latestBefore!.total, 10600);
   assert.equal(preview.latestAfter!.total, 10600);
   assert.equal(preview.latestAfter!.spare, 8000);
@@ -149,7 +149,7 @@ test('停用沿用引擎：預覽轉走全部正儲備，確認後分類停用�
   const transactions = await ledger.listTransactions('2026-09-01', '2026-10-31');
   const input = await request(ledger, 'retire', { from: 'food', to: 'trip' });
   const preview = await ledger.previewAdjustment(input);
-  assert.deepEqual(balances(preview.latestAfter!), [['food', 0], ['trip', 2600]]);
+  assert.deepEqual(balances(preview.latestAfter!), [['food', 0], ['trip', 2600], ['app-other-reserve', 0]]);
   assert.equal(preview.latestAfter!.total, 10600);
   assert.ok((await ledger.listCategories()).some((c) => c.name === '合成餐費'));
   await ledger.confirmAdjustment({ ...input, previewToken: preview.previewToken });

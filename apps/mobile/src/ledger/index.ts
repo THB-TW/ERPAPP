@@ -390,7 +390,7 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
       ),
 
     exportFinanceDocument: () =>
-      serial(async () => serializeBudgetDocument((await readStoredDocument(db)).state)),
+      serial(async () => serializeBudgetDocument((await readStoredDocument(db, false)).state)),
 
     getBackupStatus: () => serial(backup.status),
     exportBackup: (path) => serial(() => backup.export(path)),

@@ -198,8 +198,8 @@ test('卡帳單核平後可保存總資產核對並完成月結，八項數字�
   const snapshot = await ledger.getMonthlyCloseSnapshot('2026-10');
   assert.deepEqual([snapshot.summary.income, snapshot.summary.surplus, snapshot.summary.spare, snapshot.summary.tuition,
     snapshot.summary.reserve, snapshot.summary.total], [0, -100, -100, 0, 0, -100]);
-  assert.deepEqual(snapshot.summary.reserves, []);
-  assert.deepEqual(snapshot.calculation.capSnapshot?.limits, [{ categoryId: 'food', amount: 0 }]);
+  assert.deepEqual(snapshot.summary.reserves.map(r => [r.name, r.balance]), [['其他', 0]]);
+  assert.deepEqual(snapshot.calculation.capSnapshot?.limits, [{ categoryId: 'food', amount: 0 }, { categoryId: 'app-other-reserve', amount: 0 }]);
   assert.equal((await ledger.completeMonthlyClose(request)).replayed, true);
   assert.deepEqual(await ledger.getMonthlyCloseSnapshot('2026-10'), snapshot);
   await assert.rejects(ledger.importCardStatement({ accountId: card.id, csv: '2026-10-02,合成商店,100' }), /已結月份/);

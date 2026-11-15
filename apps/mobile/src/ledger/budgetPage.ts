@@ -12,7 +12,8 @@ export async function getBudgetProgress(q: Queryable, now: Date, month = taipeiD
   const rows = await q.all<{ categoryId: number; name: string; spent: number }>(
     `SELECT c.id AS categoryId, c.name, SUM(t.amount) AS spent FROM transactions t JOIN categories c ON c.id = t.category_id
       WHERE t.flow = 'expense' AND substr(t.date, 1, 7) = ? GROUP BY c.id ORDER BY c.sort_order`, [month]);
-  const progress = budgetProgress((await readStoredDocument(q)).state, month, await budgetFallbackMonth(q, now), rows);
   const loans = await loanCategoryNames(q, month);
-  return { ...progress, unmapped: progress.unmapped.filter((r) => !loans.has(r.name)) };
+  const progress = budgetProgress((await readStoredDocument(q)).state, month, await budgetFallbackMonth(q, now), rows.filter(r => !loans.has(r.name)));
+  // 本月已花仍包含貸款實際繳款，但不重複吃一般預算或其他儲備。
+  return { ...progress, totalSpent: rows.reduce((sum, r) => sum + r.spent, 0) };
 }

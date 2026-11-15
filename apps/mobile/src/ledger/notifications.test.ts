@@ -141,14 +141,15 @@ test('超支只算本月已發生支出、按預算歸屬合計，等於上限�
   const config = await settings(ledger, 'budgetOverrun');
   await spend(ledger, '飲食', 100);
   await spend(ledger, '水電瓦斯', 999);
-  await spend(ledger, '其他', 999);
+  await spend(ledger, '其他', 999); // 未歸屬現在也會計入其他儲備並觸發既有超支提醒。
+
   await spend(ledger, '薪資', 999);
   await spend(ledger, '飲食', 999, '2026-11-30');
-  assert.deepEqual(await plan(ledger, config), []);
+  assert.equal((await plan(ledger, config)).length, 1);
   await spend(ledger, '交通', 1);
   await spend(ledger, '電話網路', 1);
   const rows = await plan(ledger, config);
-  assert.equal(rows.length, 2);
+  assert.equal(rows.length, 3);
   assert.ok(rows.every((r) => r.kind === 'budgetOverrun' && r.fireAt === NOW.toISOString()));
   const body = rows.map((r) => `${r.title}${r.body}`).join('');
   assert.doesNotMatch(body, /101|999|NT\$|元/);

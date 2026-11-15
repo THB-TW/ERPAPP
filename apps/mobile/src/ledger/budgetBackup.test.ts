@@ -62,7 +62,7 @@ test('預算寫入更新最後修改時間，預覽、查詢、重送與被拒�
   await assert.rejects(ledger.runBudgetCommand({ ...edit, operationId: randomUUID(), amount: 300 }), /重新載入/);
   assert.equal((await ledger.getBackupStatus()).lastModifiedAt, '2026-11-12T01:00:00.000Z');
 
-  const caps = await command(ledger, { action: 'caps', limits: [{ categoryId: add.operationId, amount: 250 }], tuition: 0 });
+  const caps = await command(ledger, { action: 'caps', limits: (await ledger.getBudgetStatus()).currentRevision!.limits.map(l => ({ ...l, amount: l.categoryId === add.operationId ? 250 : l.amount })), tuition: 0 });
   await ledger.previewBudgetCommand(caps);
   assert.equal((await ledger.getBackupStatus()).lastModifiedAt, '2026-11-12T01:00:00.000Z');
   await ledger.runBudgetCommand(caps);
