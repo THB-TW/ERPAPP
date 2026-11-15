@@ -1,14 +1,14 @@
 {
   "expo": {
-    "name": "Afterbills",
-    "slug": "ledger",
+    "name": "Afterbills UI2",
+    "slug": "ledger-ui2-acceptance",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "tw.thbtw.ledger.dev"
+      "bundleIdentifier": "tw.thbtw.ledger.ui2acceptance"
     },
     "android": {
       "adaptiveIcon": {
@@ -18,12 +18,12 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "tw.thbtw.ledger.dev"
+      "package": "tw.thbtw.ledger.ui2acceptance"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "scheme": "ledger",
+    "scheme": "ledger-ui2",
     "plugins": [
       "expo-router",
       [
