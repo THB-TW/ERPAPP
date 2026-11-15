@@ -1,5 +1,5 @@
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { monthOf, shiftMonth, taipeiDate } from '../../../calc/dates.ts';
 import { REST_SLICE_KEY, pieSlices, type PieSlice } from '../../../calc/shares.ts';
@@ -22,6 +22,7 @@ const FLOW_OPTIONS = (['expense', 'income'] as const).map((f) => ({ key: f, labe
 export default function ReportScreen() {
   const [thisMonth, setThisMonth] = useState(() => monthOf(taipeiDate(new Date())));
   const [month, setMonth] = useState(thisMonth);
+  const [selected, setSelected] = useState(0);
   useFocusEffect(useCallback(() => { setThisMonth(monthOf(taipeiDate(new Date()))); }, []));
   return (
     <TabScrollView title="明細">
@@ -29,17 +30,18 @@ export default function ReportScreen() {
         onNext={() => setMonth(shiftMonth(month, 1))} nextDisabled={month >= thisMonth}
         hint={month === thisMonth ? '本月' : '回到本月'}
         onHintPress={month === thisMonth ? undefined : () => setMonth(thisMonth)} />
-      <ReportPager options={FLOW_OPTIONS}>
-        {(['expense', 'income'] as const).map((flow) => <ReportPage key={`${month}-${flow}`} month={month} flow={flow} />)}
+      <ReportPager options={FLOW_OPTIONS} onChange={setSelected}>
+        {(['expense', 'income'] as const).map((flow, index) => <ReportPage key={`${month}-${flow}`} month={month} flow={flow} active={selected === index} />)}
       </ReportPager>
     </TabScrollView>
   );
 }
 
-function ReportPage({ month, flow }: { month: string; flow: Flow }) {
+function ReportPage({ month, flow, active }: { month: string; flow: Flow; active: boolean }) {
   const ledger = useLedger();
   const [breakdown, setBreakdown] = useState<MonthBreakdown | null>(null);
   const [openKey, setOpenKey] = useState<string | null>(null);
+  useEffect(() => { if (!active) setOpenKey(null); }, [active]);
   // 展開的類別的交易，連同它屬於哪個月份、哪個類別一起存；對不上目前展開的那一列就不顯示。
   const [openList, setOpenList] = useState<{ month: string; key: string; rows: DayTransaction[] } | null>(null);
   const [error, setError] = useState<string | null>(null);

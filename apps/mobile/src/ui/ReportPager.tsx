@@ -3,12 +3,11 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { cancelAnimation, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { selection } from './haptics.ts';
-import { text } from './kit.tsx';
-import { colors } from './theme.ts';
+import { segmentedStyles, text } from './kit.tsx';
 
 /** 兩個收支頁同時保留，手勢與按鈕共用翻頁位置；只有橫滑才接手。 */
-export function ReportPager({ options, children }: {
-  options: { key: string; label: string }[]; children: ReactNode;
+export function ReportPager({ options, children, onChange }: {
+  options: { key: string; label: string }[]; children: ReactNode; onChange: (index: number) => void;
 }) {
   const [width, setWidth] = useState(0);
   const [selected, setSelected] = useState(0);
@@ -17,7 +16,7 @@ export function ReportPager({ options, children }: {
   const start = useSharedValue(0);
   const settled = useSharedValue(0);
   const dragging = useSharedValue(false);
-  function didSettle(index: number) { setSelected(index); selection(); }
+  function didSettle(index: number) { setSelected(index); onChange(index); selection(); }
   function settle(index: number) {
     'worklet';
     progress.value = withTiming(index, { duration: 240 }, (finished) => {
@@ -37,17 +36,17 @@ export function ReportPager({ options, children }: {
     })
     .onFinalize((_event, success) => { if (!success && dragging.value) settle(settled.value); });
   const pagesStyle = useAnimatedStyle(() => ({ transform: [{ translateX: -progress.value * width }] }));
-  const indicatorStyle = useAnimatedStyle(() => ({ transform: [{ translateX: progress.value * (width - 8) / 2 }] }));
+  const indicatorStyle = useAnimatedStyle(() => ({ transform: [{ translateX: progress.value * (width - 4) / 2 }] }));
   const viewportStyle = useAnimatedStyle(() => ({
-    height: heights.length === 2 ? (dragging.value ? Math.max(...heights) : heights[selected]) : undefined,
+    height: heights[0] > 0 && heights[1] > 0 ? (dragging.value ? Math.max(...heights) : heights[selected]) : undefined,
   }));
   return (
     <View style={styles.container} onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
-      <View style={styles.tabs} accessibilityRole="tablist">
-        <Animated.View style={[styles.indicator, { width: (width - 8) / 2 }, indicatorStyle]} />
+      <View style={segmentedStyles.container} accessibilityRole="tablist">
+        <Animated.View style={[segmentedStyles.item, segmentedStyles.selected, styles.indicator, { width: (width - 4) / 2 }, indicatorStyle]} />
         {options.map((option, index) => (
           <Pressable key={option.key} accessibilityRole="tab" accessibilityState={{ selected: selected === index }}
-            onPress={() => { dragging.value = true; settle(index); }} style={styles.tab}>
+            onPress={() => { dragging.value = true; settle(index); }} style={segmentedStyles.item}>
             <Text style={[text.subhead, selected === index && styles.selected]}>{option.label}</Text>
           </Pressable>
         ))}
@@ -72,9 +71,7 @@ export function ReportPager({ options, children }: {
 }
 const styles = StyleSheet.create({
   container: { gap: 24 },
-  tabs: { backgroundColor: colors.fill, borderRadius: 10, padding: 4, flexDirection: 'row' },
-  indicator: { position: 'absolute', top: 4, bottom: 4, left: 4, backgroundColor: colors.surface, borderRadius: 7 },
-  tab: { flex: 1, minHeight: 36, alignItems: 'center', justifyContent: 'center' },
+  indicator: { position: 'absolute', top: 2, bottom: 2, left: 2 },
   selected: { fontWeight: '600' },
   viewport: { overflow: 'hidden' },
   pages: { flexDirection: 'row', alignItems: 'flex-start' },
