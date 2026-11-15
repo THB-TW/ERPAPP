@@ -1,16 +1,17 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useState } from 'react';
-import { Platform, View } from 'react-native';
+import { Platform, Text, View } from 'react-native';
 import { taipeiDate } from '../calc/dates.ts';
-import { Card, NavRow, PrimaryButton, kit } from './kit.tsx';
+import { Card, NavRow, PrimaryButton, kit, text } from './kit.tsx';
 
 // 固定台北日曆日，避免裝置時區把日期往前／後移一天；中午避開午夜邊界。
 const calendarDate = (value: string) => new Date(`${value}T12:00:00+08:00`);
-export function DatePicker({ label, value, onChange, minimum = '0001-01-01', maximum = '9999-12-31', disabled = false }: {
-  label: string; value: string; onChange: (date: string) => void; minimum?: string; maximum?: string; disabled?: boolean;
+export function DatePicker({ label, value, onChange, minimum = '0001-01-01', maximum = '9999-12-31', disabled = false, unavailableMonths = [] }: {
+  label: string; value: string; onChange: (date: string) => void; minimum?: string; maximum?: string; disabled?: boolean; unavailableMonths?: string[];
 }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(value);
+  const unavailable = unavailableMonths.includes(draft.slice(0, 7));
   return <View style={kit.section}>
     <NavRow title={label} value={value} disabled={disabled} onPress={() => { setDraft(value); setOpen(!open); }} />
     {open && !disabled ? <Card>
@@ -22,9 +23,10 @@ export function DatePicker({ label, value, onChange, minimum = '0001-01-01', max
           if (!date) return;
           const chosen = taipeiDate(date);
           setDraft(chosen);
-          if (Platform.OS !== 'ios') { setOpen(false); onChange(chosen); }
+          if (Platform.OS !== 'ios' && !unavailableMonths.includes(chosen.slice(0, 7))) { setOpen(false); onChange(chosen); }
         }} />
-      {Platform.OS === 'ios' ? <PrimaryButton title="套用日期" onPress={() => { setOpen(false); onChange(draft); }} /> : null}
+      {unavailable ? <Text style={text.error}>這個月份已結，請選擇開放的日期。</Text> : null}
+      {Platform.OS === 'ios' ? <PrimaryButton disabled={unavailable} title="套用日期" onPress={() => { setOpen(false); onChange(draft); }} /> : null}
     </Card> : null}
   </View>;
 }
