@@ -212,3 +212,12 @@ test('貸款寫入更新最後修改時間，查詢與無權益的修改維持�
   await ledger.updateLoan(id, await request(ledger, { monthlyPayment: 200 }));
   assert.equal((await ledger.getBackupStatus()).lastModifiedAt, now.toISOString());
 });
+
+test('貸款預計結清月份可選未定，之後可指定或再清空，歷史設定保留', async (t) => {
+  const ledger = await setup(t);
+  const loan = await ledger.createLoan(await request(ledger, { expectedEndMonth: null }));
+  assert.equal((await ledger.listLoans())[0].expectedEndMonth, null);
+  await ledger.updateLoan(loan.id, await request(ledger, { expectedEndMonth: '2028-12' }));
+  await ledger.updateLoan(loan.id, await request(ledger, { expectedEndMonth: null }));
+  assert.deepEqual((await ledger.listLoanRevisions(loan.id)).map(r => r.expectedEndMonth), [null, '2028-12', null]);
+});

@@ -1,3 +1,5 @@
+import { MonthPicker } from '../ui/MonthPicker.tsx';
+import { DatePicker } from '../ui/DatePicker.tsx';
 import { Stack, useFocusEffect } from 'expo-router';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useCallback, useRef, useState, type ReactNode } from 'react';
@@ -225,7 +227,7 @@ export default function InvestmentScreen() {
               {form === 'opening' ? (
                 <>
                   <Text style={{ color: colors.muted }}>這是截至指定月底，已投入且仍包含在帳面總資產內的宣告金額。與「期初」交易的持有成本分開，不從歷史買賣重算。</Text>
-                  <Field label="期初月份" placeholder="YYYY-MM" value={openingMonth} onChangeText={setOpeningMonth} disabled={disabled} />
+                  <MonthPicker label="期初月份" value={openingMonth} onChange={setOpeningMonth} disabled={disabled} />
                   <Field label="期初投入額（元）" value={openingAmount} onChangeText={setOpeningAmount} disabled={disabled} numeric />
                   <Choices>
                     <Choice label="正數／零" selected={!openingNegative} disabled={disabled} onPress={() => setOpeningNegative(false)} />
@@ -238,7 +240,7 @@ export default function InvestmentScreen() {
                 <>
                   <Text style={{ color: colors.muted }}>標的</Text>
                   <Choices>{portfolio?.positions.filter((p) => p.active).map((p) => <Choice key={p.holdingId} label={`${p.symbol ? `${p.symbol} ` : ''}${p.name}`} selected={holdingId === p.holdingId} disabled={disabled} onPress={() => setHoldingId(p.holdingId)} />)}</Choices>
-                  <Field label="日期" placeholder="YYYY-MM-DD" value={date} onChangeText={setDate} disabled={disabled} />
+                  <DatePicker label="日期" value={date} onChange={setDate} disabled={disabled} />
                 </>
               ) : null}
               {form === 'transaction' ? (
