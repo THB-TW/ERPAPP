@@ -1,3 +1,4 @@
+import { newOperationId as operationId } from './operationId.ts';
 import { Stack, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useCallback, useRef, useState } from 'react';
@@ -22,14 +23,6 @@ const MODES: { id: Mode; title: string }[] = [
 ];
 const actionTitle = (kind: string) => kind === 'reverse' ? '沖銷調整' : MODES.find((mode) => mode.id === kind)?.title ?? '調整';
 const amountText = (value: number) => `NT$ ${formatAmount(value)}`;
-
-/** 僅識別同一次操作，讓連點與中斷重送不重複生效。 */
-function operationId(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (character) => {
-    const value = Math.floor(Math.random() * 16);
-    return (character === 'x' ? value : (value & 3) | 8).toString(16);
-  });
-}
 
 function displayTime(value: string): string {
   const time = new Date(value);
