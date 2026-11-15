@@ -178,6 +178,24 @@ test('預算已有較晚草稿時給可操作提示且不覆寫；選本月可�
   assert.equal((await ledger.getBudgetProgress()).rows.some((r) => r.name === '寵物'), true);
 });
 
+test('開帳選計入其他會覆蓋既有同月草稿歸屬，保留原草稿分類', async (t) => {
+  for (const name of ['交通', '寵物']) {
+    const ledger = await setup(t);
+    await ledger.runBudgetCommand({ action: 'add', operationId: randomUUID(), version: 0,
+      month: '2026-11', reason: '合成預算草稿', name, kind: 'reserve', amount: 500 });
+    const category = (await ledger.listCategories()).find(c => c.name === name)!;
+    const input = await opening(ledger);
+    input.budgets = input.budgets.map(b => b.categoryId === category.id ? { ...b, kind: 'other', amount: 0 } : b);
+    await ledger.completeOnboarding(input);
+    await ledger.addTransaction({ date: '2026-11-05', categoryId: category.id,
+      accountId: (await ledger.listAccounts())[0].id, flow: 'expense', amount: 100 });
+    const progress = await ledger.getBudgetProgress('2026-11');
+    assert.equal(progress.rows.find(r => r.name === '其他')!.spent, 100, name);
+    assert.equal(progress.rows.find(r => r.name === name)!.spent, 0, name);
+    assert.ok((await ledger.getBudgetStatus()).categories.some(c => c.name === name));
+  }
+});
+
 test('期初補入儲備、首月與撤銷重結各自保存零差額核對且守恆', async (t) => {
   let now = NOW;
   const ledger = await setup(t, () => now);

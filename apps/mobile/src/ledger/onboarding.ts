@@ -151,7 +151,13 @@ export async function completeOnboarding(q: Queryable, now: Date, input: Complet
     const budget = input.budgets.find((b) => b.categoryId === category.id)!;
     if (budget.kind === 'other') {
       if (category.name === '其他' || budget.amount !== 0) throw new BudgetRuleError('argument', '其他是固定儲備分類；計入其他的新分類不另外設定上限。');
-      continue; // 不建立獨立預算組；未歸屬規則會承接到固定其他。
+      const before = (await readStoredDocument(q)).state;
+      const active = before.revisions.filter(r => r.month <= month).at(-1)?.limits ?? [];
+      const other = before.categories.find(c => c.name === '其他' && c.kind === 'reserve' && active.some(l => l.categoryId === c.id))!;
+      // 明確採納此次選擇，覆蓋開帳前草稿的歸屬；原預算分類與歷史仍保留。
+      await executeBudgetCommand(q, { action: 'map', operationId: `00000018-0001-4000-8000-${String(category.id).padStart(12, '0')}`,
+        version: before.version, month, reason: '開帳：計入其他', sourceCategory: category.name, to: other.id }, now);
+      continue;
     }
     // 每一項仍由既有引擎驗證組別與 0～1,000,000 上限；任何失敗都由外層交易回滾。
     if (budget.kind === 'actual' && budget.amount !== 0) throw new BudgetRuleError('argument', '照實支類別不設定上限。');
