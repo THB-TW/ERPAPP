@@ -1,6 +1,7 @@
 import { Children, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { StyleProp, TextStyle, ViewStyle } from 'react-native';
+import { selection } from './haptics.ts';
 import { colors, typeScale } from './theme.ts';
 
 // 全 App 共用的畫面零件（Apple「分組清單」風格）：淺灰底、白色圓角卡片、卡片外放小字說明。
@@ -209,7 +210,10 @@ export function Segmented<T extends string>(props: {
         return (
           <Pressable
             key={option.key}
-            onPress={() => onChange(option.key)}
+            onPress={() => {
+              if (!selected) selection();
+              onChange(option.key);
+            }}
             disabled={disabled}
             hitSlop={{ top: 5, bottom: 5 }}
             accessibilityRole="tab"
@@ -229,7 +233,10 @@ export function Chip(props: { label: string; active: boolean; disabled?: boolean
   const { label, active, disabled = false, onPress } = props;
   return (
     <Pressable
-      onPress={onPress}
+      onPress={() => {
+        if (!active) selection();
+        onPress();
+      }}
       disabled={disabled}
       hitSlop={{ top: 4, bottom: 4 }}
       accessibilityRole="button"

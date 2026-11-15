@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { monthOf, taipeiDate } from '../calc/dates.ts';
 import type { Account } from '../ledger/index.ts';
 import { dayTitle, userMessage } from '../ui/format.ts';
+import { success, warning } from '../ui/haptics.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
 import { Banner, Card, Chip, Footnote, PrimaryButton, Segmented, text } from '../ui/kit.tsx';
 import { colors, typeScale } from '../ui/theme.ts';
@@ -53,7 +54,7 @@ export default function TransferScreen() {
 
   async function save() {
     if (savingRef.current || !loaded || locked) return;
-    if (fromId === null || toId === null) { setError('請選擇轉出與轉入帳戶；不足兩個帳戶時請先到設定新增。'); return; }
+    if (fromId === null || toId === null) { warning(); setError('請選擇轉出與轉入帳戶；不足兩個帳戶時請先到設定新增。'); return; }
     savingRef.current = true;
     setSaving(true);
     setError(null);
@@ -61,8 +62,10 @@ export default function TransferScreen() {
       const input = { date, fromAccountId: fromId, toAccountId: toId, amount: /^\d+$/.test(amount) ? Number(amount) : NaN, note };
       if (editingId === null) await ledger.addTransfer(input);
       else await ledger.updateTransfer(editingId, input);
+      success();
       router.back();
     } catch (e) {
+      warning();
       setError(userMessage(e, '儲存轉帳失敗，請再試一次。'));
       savingRef.current = false;
       setSaving(false);

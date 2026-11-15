@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { monthOf, taipeiDate } from '../calc/dates.ts';
 import type { Account, Category, Flow, Member } from '../ledger/index.ts';
 import { dayTitle, monthTitle, userMessage } from '../ui/format.ts';
+import { success, warning } from '../ui/haptics.ts';
 import { syncNotifications } from '../platform/notificationSync.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
 import { Banner, Card, Chip, PrimaryButton, Segmented, text } from '../ui/kit.tsx';
@@ -83,10 +84,12 @@ export default function EntryScreen() {
   async function save() {
     setError(null);
     if (categoryId === null) {
+      warning();
       setError('請先選一個分類。');
       return;
     }
     if (accountId === null) {
+      warning();
       setError('請先選一個帳戶。');
       return;
     }
@@ -103,9 +106,11 @@ export default function EntryScreen() {
     try {
       if (editingId === null) await ledger.addTransaction(input);
       else await ledger.updateTransaction(editingId, input);
+      success();
       void syncNotifications(ledger).catch(() => {});
       router.back();
     } catch (e) {
+      warning();
       setError(userMessage(e, '儲存失敗，請再試一次。'));
       setSaving(false);
     }

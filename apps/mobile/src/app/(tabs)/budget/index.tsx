@@ -7,6 +7,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming, Easing } from '
 import { monthOf, shiftMonth, taipeiDate } from '../../../calc/dates.ts';
 import type { BudgetMonthView, BudgetProgress, BudgetProgressRow, LoanView } from '../../../ledger/index.ts';
 import { formatAmount, monthTitle, userMessage } from '../../../ui/format.ts';
+import { selection } from '../../../ui/haptics.ts';
 import { useLedger } from '../../../ui/LedgerProvider.tsx';
 import { Card, Footnote, Group, MonthBar, NavRow, Row, SectionTitle, kit, text } from '../../../ui/kit.tsx';
 import { colors, groupColors, typeScale } from '../../../ui/theme.ts';
@@ -103,6 +104,7 @@ export default function BudgetScreen() {
   function jumpTo(section: SectionId) {
     const y = sectionY.current[section];
     if (y === undefined) return;
+    selection();
     // 扣掉吸頂頁籤列的高度；目標限制在可捲範圍內，後段短區段停在頁底且仍亮所點的頁籤。
     const target = jumpOffset(y, viewport.current, contentHeight.current, railHeight.current);
     clearPendingJump();

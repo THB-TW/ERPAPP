@@ -9,6 +9,7 @@ import { CardStatementCheck } from '../ui/CardStatementCheck.tsx';
 import { cardStatementErrorMessage } from '../ui/cardStatementError.ts';
 import { hasMonthlyCloseEntitlement } from '../ui/closeEntitlement.ts';
 import { formatAmount, monthTitle } from '../ui/format.ts';
+import { success } from '../ui/haptics.ts';
 import { syncNotifications } from '../platform/notificationSync.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
 import { CloseAmount, CloseButton, closeStyles as styles } from '../ui/MonthlyCloseSummary.tsx';
@@ -161,6 +162,7 @@ export default function CloseAssetsScreen() {
       const calculation = await ledger.previewMonthlyClose({ month, hasEntitlement: hasMonthlyCloseEntitlement() });
       await ledger.completeMonthlyClose({ month, version: calculation.version, previewToken: calculation.previewToken,
         operationId: closeOperation.current, assetCheckId: record.id, hasEntitlement: hasMonthlyCloseEntitlement() });
+      success();
       void syncNotifications(ledger).catch(() => {});
       completedRef.current = true;
       setCompleted(true);
