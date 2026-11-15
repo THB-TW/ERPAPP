@@ -6,10 +6,9 @@ import type { BudgetState } from './budgetTypes.ts';
  * 查詢不寫檔；下一次帳務指令與其他變更在同一交易保存補齊後的狀態。
  */
 export function withFixedOther(state: BudgetState, fallbackMonth: string): BudgetState {
-  if (!state.revisions.length) return state;
+  if (!state.revisions.length && !state.months.length) return state;
   const month = openMonth(state, fallbackMonth);
-  const revision = effectiveRevision(state, month);
-  if (!revision) return state;
+  const revision = effectiveRevision(state, month) ?? { id: `other-default-${month}`, month, limits: [], mapping: {}, tuition: 0, reason: '固定其他分類：開放月份補齊', actor: 'app', time: '' };
   const activeOther = state.categories.find(c => c.name === '其他' && revision.limits.some(l => l.categoryId === c.id));
   if (activeOther?.kind === 'reserve') return state;
   const next = structuredClone(state);
@@ -27,7 +26,7 @@ export function withFixedOther(state: BudgetState, fallbackMonth: string): Budge
   if (!Object.hasOwn(mapping, '其他')) mapping['其他'] = other.id;
   let id = `other-default-${month}-${state.version}`;
   while (next.revisions.some(r => r.id === id)) id += '-next';
-  if (revision.month === month) {
+  if (revision.month === month && next.revisions.some(r => r.id === revision.id)) {
     const current = next.revisions.find(r => r.id === revision.id)!;
     current.limits = limits; current.mapping = mapping;
   } else {
