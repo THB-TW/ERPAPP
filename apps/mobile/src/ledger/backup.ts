@@ -6,8 +6,8 @@
 //   與舊帳轉換程式的輸出也都帶著它；見 migrations.ts）。
 // - 結構版本：PRAGMA user_version，與帳本遷移版本同一個號碼。
 // - 時間：ledger_meta 表的 last_modified_at（帳本最後一次有資料變動）與 last_backup_at（匯出時間）。
-// 匯入＝整本取代、不合併：先把目前的帳另存一份（同樣是合格的備份檔），再在單一資料庫交易內把每個
-// 資料表換成備份的內容。
+// 匯入＝整本取代、不合併、不保留原帳：在單一資料庫交易內把每個資料表換成備份的內容，
+// 失敗則整筆回滾。需要保留目前的帳時，使用者須先自行匯出備份檔。
 import type { Database, Queryable } from '../db/driver.ts';
 import { migrate, type Migration } from '../db/migrate.ts';
 import { LedgerError } from './errors.ts';
@@ -17,11 +17,11 @@ export const BACKUP_APPLICATION_ID = 0x45525041;
 
 /** 平台提供的檔案能力。路徑是一般檔案系統路徑（不是 file:// 網址）。 */
 export interface BackupFiles {
-  /** 放「取代前另存」與還原暫存檔的資料夾；要在會被 iCloud 裝置備份的位置，不放快取或暫存目錄。 */
+  /** 放還原暫存檔的資料夾；舊版留下的複本也從這裡清理。 */
   directory: string;
   /** 開啟（或建立）一個 SQLite 檔。 */
   open(path: string): Promise<Database>;
-  /** 刪除一個 SQLite 檔（還原用的暫存檔）；檔案不存在不算錯。 */
+  /** 刪除一個 SQLite 檔（還原暫存檔或舊版複本）；檔案不存在不算錯。 */
   remove(path: string): Promise<void>;
 }
 
@@ -30,8 +30,6 @@ export interface BackupStatus {
   lastBackupAt: string | null;
   /** 帳本最後一次有資料變動的時間；還沒有任何變動為 null。 */
   lastModifiedAt: string | null;
-  /** 最近一次匯入備份前自動另存的檔案（只留最近一份）；沒有，或這個環境沒有檔案位置時為 null。 */
-  safetyCopyPath: string | null;
 }
 
 export interface BackupInspection {
@@ -43,15 +41,13 @@ export interface BackupInspection {
 }
 
 export interface RestoreResult {
-  /** 取代前把原本的帳另存的檔案；可以再用 restoreBackup 復原。 */
-  safetyCopyPath: string;
   schemaVersion: number;
 }
 
 const LAST_MODIFIED = 'last_modified_at';
 const LAST_BACKUP = 'last_backup_at';
-// 只存檔名：iOS 更新 App 後容器路徑會變，絕對路徑不能存。
-const SAFETY_COPY = 'safety_copy_file';
+// 舊版只存檔名（iOS 容器路徑會變）；僅供成功匯入後清理，不再寫入。
+const LEGACY_SAFETY_COPY = 'safety_copy_file';
 
 const SCHEMA_MISMATCH = '這份備份的資料表與這個 App 的帳本不一致，無法匯入。';
 const quoteName = (name: string) => `"${name.replace(/"/g, '""')}"`;
@@ -86,12 +82,10 @@ export function trackModifications(db: Database, now: () => Date): Database {
   };
 }
 
-async function backupStatus(q: Queryable, files: BackupFiles | undefined): Promise<BackupStatus> {
-  const safetyFile = await readMeta(q, SAFETY_COPY);
+async function backupStatus(q: Queryable): Promise<BackupStatus> {
   return {
     lastBackupAt: await readMeta(q, LAST_BACKUP),
     lastModifiedAt: await readMeta(q, LAST_MODIFIED),
-    safetyCopyPath: files && safetyFile !== null ? inDirectory(files, safetyFile) : null,
   };
 }
 
@@ -218,12 +212,8 @@ async function restoreBackupFile(
 
   const stamp = fileStamp(now);
   const staging = inDirectory(available, `restore-staging-${stamp}.db`);
-  const safetyFile = `before-restore-${stamp}.db`;
-  const safetyCopyPath = inDirectory(available, safetyFile);
-  const previousSafetyFile = await readMeta(db, SAFETY_COPY);
+  const previousSafetyFile = await readMeta(db, LEGACY_SAFETY_COPY);
 
-  let replaced = false;
-  let safetyCreated = false;
   try {
     // 1. 暫存複本：在複本上遷移，使用者的原檔不動
     const incoming = await available.open(path);
@@ -242,11 +232,7 @@ async function restoreBackupFile(
       }
     }
 
-    // 2. 取代前另存：目前的帳本身就是合格的備份檔
-    await db.run('VACUUM INTO ?', [safetyCopyPath]);
-    safetyCreated = true;
-
-    // 3. 單一交易內整本取代（外鍵延到提交時才檢查）。上一次若沒卸載乾淨，先卸掉再掛。
+    // 2. 單一交易內整本取代（外鍵延到提交時才檢查）。上一次若沒卸載乾淨，先卸掉再掛。
     await db.run('DETACH DATABASE incoming').catch(() => undefined);
     await db.run('ATTACH DATABASE ? AS incoming', [staging]);
     try {
@@ -268,30 +254,27 @@ async function restoreBackupFile(
           await tx.run(`DELETE FROM main.${quoted}`);
           await tx.run(`INSERT INTO main.${quoted} (${list}) SELECT ${list} FROM incoming.${quoted}`);
         }
-        // 另存檔的紀錄與取代同一個交易（備份帶進來的舊紀錄不算數）：取代成功就一定找得到另存檔。
-        await writeMeta(tx, SAFETY_COPY, safetyFile);
+        // 舊版紀錄不再使用，包含備份帶進來的值；與取代一併提交，失敗時原紀錄也會回滾。
+        await tx.run('DELETE FROM ledger_meta WHERE key = ?', [LEGACY_SAFETY_COPY]);
       });
-      replaced = true;
     } finally {
       // 卸載失敗不可蓋掉真正的結果；名稱若還佔著，下一次匯入會先卸掉。
       await db.run('DETACH DATABASE incoming').catch(() => undefined);
     }
   } finally {
     await available.remove(staging).catch(() => undefined);
-    // 沒有取代成功，這次產生的另存檔用不到；已經取代了、或檔案不是這次產生的，就絕不刪。
-    if (safetyCreated && !replaced) await available.remove(safetyCopyPath).catch(() => undefined);
   }
-  // 只留最近一份另存檔。
-  if (previousSafetyFile !== null && previousSafetyFile !== safetyFile) {
+  // 僅在提交成功後，依匯入前本機的紀錄清理舊版複本；刪除失敗不影響匯入結果。
+  if (previousSafetyFile !== null) {
     await available.remove(inDirectory(available, previousSafetyFile)).catch(() => undefined);
   }
-  return { safetyCopyPath, schemaVersion: info.schemaVersion };
+  return { schemaVersion: info.schemaVersion };
 }
 
 /** 帳本服務的四個備份指令與一個查詢（還沒排隊）；index.ts 只負責把它們排進同一條隊。 */
 export function backupCommands(db: Database, files: BackupFiles | undefined, migrations: readonly Migration[], now: () => Date) {
   return {
-    status: () => backupStatus(db, files),
+    status: () => backupStatus(db),
     export: (path: string) => exportBackupFile(db, files, path, now()),
     recordDelivered: (exportedAt: string) => recordBackupTime(db, exportedAt),
     inspect: async (path: string) => inspectBackupFile(files, path, migrations.at(-1)?.version ?? 0, await readMeta(db, LAST_MODIFIED)),

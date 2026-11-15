@@ -80,7 +80,7 @@ export const ledgerMigrations: readonly Migration[] = [
   },
   {
     // 備份檔（票 16）：帳本檔頭寫入識別標記（application_id），並新增 ledger_meta 存最後修改時間、
-    // 上次備份時間與另存檔檔名。ledger_meta 不放在 settings，是因為舊帳帶入要求 settings 是空的。
+    // 上次備份時間。ledger_meta 不放在 settings，是因為舊帳帶入要求 settings 是空的。
     version: 4,
     async up(tx) {
       await tx.exec(`

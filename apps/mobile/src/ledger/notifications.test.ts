@@ -339,7 +339,7 @@ test('同狀態同識別碼、依時間及識別碼排序，已送達識別碼�
   assert.deepEqual(await snapshot(), before);
 });
 
-test('通知設定關機重開、整本備份還原及取代前另存皆完整保留；匯出未送出不取消備份提醒', async (t) => {
+test('通知設定關機重開完整保留，匯入備份整本取代；匯出未送出不取消備份提醒', async (t) => {
   const directory = mkdtempSync(join(process.cwd(), '.notification-backup-test-'));
   const ledgers = new Set<Ledger>();
   t.after(async () => {
@@ -371,13 +371,11 @@ test('通知設定關機重開、整本備份還原及取代前另存皆完整�
   assert.deepEqual(await source.getNotificationPlan({ now: NOW, hasEntitlement: true }), expected);
   const target = await open('target.db');
   const original = await target.getNotificationSettings();
-  const restored = await target.restoreBackup(out.path);
+  await target.restoreBackup(out.path);
   assert.deepEqual(await target.getNotificationSettings(), config);
   assert.deepEqual(await target.getNotificationDispatches(), [receipt]);
   assert.deepEqual(await target.getNotificationPlan({ now: NOW, hasEntitlement: true }), expected.filter((r) => r.kind !== 'backupAfterClose'));
-  await target.restoreBackup(restored.safetyCopyPath, { allowOlder: true });
-  assert.deepEqual(await target.getNotificationSettings(), original);
-  assert.deepEqual(await target.getNotificationDispatches(), []);
+  assert.notDeepEqual(await target.getNotificationSettings(), original);
 });
 
 test('記下已受理的通知不算帳本修改：剛匯出的備份不會被當成比手機舊', async (t) => {
