@@ -16,7 +16,8 @@ export function MonthPicker({ label, value, onChange, allowUnknown = false, disa
       onPress={() => { setYear(Number((value || monthOf(taipeiDate(new Date()))).slice(0, 4))); setOpen(!open); }} />
     {open && !disabled ? <Card>
       <MonthBar title={`${year} 年`} onPrev={() => setYear(Math.max(1, year - 1))}
-        onNext={() => setYear(Math.min(9999, year + 1))} nextDisabled={year === 9999} />
+        onNext={() => setYear(Math.min(9999, year + 1))} prevDisabled={year === 1} nextDisabled={year === 9999}
+        prevLabel="上一年" nextLabel="下一年" />
       <View style={styles.grid}>
         {Array.from({ length: 12 }, (_, index) => {
           const month = `${String(year).padStart(4, '0')}-${String(index + 1).padStart(2, '0')}`;
