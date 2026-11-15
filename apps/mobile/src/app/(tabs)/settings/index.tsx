@@ -14,7 +14,8 @@ type SettingsGroup = (typeof GROUPS)[number];
 const ROWS: { group: SettingsGroup; title: string; hint: string; href: Href }[] = [
   { group: '訂閱', title: '訂閱', hint: '訂閱狀態、管理訂閱、還原購買', href: '/subscription' }, // 票 22
   { group: '預算', title: '預算與分類', hint: '修改預算上限、預算組與交易分類歸屬', href: '/budget-settings' }, // 票 10
-  { group: '預算', title: '預算挪用與調整', hint: '補入儲備、前期更正、沖銷與調整紀錄', href: '/adjustments' }, // 票 14
+  { group: '預算', title: '預算挪用與調整', hint: '儲備挪用、補入儲備與調整紀錄', href: '/adjustments' }, // 票 14
+  { group: '預算', title: '月結管理', hint: '撤銷最近一次月結、前期更正', href: '/close-management' },
   { group: '資料', title: '匯入 CSV', hint: '其他 App 搬家、匯出全部交易、CSV 規格', href: '/csv-import' }, // 票 15
   { group: '帳戶與投資', title: '帳戶管理與餘額', hint: '新增、改名、停用帳戶，開帳餘額與目前餘額', href: '/accounts' }, // 票 08
   { group: '帳戶與投資', title: '投資', hint: '台股與虛擬貨幣部位、買賣、手動市值與財產分配', href: '/investment' }, // 票 20

@@ -53,7 +53,6 @@ export default function MonthlyCloseScreen() {
       </> : null}
       <Group>
         <NavRow tone="accent" title="查看歷史月結" onPress={() => router.push('/close-history')} />
-        {draft?.latestMonth ? <NavRow tone="accent" title="撤銷最近一次月結（先預覽）" onPress={() => router.push({ pathname: '/adjustments', params: { action: 'rollback' } })} /> : null}
       </Group>
     </TabScrollView>
   );
