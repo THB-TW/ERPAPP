@@ -220,7 +220,7 @@ export interface Ledger extends AccountsLedger, TransfersLedger, InvestmentsLedg
   /** 驗證備份檔（識別標記、結構版本、完整性）並讀出時間；不合格丟 LedgerError。 */
   inspectBackup(path: string): Promise<BackupInspection>;
   /**
-   * 匯入備份檔：整本取代、不合併。取代前自動另存目前的帳（回傳路徑，可再用來復原）。
+   * 匯入備份檔：整本取代、不合併、不保留原帳。需要保留時，呼叫端須提醒使用者先匯出備份檔。
    * 備份比目前的帳舊時丟 LedgerError('backup_older')，使用者確認後帶 allowOlder: true 再呼叫。
    */
   restoreBackup(path: string, options?: { allowOlder?: boolean }): Promise<RestoreResult>;

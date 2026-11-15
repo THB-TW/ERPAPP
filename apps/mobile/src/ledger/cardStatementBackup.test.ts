@@ -28,7 +28,7 @@ function workspace(t: TestContext) {
   };
 }
 
-test('目前版本帳本可檢查；帳單、所屬卡與重複列隨整本備份還原及取代前另存完整復原', async (t) => {
+test('目前版本帳本可檢查；帳單、所屬卡與重複列隨整本備份完整取代', async (t) => {
   const w = workspace(t);
   const { db, ledger: source } = await w.open('source.db');
   const card = (await source.listAccounts()).find((a) => a.kind === 'credit_card')!;
@@ -40,11 +40,10 @@ test('目前版本帳本可檢查；帳單、所屬卡與重複列隨整本備�
   const second = await target.addAccount({ name: '合成其他卡', kind: 'credit_card' });
   await target.importCardStatement({ accountId: second.id, csv: '2026-10-03,合成他店,90' });
   const previous = await target.listCardStatements();
-  const restored = await target.restoreBackup(exported.path, { allowOlder: true });
+  await target.restoreBackup(exported.path, { allowOlder: true });
   assert.deepEqual(await target.listCardStatements(), await source.listCardStatements());
   assert.deepEqual(await target.getCardReconciliation('2026-10'), await source.getCardReconciliation('2026-10'));
-  await target.restoreBackup(restored.safetyCopyPath, { allowOlder: true });
-  assert.deepEqual(await target.listCardStatements(), previous);
+  assert.notDeepEqual(await target.listCardStatements(), previous);
 });
 
 test('v5 舊備份補上 v11；同為 v11 也會補入稍後合併的 v6，重開不重做遷移', async (t) => {

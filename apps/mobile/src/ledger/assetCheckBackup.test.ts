@@ -95,7 +95,7 @@ test('保存核對才更新最後修改時間；查詢與重送不改時間，�
   assert.equal(await ledger.exportFinanceDocument(), document);
 });
 
-test('備份還原完整保存核對、月結快照與成功重送收據；另存檔可復原原有不同核對', async (t) => {
+test('備份匯入整本取代原有核對，完整保存備份的核對、月結快照與成功重送收據', async (t) => {
   const w = await workspace(t);
   const source = await w.open('source.db');
   await seed(source);
@@ -117,8 +117,7 @@ test('備份還原完整保存核對、月結快照與成功重送收據；另�
   w.setTime('2026-11-11T05:00:00Z');
   const { saved: targetCheck } = await record(target, 930);
   assert.equal(targetCheck.result.difference, -100);
-  const targetDocument = await target.exportFinanceDocument();
-  const restored = await target.restoreBackup(exported.path, { allowOlder: true });
+  await target.restoreBackup(exported.path, { allowOlder: true });
   assert.deepEqual(await target.listAssetChecks(), sourceChecks);
   assert.deepEqual(await target.getMonthlyCloseSnapshot('2026-10'), snapshot);
   assert.equal(await target.exportFinanceDocument(), document);
@@ -127,9 +126,5 @@ test('備份還原完整保存核對、月結快照與成功重送收據；另�
   assert.deepEqual(await target.completeMonthlyClose(closeRequest), { version: 3, replayed: true });
   await assert.rejects(target.completeMonthlyClose({ ...closeRequest, assetCheckId: targetCheck.id }), /識別碼/);
 
-  await target.restoreBackup(restored.safetyCopyPath, { allowOlder: true });
-  assert.deepEqual(await target.listAssetChecks(), [targetCheck]);
-  assert.equal(await target.exportFinanceDocument(), targetDocument);
-  assert.equal(await target.isMonthClosed('2026-10'), false);
-  assert.equal((await target.getBackupStatus()).lastModifiedAt, '2026-11-11T05:00:00.000Z');
+  assert.equal(await target.isMonthClosed('2026-10'), true);
 });

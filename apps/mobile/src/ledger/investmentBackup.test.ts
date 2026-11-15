@@ -25,7 +25,7 @@ async function queries(ledger: Ledger) {
     transactions: await ledger.listInvestmentTransactions(), valuations: await ledger.listInvestmentValuations(), balances: await ledger.listAccountBalances() };
 }
 
-test('v13 投資四表隨整本備份還原，成本、歷史、淨額與帳戶餘額一致，取代前另存可復原', async (t) => {
+test('v13 投資四表隨整本備份取代，成本、歷史、淨額與帳戶餘額一致', async (t) => {
   const w = workspace(t); const source = await w.open('source.db');
   const stock = await source.addInvestmentHolding({ assetClass: 'stock', symbol: '5678', name: '合成股票' }, access);
   const crypto = await source.addInvestmentHolding({ assetClass: 'crypto', name: '合成幣桶' }, access);
@@ -43,10 +43,9 @@ test('v13 投資四表隨整本備份還原，成本、歷史、淨額與帳戶�
   const target = await w.open('target.db');
   await target.addInvestmentHolding({ assetClass: 'crypto', name: '取代前的合成桶' }, access);
   const previous = await queries(target);
-  const result = await target.restoreBackup(exported.path, { allowOlder: true });
+  await target.restoreBackup(exported.path, { allowOlder: true });
   assert.deepEqual(await queries(target), snapshot);
-  await target.restoreBackup(result.safetyCopyPath, { allowOlder: true });
-  assert.deepEqual(await queries(target), previous);
+  assert.notDeepEqual(await queries(target), previous);
 });
 
 test('v11 舊備份補上 v13；v13 已存在時仍能後補 v12，重開不重做', async (t) => {

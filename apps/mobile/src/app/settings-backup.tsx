@@ -13,7 +13,7 @@ import { syncNotifications } from '../platform/notificationSync.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
 import { colors } from '../ui/theme.ts';
 
-type Busy = 'export' | 'import' | 'undo' | null;
+type Busy = 'export' | 'import' | null;
 
 /** 分享面板或選檔器關閉後，等它收合完再跳系統對話框。 */
 const SHEET_DISMISS_MS = 600;
@@ -95,19 +95,19 @@ export default function BackupScreen() {
     }, '匯出備份檔失敗，請再試一次。');
 
   /** 驗證後整本取代；比目前的帳舊時多問一次。 */
-  async function restoreFrom(path: string, describe: string) {
+  async function restoreFrom(path: string) {
     const info = await ledger.inspectBackup(path);
     const when = info.lastModifiedAt ? `最後修改於 ${taipeiDateTime(info.lastModifiedAt)}` : '沒有修改時間紀錄';
     const ok = await confirm(
       '整本取代目前的帳？',
-      `${describe}（${when}）會取代手機上全部的帳，不會合併。取代前會自動把目前的帳另存一份，選錯可以在這一頁復原。`,
+      `這份備份（${when}）會取代手機上全部的帳，不會合併。目前手機上的帳不會保留，取代後無法復原。如需保留，請先按「匯出備份檔」。`,
       '取代',
     );
     if (!ok) return false;
     if (info.olderThanCurrent) {
       const sure = await confirm(
         '這份備份比手機上的帳舊',
-        '匯入後，備份之後才記的帳都會消失（仍可用「復原到匯入前」找回）。確定要用較舊的備份取代嗎？',
+        '匯入後，備份之後才記的帳都會消失，取代後無法復原。如需保留，請先匯出備份檔。確定要用較舊的備份取代嗎？',
         '仍要取代',
       );
       if (!sure) return false;
@@ -129,18 +129,11 @@ export default function BackupScreen() {
       if (path === null) return;
       try {
         await new Promise((resolve) => setTimeout(resolve, SHEET_DISMISS_MS));
-        if (await restoreFrom(path, '這份備份')) setMessage('已匯入備份，整本帳已取代。原本的帳已另存，可用下方「復原到匯入前」找回。');
+        if (await restoreFrom(path)) setMessage('已匯入備份，整本帳已取代。');
       } finally {
         await discardBackupFile(path); // 選檔器複製進暫存區的複本
       }
     }, '匯入備份檔失敗，手機上的帳沒有被更動。');
-
-  const undoRestore = () =>
-    run('undo', async () => {
-      const path = status?.safetyCopyPath;
-      if (!path) return;
-      if (await restoreFrom(path, '匯入前另存的帳')) setMessage('已復原到匯入前的帳。');
-    }, '復原失敗，手機上的帳沒有被更動。');
 
   const last = status ? describeLastBackup(status.lastBackupAt, new Date()) : null;
 
@@ -165,15 +158,8 @@ export default function BackupScreen() {
 
         <ActionButton label="匯入備份檔" working={busy === 'import'} disabled={busy !== null} onPress={importBackup} />
         <Text style={{ color: colors.muted, fontSize: 13 }}>
-          用備份檔整本取代手機上的帳（不合併）。取代前會自動把目前的帳另存一份。
+          用備份檔整本取代手機上的帳（不合併）。目前的帳不會保留，取代後無法復原；如需保留，請先按「匯出備份檔」。
         </Text>
-
-        {status?.safetyCopyPath ? (
-          <>
-            <ActionButton label="復原到匯入前" working={busy === 'undo'} disabled={busy !== null} onPress={undoRestore} />
-            <Text style={{ color: colors.muted, fontSize: 13 }}>上次匯入備份前的帳還留著一份（只留最近一次）。</Text>
-          </>
-        ) : null}
 
         {message ? <Text style={{ color: colors.income, fontSize: 14 }}>{message}</Text> : null}
         {error ? <Text style={{ color: colors.expense, fontSize: 14 }}>{error}</Text> : null}

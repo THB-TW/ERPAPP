@@ -81,7 +81,7 @@ test('帳本有變動才更新最後修改時間；查詢不算變動', async (t
   const dir = workspace(t);
   const c = clock('2026-11-01T01:00:00Z');
   const ledger = await openAt(dir, 'ledger.db', c.now);
-  assert.deepEqual(await ledger.getBackupStatus(), { lastBackupAt: null, lastModifiedAt: null, safetyCopyPath: null });
+  assert.deepEqual(await ledger.getBackupStatus(), { lastBackupAt: null, lastModifiedAt: null });
 
   await spend(ledger, '2026-11-01', '飲食', 90);
   assert.equal((await ledger.getBackupStatus()).lastModifiedAt, '2026-11-01T01:00:00.000Z');
@@ -125,7 +125,6 @@ test('匯出的備份檔帶識別標記、結構版本、最後修改時間與�
   assert.deepEqual(await ledger.getBackupStatus(), {
     lastBackupAt: '2026-11-05T12:30:00.000Z',
     lastModifiedAt: '2026-10-31T15:00:00.000Z', // 記下備份日期不算帳本變動
-    safetyCopyPath: null,
   });
   await assert.rejects(ledger.recordBackupDelivered('昨天'), (e) => e instanceof LedgerError && e.code === 'invalid_date');
 
@@ -175,9 +174,9 @@ test('在另一支手機匯入備份檔：整本取代，所有查詢結果與�
   assert.deepEqual(await target.getBackupStatus(), {
     lastBackupAt: '2026-11-02T00:00:00.000Z', // 這份備份本身就是一份備份
     lastModifiedAt: '2026-11-01T00:00:00.000Z',
-    safetyCopyPath: result.safetyCopyPath,
   });
-  assert.equal(result.schemaVersion, SCHEMA_VERSION);
+  assert.deepEqual(result, { schemaVersion: SCHEMA_VERSION });
+  assert.deepEqual(readdirSync(dir).filter((f) => /^before-restore-.*\.db$/.test(f)), []);
 
   // 還原後照常記帳，編號接在後面、不撞號
   await spend(target, '2026-11-03', '飲食', 50);
@@ -185,32 +184,7 @@ test('在另一支手機匯入備份檔：整本取代，所有查詢結果與�
   await target.close();
 });
 
-test('取代前自動把目前的帳另存一份，選錯時可以用它復原', async (t) => {
-  const dir = workspace(t);
-  const c = clock('2026-11-01T00:00:00Z');
-  const source = await sampleLedger(dir, 'a.db', c.now);
-  const exported = await source.exportBackup(join(dir, 'export.db'));
-  await source.close();
-
-  c.set('2026-11-05T00:00:00Z');
-  const target = await openAt(dir, 'b.db', c.now);
-  await spend(target, '2026-11-05', '娛樂', 777, '手機上原本的帳');
-  const mine = await snapshot(target);
-
-  c.set('2026-11-06T00:00:00Z');
-  const result = await target.restoreBackup(exported.path, { allowOlder: true });
-  assert.ok(existsSync(result.safetyCopyPath));
-  assert.ok(result.safetyCopyPath.startsWith(dir));
-  assert.notDeepEqual(await snapshot(target), mine);
-
-  // 另存檔本身就是合格的備份檔，可以原路復原
-  const undo = await target.restoreBackup(result.safetyCopyPath, { allowOlder: true });
-  assert.deepEqual(await snapshot(target), mine);
-  assert.notEqual(undo.safetyCopyPath, result.safetyCopyPath);
-  await target.close();
-});
-
-test('另存檔只留最近一份，關掉 App 再開仍找得到；復原後舊的另存檔會清掉', async (t) => {
+test('連續匯入直接取代，不產生取代前複本；重開後狀態只有備份與修改時間', async (t) => {
   const dir = workspace(t);
   const c = clock('2026-11-01T00:00:00Z');
   const source = await sampleLedger(dir, 'a.db', c.now);
@@ -220,20 +194,76 @@ test('另存檔只留最近一份，關掉 App 再開仍找得到；復原後舊
   c.set('2026-11-05T00:00:00Z');
   let target = await openAt(dir, 'b.db', c.now);
   await spend(target, '2026-11-05', '娛樂', 777, '手機上原本的帳');
-  const first = await target.restoreBackup(exported.path, { allowOlder: true });
-  await target.close();
-
-  target = await openAt(dir, 'b.db', c.now); // 重開 App
-  assert.equal((await target.getBackupStatus()).safetyCopyPath, first.safetyCopyPath);
+  const mine = await snapshot(target);
 
   c.set('2026-11-06T00:00:00Z');
-  const second = await target.restoreBackup(first.safetyCopyPath, { allowOlder: true });
-  assert.equal((await target.getBackupStatus()).safetyCopyPath, second.safetyCopyPath);
-  assert.ok(existsSync(second.safetyCopyPath));
-  assert.ok(!existsSync(first.safetyCopyPath), '上一份另存檔應該已清掉');
-  assert.deepEqual(readdirSync(dir).filter((f) => f.startsWith('restore-staging')), [], '暫存檔不殘留');
+  assert.deepEqual(await target.restoreBackup(exported.path, { allowOlder: true }), { schemaVersion: SCHEMA_VERSION });
+  assert.notDeepEqual(await snapshot(target), mine);
+  await spend(target, '2026-11-06', '飲食', 50, '再次取代');
+  await target.restoreBackup(exported.path, { allowOlder: true });
+  await target.close();
+  target = await openAt(dir, 'b.db', c.now);
+  assert.deepEqual(await target.getBackupStatus(), {
+    lastBackupAt: '2026-11-01T00:00:00.000Z',
+    lastModifiedAt: '2026-11-01T00:00:00.000Z',
+  });
+  assert.equal((await target.listTransactions(...FULL)).length, 4);
+  assert.deepEqual(readdirSync(dir).sort(), ['a.db', 'b.db', 'export.db']);
   await target.close();
 });
+
+for (const cleanup of ['刪除成功', '檔案不存在', '刪除失敗'] as const) {
+  test(`成功匯入清掉舊版紀錄與檔案（${cleanup}）；來源備份的舊紀錄不帶入`, async (t) => {
+    const dir = workspace(t);
+    const c = clock('2026-11-01T00:00:00Z');
+    const source = await sampleLedger(dir, 'a.db', c.now);
+    const exported = await source.exportBackup(join(dir, 'export.db'));
+    await source.close();
+    // 模擬另一支手機的舊版備份；其紀錄不能用來刪除這支手機的同名檔案。
+    const incomingFile = 'before-restore-other-phone.db';
+    const incomingPath = join(dir, incomingFile);
+    writeFileSync(incomingPath, '不能依來源備份的紀錄刪掉這個檔案');
+    const incoming = openNodeDatabase(exported.path);
+    await incoming.run('INSERT INTO ledger_meta (key, value) VALUES (?, ?)', ['safety_copy_file', incomingFile]);
+    await incoming.close();
+    const originalBackup = readFileSync(exported.path);
+
+    c.set('2026-11-05T00:00:00Z');
+    const target = await openAt(dir, 'b.db', c.now);
+    await spend(target, '2026-11-05', '娛樂', 777, '手機上原本的帳');
+    const legacyFile = 'before-restore-legacy.db';
+    const legacyPath = join(dir, legacyFile);
+    if (cleanup !== '檔案不存在') await target.exportBackup(legacyPath);
+    await target.close();
+    const raw = openNodeDatabase(join(dir, 'b.db'));
+    await raw.run('INSERT INTO ledger_meta (key, value) VALUES (?, ?)', ['safety_copy_file', legacyFile]);
+    const removed: string[] = [];
+    const files = nodeFiles(dir);
+    const reopened = await openLedger(raw, { now: c.now, backupFiles: {
+      ...files,
+      async remove(path) {
+        removed.push(path);
+        if (path === legacyPath && cleanup === '刪除失敗') throw new Error('模擬舊檔無法刪除');
+        await files.remove(path);
+      },
+    } });
+    t.after(() => reopened.close());
+
+    await reopened.restoreBackup(exported.path, { allowOlder: true });
+    assert.equal((await reopened.listTransactions(...FULL)).length, 4);
+    assert.deepEqual(await reopened.getBackupStatus(), {
+      lastBackupAt: '2026-11-01T00:00:00.000Z', lastModifiedAt: '2026-11-01T00:00:00.000Z',
+    });
+    assert.equal(await raw.get('SELECT value FROM ledger_meta WHERE key = ?', ['safety_copy_file']), null);
+    assert.ok(removed.includes(legacyPath), '成功提交後應嘗試刪除手機上的舊檔');
+    assert.equal(existsSync(legacyPath), cleanup === '刪除失敗');
+    assert.equal(readFileSync(incomingPath, 'utf8'), '不能依來源備份的紀錄刪掉這個檔案');
+    assert.deepEqual(readFileSync(exported.path), originalBackup, '使用者選的來源備份維持原樣');
+    assert.deepEqual(readdirSync(dir).filter((f) => f.startsWith('before-restore-')).sort(),
+      (cleanup === '刪除失敗' ? [legacyFile, incomingFile] : [incomingFile]).sort());
+    assert.deepEqual(readdirSync(dir).filter((f) => f.startsWith('restore-staging')), [], '暫存檔不殘留');
+  });
+}
 
 test('要匯入的備份比目前的帳舊時先警告；確認後才取代', async (t) => {
   const dir = workspace(t);
@@ -322,25 +352,43 @@ test('完整性檢查不過的備份被拒', async (t) => {
   await ledger.close();
 });
 
-test('通過檢查但資料表欄位與帳本不一致的備份：取代整筆還原，帳本不變、不留另存檔與暫存檔', async (t) => {
+test('取代交易中途失敗整筆回滾：原帳、舊版紀錄與檔案不變，暫存檔清除後仍可再匯入', async (t) => {
   const dir = workspace(t);
-  const ledger = await sampleLedger(dir, 'ledger.db', clock('2026-11-01T00:00:00Z').now);
+  const c = clock('2026-11-01T00:00:00Z');
+  let ledger = await sampleLedger(dir, 'ledger.db', c.now);
   const exported = await ledger.exportBackup(join(dir, 'export.db'));
   const raw = openNodeDatabase(exported.path);
+  // 排序較後面的資料表才被拒；前面已取代的帳戶及 meta 也必須回滾。
   await raw.exec("ALTER TABLE transactions ADD COLUMN stray TEXT NOT NULL DEFAULT ''");
   await raw.close();
+  c.set('2026-11-02T00:00:00Z');
+  await ledger.updateAccount(2, { openingBalance: 4321 });
+  await spend(ledger, '2026-11-02', '娛樂', 777, '失敗時必須保留');
+  const legacyFile = 'before-restore-legacy.db';
+  const legacyPath = join(dir, legacyFile);
+  await ledger.exportBackup(legacyPath);
+  const originalLegacy = readFileSync(legacyPath);
+  await ledger.close();
+  const live = openNodeDatabase(join(dir, 'ledger.db'));
+  await live.run('INSERT INTO ledger_meta (key, value) VALUES (?, ?)', ['safety_copy_file', legacyFile]);
+  ledger = await openLedger(live, { now: c.now, backupFiles: nodeFiles(dir) });
 
   const before = await snapshot(ledger);
+  const status = await ledger.getBackupStatus();
   await assert.rejects(ledger.restoreBackup(exported.path, { allowOlder: true }), (e) =>
     e instanceof LedgerError && e.code === 'backup_corrupt');
   assert.deepEqual(await snapshot(ledger), before);
-  assert.equal((await ledger.getBackupStatus()).safetyCopyPath, null);
-  assert.deepEqual(readdirSync(dir).filter((f) => f.startsWith('before-restore') || f.startsWith('restore-staging')), []);
+  assert.deepEqual(await ledger.getBackupStatus(), status);
+  assert.deepEqual(await live.get('SELECT value FROM ledger_meta WHERE key = ?', ['safety_copy_file']), { value: legacyFile });
+  assert.deepEqual(readFileSync(legacyPath), originalLegacy);
+  assert.deepEqual(readdirSync(dir).filter((f) => f.startsWith('before-restore') || f.startsWith('restore-staging')), [legacyFile]);
 
   // 失敗後沒有殘留的附加資料庫，下一次匯入照常可用
   const good = await ledger.exportBackup(join(dir, 'good.db'));
   await ledger.restoreBackup(good.path);
   assert.deepEqual(await snapshot(ledger), before);
+  assert.equal(await live.get('SELECT value FROM ledger_meta WHERE key = ?', ['safety_copy_file']), null);
+  assert.equal(existsSync(legacyPath), false);
   await ledger.close();
 });
 
