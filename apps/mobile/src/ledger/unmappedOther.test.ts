@@ -61,3 +61,24 @@ test('缺少其他的舊帳可補上固定儲備，保留歷史基準與月結�
   assert.equal((await ledger.getBudgetMonth('2026-10')).reserves.find(r => r.name === '其他')!.balance, -350);
   assert.deepEqual(await ledger.getBudgetMonth('2026-09'), historical);
 });
+
+test('跨貸款與一般支出合計超過安全整數時拒絕進度查詢', async t => {
+  const ledger = await setup(); t.after(() => ledger.close());
+  await ledger.createLoan({ name: '合成貸款', totalAmount: 1000, monthlyPayment: 100, remainingPrincipal: 1000,
+    expectedEndMonth: '2027-01', reason: '合成', hasEntitlement: true, version: (await ledger.getBudgetStatus()).version });
+  const loan = (await ledger.listLoans())[0];
+  await ledger.addTransaction({ date: '2026-10-15', categoryId: loan.categoryId!, accountId: (await ledger.listAccounts())[0].id, flow: 'expense', amount: Number.MAX_SAFE_INTEGER });
+  await assert.rejects(ledger.getBudgetProgress('2026-10'), /安全|範圍/);
+});
+
+test('只有舊期初基準且沒有上限版本的帳本也能補上其他', async t => {
+  const ledger = await openLedger(openNodeDatabase(':memory:'));
+  t.after(() => ledger.close());
+  await ledger.importFinanceDocument(serializeBudgetDocument({ ...emptyBudgetState(), months: [{
+    id: 'baseline', month: '2026-09', income: 0, surplus: 0, rawSpare: 2000, tuition: 0,
+    balances: {}, changes: {}, expenses: {}, revision: null, migrated: true,
+    legacyTotalDifference: 0, legacyBalanceAnchor: 0, time: '', actor: '',
+  }] }));
+  assert.equal((await ledger.getBudgetStatus()).categories.find(c => c.name === '其他')?.kind, 'reserve');
+  assert.equal((await ledger.getBudgetMonth('2026-09')).total, 2000);
+});

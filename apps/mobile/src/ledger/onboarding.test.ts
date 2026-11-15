@@ -59,9 +59,14 @@ test('先明確建立收入及支出分類再匯入歷史 CSV；沿用拒收與�
   assert.equal((await ledger.importTransactionsCsv(csv)).addedRows, 2);
   assert.equal((await ledger.importTransactionsCsv(csv)).skippedRows, 2);
   const suggestion = await ledger.getOpeningBudgetSuggestions();
-  assert.equal(suggestion.rows.find((r) => r.name === '寵物')!.kind, 'actual');
+  assert.equal(suggestion.rows.find((r) => r.name === '寵物')!.kind, 'other');
   assert.equal(suggestion.rows.some((r) => r.name === '獎金'), false);
   await assert.rejects(ledger.addOpeningCategory({ name: '薪資', flow: 'expense' }), /名稱/);
+  await ledger.completeOnboarding(await opening(ledger));
+  assert.ok(!(await ledger.getBudgetStatus()).categories.some(c => c.name === '寵物'));
+  const pet = (await ledger.listCategories()).find(c => c.name === '寵物')!;
+  await ledger.addTransaction({ date: '2026-11-05', categoryId: pet.id, accountId: (await ledger.listAccounts())[0].id, flow: 'expense', amount: 40 });
+  assert.equal((await ledger.getBudgetProgress('2026-11')).rows.find(r => r.name === '其他')!.spent, 40);
 });
 test('近三完整月平均進位百元，缺支出算零、排除本月與收入', async (t) => {
   const ledger = await setup(t);
