@@ -273,3 +273,6 @@ const styles = StyleSheet.create({
   chip: { minHeight: 36, justifyContent: 'center', paddingVertical: 7, paddingHorizontal: 14, borderRadius: 18 },
   banner: { borderRadius: 14, borderCurve: 'continuous', paddingHorizontal: 14, paddingVertical: 12 },
 });
+
+/** 動畫切換列沿用同一組視覺樣式。 */
+export const segmentedStyles = { container: styles.segmented, item: styles.segment, selected: styles.segmentSelected };
