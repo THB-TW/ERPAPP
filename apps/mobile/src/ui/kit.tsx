@@ -140,13 +140,15 @@ export function MonthBar(props: {
   onNext: () => void;
   prevDisabled?: boolean;
   nextDisabled?: boolean;
+  prevLabel?: string;
+  nextLabel?: string;
   hint?: string;
   onHintPress?: () => void;
 }) {
-  const { title, onPrev, onNext, prevDisabled = false, nextDisabled = false, hint, onHintPress } = props;
+  const { title, onPrev, onNext, prevDisabled = false, nextDisabled = false, prevLabel = '上個月', nextLabel = '下個月', hint, onHintPress } = props;
   return (
     <View style={styles.monthBar}>
-      <Pressable onPress={onPrev} disabled={prevDisabled} hitSlop={12} accessibilityRole="button" accessibilityLabel="上個月" accessibilityState={{ disabled: prevDisabled }} style={styles.monthArrow}>
+      <Pressable onPress={onPrev} disabled={prevDisabled} hitSlop={12} accessibilityRole="button" accessibilityLabel={prevLabel} accessibilityState={{ disabled: prevDisabled }} style={styles.monthArrow}>
         <Text style={[styles.arrow, prevDisabled && { color: colors.chevron }]}>‹</Text>
       </Pressable>
       <View style={{ alignItems: 'center', gap: 2 }}>
@@ -157,7 +159,7 @@ export function MonthBar(props: {
           </Pressable>
         ) : hint ? <Text style={text.footnote}>{hint}</Text> : null}
       </View>
-      <Pressable onPress={onNext} disabled={nextDisabled} hitSlop={12} accessibilityRole="button" accessibilityLabel="下個月" accessibilityState={{ disabled: nextDisabled }} style={styles.monthArrow}>
+      <Pressable onPress={onNext} disabled={nextDisabled} hitSlop={12} accessibilityRole="button" accessibilityLabel={nextLabel} accessibilityState={{ disabled: nextDisabled }} style={styles.monthArrow}>
         <Text style={[styles.arrow, nextDisabled && { color: colors.chevron }]}>›</Text>
       </Pressable>
     </View>
