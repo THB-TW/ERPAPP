@@ -168,6 +168,8 @@ export interface Ledger extends AccountsLedger, TransfersLedger, InvestmentsLedg
 
   // ---- 明細（票 09）----
   /** 該月某收支別的分類彙總與占比（圓餅圖與類別列表）。轉帳不計入。 */
+  getAdjustmentViewMode(): Promise<'visual' | 'list'>;
+  setAdjustmentViewMode(mode: 'visual' | 'list'): Promise<void>;
   getMonthBreakdown(month: string, flow: Flow): Promise<MonthBreakdown>;
   /** 某分類在該月的交易，日期新的在前。 */
   getCategoryMonthTransactions(month: string, categoryId: number): Promise<DayTransaction[]>;
@@ -312,6 +314,12 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
         return transactionsBetween(db, from, to);
       }),
 
+    getAdjustmentViewMode: () => serial(async () =>
+      (await db.get<{ value: string }>("SELECT value FROM settings WHERE key = 'adjustment_view_mode'"))?.value === 'list' ? 'list' : 'visual'),
+    setAdjustmentViewMode: (mode) => serial(() => db.transaction(async tx => {
+      if (mode !== 'visual' && mode !== 'list') throw new LedgerError('invalid_setting', '請選擇有效的調整顯示模式。');
+      await tx.run("INSERT INTO settings (key, value) VALUES ('adjustment_view_mode', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", [mode]);
+    })),
     getMonthBreakdown: (month, flow) => serial(() => monthBreakdown(db, month, flow)),
     getCategoryMonthTransactions: (month, categoryId) => serial(() => categoryMonthTransactions(db, month, categoryId)),
 
