@@ -37,9 +37,9 @@ test('月份支出彙總：各分類金額、筆數與占比，依金額由大�
   assert.equal(b.total, 1000);
   assert.equal(b.otherFlowTotal, 40000);
   assert.deepEqual(b.categories, [
-    { categoryId: cat('飲食'), categoryName: '飲食', amount: 500, count: 2, permille: 500 },
-    { categoryId: cat('交通'), categoryName: '交通', amount: 300, count: 1, permille: 300 },
-    { categoryId: cat('娛樂'), categoryName: '娛樂', amount: 200, count: 1, permille: 200 },
+    { categoryId: cat('飲食'), categoryName: '飲食', amount: 500, count: 2, permille: 500, budgetCategory: null },
+    { categoryId: cat('交通'), categoryName: '交通', amount: 300, count: 1, permille: 300, budgetCategory: null },
+    { categoryId: cat('娛樂'), categoryName: '娛樂', amount: 200, count: 1, permille: 200, budgetCategory: null },
   ]);
 });
 
@@ -122,4 +122,42 @@ test('分類交易的合計等於彙總裡該分類的金額與筆數', async ()
     assert.equal(sum(list.map((t) => t.amount)), c.amount);
     assert.equal(list.length, c.count);
   }
+});
+
+test('明細使用所選月份的預算歸屬，未歸屬保持獨立分類，收入不套支出歸屬', async () => {
+  const { ledger, add } = await newLedger();
+  const { emptyBudgetState, serializeBudgetDocument } = await import('../calc/budgetDocument.ts');
+  const base = { id: 'oct', month: '2026-10', limits: [{ categoryId: 'food', amount: 3000 }, { categoryId: 'other', amount: 500 }], mapping: { 飲食: 'food', 交通: 'other' }, tuition: 0, reason: '虛構', actor: 'test', time: '2026-10-01' };
+  await ledger.importFinanceDocument(serializeBudgetDocument({ ...emptyBudgetState(), categories: [
+    { id: 'food', name: '餐食', kind: 'reserve' }, { id: 'other', name: '其他', kind: 'reserve' },
+  ], revisions: [base, { ...base, id: 'nov', month: '2026-11', mapping: { 飲食: 'other', 交通: 'food' } }] }));
+  for (const month of ['2026-10', '2026-11']) {
+    await add(`${month}-01`, 'expense', '飲食', 500);
+    await add(`${month}-01`, 'expense', '交通', 200);
+    await add(`${month}-01`, 'expense', '娛樂', 100);
+  }
+  const october = await ledger.getMonthBreakdown('2026-10', 'expense');
+  assert.deepEqual(october.categories.map(c => [c.categoryName, c.budgetCategory]), [
+    ['飲食', { id: 'food', name: '餐食' }], ['交通', { id: 'other', name: '其他' }], ['娛樂', null],
+  ]);
+  const november = await ledger.getMonthBreakdown('2026-11', 'expense');
+  assert.deepEqual(november.categories[0].budgetCategory, { id: 'other', name: '其他' });
+  await add('2026-11-01', 'income', '薪資', 2000);
+  assert.equal((await ledger.getMonthBreakdown('2026-11', 'income')).categories[0].budgetCategory, null);
+  await ledger.close();
+});
+
+test('明細已結月份使用凍結歸屬，後續版本不能改變舊月顏色分類', async () => {
+  const { ledger, add } = await newLedger();
+  await add('2026-10-01', 'expense', '飲食', 500);
+  const { emptyBudgetState, serializeBudgetDocument } = await import('../calc/budgetDocument.ts');
+  const revision = { id: 'oct', month: '2026-10', limits: [{ categoryId: 'food', amount: 3000 }], mapping: { 飲食: 'food' }, tuition: 0, reason: '虛構', actor: 'test', time: '2026-10-01' };
+  await ledger.importFinanceDocument(serializeBudgetDocument({ ...emptyBudgetState(), categories: [
+    { id: 'food', name: '餐食', kind: 'reserve' }, { id: 'other', name: '其他', kind: 'reserve' },
+  ], revisions: [{ ...revision, id: 'later', limits: [{ categoryId: 'other', amount: 0 }], mapping: { 飲食: 'other' } }],
+    months: [{ id: 'closed', month: '2026-10', income: 0, surplus: 0, rawSpare: 0, tuition: 0,
+      balances: { food: 2500 }, changes: { food: 2500 }, expenses: { food: 500 }, revision,
+      migrated: true, legacyTotalDifference: 0, legacyBalanceAnchor: 0, time: '', actor: '' }] }));
+  assert.deepEqual((await ledger.getMonthBreakdown('2026-10', 'expense')).categories[0].budgetCategory, { id: 'food', name: '餐食' });
+  await ledger.close();
 });

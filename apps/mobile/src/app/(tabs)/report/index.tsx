@@ -2,18 +2,16 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { monthOf, shiftMonth, taipeiDate } from '../../../calc/dates.ts';
-import { REST_SLICE_KEY, pieSlices, type PieSlice } from '../../../calc/shares.ts';
 import type { DayTransaction, Flow, MonthBreakdown } from '../../../ledger/index.ts';
 import { Donut } from '../../../ui/Donut.tsx';
 import { formatAmount, formatPermille, monthTitle, userMessage } from '../../../ui/format.ts';
 import { useLedger } from '../../../ui/LedgerProvider.tsx';
 import { Footnote, Group, MonthBar, SectionTitle, Segmented, kit, text } from '../../../ui/kit.tsx';
 import { TabScrollView } from '../../../ui/LargeTitle.tsx';
-import { chartColors, colors, typeScale } from '../../../ui/theme.ts';
+import { reportCategoryColor, reportOtherColor, colors, typeScale } from '../../../ui/theme.ts';
 
 // 明細（票 09）：選定月份的圓餅圖＋類別列表。支出／收入用上方切換或在圓餅圖上左右滑；
 // 點類別展開該類別當月的交易，點交易進記帳表單（可改可刪，已結月份為唯讀）。
-const MAX_SLICES = chartColors.length - 1; // 最後一色留給合併的「其他分類」
 const FLOW_NAME: Record<Flow, string> = { expense: '支出', income: '收入' };
 const otherFlow = (flow: Flow): Flow => (flow === 'expense' ? 'income' : 'expense');
 const FLOW_OPTIONS = (['expense', 'income'] as const).map((f) => ({ key: f, label: FLOW_NAME[f] }));
@@ -50,10 +48,10 @@ export default function ReportScreen() {
     }, [ledger, month, flow]),
   );
 
-  // 展開某個類別時查它當月的交易（合併的「其他分類」只列分類，不用查）。
+  // 展開某個類別時查它當月的交易。
   useFocusEffect(
     useCallback(() => {
-      if (openKey === null || openKey === REST_SLICE_KEY) return;
+      if (openKey === null) return;
       let cancelled = false;
       ledger.getCategoryMonthTransactions(month, Number(openKey)).then(
         (rows) => {
@@ -96,9 +94,15 @@ export default function ReportScreen() {
 
   // 查詢結果還是上一個月份或收支別的時候不畫，避免標題和圖對不上。
   const current = breakdown && breakdown.month === month && breakdown.flow === flow ? breakdown : null;
-  const slices = current ? pieSlices(current.categories, MAX_SLICES) : [];
-  const colorOf = (index: number, slice: PieSlice) =>
-    slice.key === REST_SLICE_KEY ? chartColors[chartColors.length - 1] : chartColors[index % chartColors.length];
+  let colorIndex = 0;
+  const rows = (current?.categories ?? []).map(category => {
+    const other = flow === 'expense' && (!category.budgetCategory || category.budgetCategory.name === '其他');
+    return { ...category, key: String(category.categoryId), name: category.categoryName,
+      other, color: other ? reportOtherColor : reportCategoryColor(colorIndex++) };
+  });
+  const otherAmount = rows.filter(row => row.other).reduce((sum, row) => sum + row.amount, 0);
+  const slices = [ ...rows.filter(row => !row.other),
+    ...(otherAmount > 0 ? [{ key: 'budget-other', amount: otherAmount, color: reportOtherColor }] : []) ];
   const kind = FLOW_NAME[flow];
   const isLatestMonth = month >= thisMonth;
 
@@ -131,7 +135,7 @@ export default function ReportScreen() {
           accessibilityRole="image"
           accessibilityLabel={`${monthTitle(month)}${kind}分類圓餅圖，合計 ${formatAmount(current?.total ?? 0)} 元。左右滑可切換支出與收入。`}
         >
-          <Donut slices={slices.map((s, i) => ({ key: s.key, amount: s.amount, color: colorOf(i, s) }))}>
+          <Donut slices={slices}>
             <Text style={text.footnote}>本月{kind}</Text>
             <Text style={styles.donutTotal} numberOfLines={1} adjustsFontSizeToFit>
               {formatAmount(current?.total ?? 0)}
@@ -161,7 +165,7 @@ export default function ReportScreen() {
         {current && slices.length === 0 && !error ? <Footnote>這個月沒有{kind}。</Footnote> : null}
 
         <Group>
-          {slices.map((slice, i) => {
+          {rows.map((slice) => {
             const open = openKey === slice.key;
             return (
               <View key={slice.key}>
@@ -171,21 +175,14 @@ export default function ReportScreen() {
                   accessibilityState={{ expanded: open }}
                   style={({ pressed }) => [kit.row, pressed && kit.pressed]}
                 >
-                  <View style={[styles.colorDot, { backgroundColor: colorOf(i, slice) }]} />
+                  <View style={[styles.colorDot, { backgroundColor: slice.color }]} />
                   <Text style={[text.body, styles.name]} numberOfLines={1}>
                     {slice.name}
                   </Text>
                   <Text style={[text.footnote, styles.tabular]}>{formatPermille(slice.permille)}</Text>
                   <Text style={[text.value, styles.amountBold]}>{formatAmount(slice.amount)}</Text>
                 </Pressable>
-                {open && slice.key === REST_SLICE_KEY
-                  ? current?.categories
-                      .filter((c) => slice.categoryIds.includes(c.categoryId))
-                      .map((c) => (
-                        <SubRow key={c.categoryId} label={`${c.categoryName}・${formatPermille(c.permille)}`} amount={c.amount} />
-                      ))
-                  : null}
-                {open && slice.key !== REST_SLICE_KEY && openList?.key === slice.key && openList.month === month
+                {open && openList?.key === slice.key && openList.month === month
                   ? openList.rows.map((t) => (
                       <SubRow
                         key={t.id}
