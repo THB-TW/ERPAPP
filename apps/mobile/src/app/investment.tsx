@@ -29,6 +29,7 @@ export default function InvestmentScreen() {
   const [transactions, setTransactions] = useState<InvestmentTransaction[]>([]);
   const [valuations, setValuations] = useState<Valuation[]>([]);
   const [opening, setOpening] = useState<Awaited<ReturnType<Ledger['getInvestmentOpening']>>>(null);
+  const [closedMonths, setClosedMonths] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -55,11 +56,11 @@ export default function InvestmentScreen() {
   const [openingNegative, setOpeningNegative] = useState(false);
 
   const load = useCallback(async () => {
-    const [nextPortfolio, nextAccounts, nextTransactions, nextValuations, nextOpening] = await Promise.all([
+    const [nextPortfolio, nextAccounts, nextTransactions, nextValuations, nextOpening, nextClosed] = await Promise.all([
       ledger.getInvestmentPortfolio(), ledger.listAccounts(), ledger.listInvestmentTransactions(),
-      ledger.listInvestmentValuations(), ledger.getInvestmentOpening(),
+      ledger.listInvestmentValuations(), ledger.getInvestmentOpening(), ledger.listBudgetMonths(),
     ]);
-    return { nextPortfolio, nextAccounts, nextTransactions, nextValuations, nextOpening };
+    return { nextPortfolio, nextAccounts, nextTransactions, nextValuations, nextOpening, nextClosed };
   }, [ledger]);
 
   const applyLoaded = useCallback((data: Awaited<ReturnType<typeof load>>) => {
@@ -68,6 +69,7 @@ export default function InvestmentScreen() {
     setTransactions(data.nextTransactions);
     setValuations(data.nextValuations);
     setOpening(data.nextOpening);
+    setClosedMonths(data.nextClosed.map(m => m.month));
     setLoaded(true);
   }, []);
 
@@ -240,7 +242,7 @@ export default function InvestmentScreen() {
                 <>
                   <Text style={{ color: colors.muted }}>標的</Text>
                   <Choices>{portfolio?.positions.filter((p) => p.active).map((p) => <Choice key={p.holdingId} label={`${p.symbol ? `${p.symbol} ` : ''}${p.name}`} selected={holdingId === p.holdingId} disabled={disabled} onPress={() => setHoldingId(p.holdingId)} />)}</Choices>
-                  <DatePicker label="日期" value={date} onChange={setDate} disabled={disabled} />
+                  <DatePicker unavailableMonths={form === 'transaction' && txType !== 'opening' ? closedMonths : []} label="日期" value={date} onChange={setDate} disabled={disabled} />
                 </>
               ) : null}
               {form === 'transaction' ? (
