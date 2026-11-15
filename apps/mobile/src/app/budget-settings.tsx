@@ -266,7 +266,7 @@ export default function BudgetSettingsScreen() {
                   {sourceCategories.length === 0 ? <Text style={styles.note}>尚無支出交易分類，請先新增分類。</Text> : null}
                   <Text style={styles.label}>歸屬到預算分類</Text>
                   <View style={styles.chips}>
-                    {active.filter(category => mode !== 'retire' || category.name !== '其他').map((category) => <Chip key={category.id} label={`${category.name}・${kindLabel(category.kind)}`} selected={mapTo === category.id} disabled={disabled} onPress={() => { invalidatePreview(); setMapTo(category.id); }} />)}
+                    {active.map((category) => <Chip key={category.id} label={`${category.name}・${kindLabel(category.kind)}`} selected={mapTo === category.id} disabled={disabled} onPress={() => { invalidatePreview(); setMapTo(category.id); }} />)}
                   </View>
                   {active.length === 0 ? <Text style={styles.note}>請先新增預算分類，再指定歸屬。</Text> : null}
                 </View>
