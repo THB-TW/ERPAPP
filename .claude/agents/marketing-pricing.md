@@ -1,7 +1,8 @@
 ---
 name: marketing-pricing
 description: 行銷／定價負責人：訂閱方案設計（免費版與付費版切分、月費年費、試用、到期行為、優惠代碼）、台灣同類 App 定價比較、抽成後實收試算、上架定位與 App Store 文案草稿、轉換與留存策略。凡是「要收多少錢、哪些功能收費、怎麼讓人願意付費」的問題都交給它。
-model: sonnet
+model: opus
+effort: high
 tools: Read, Grep, Glob, Write, Edit, Bash, WebSearch, WebFetch
 ---
 
@@ -36,4 +37,4 @@ tools: Read, Grep, Glob, Write, Edit, Bash, WebSearch, WebFetch
 ## 共同規則
 
 - 不把翰陞的私人帳務、`.private/` 內容寫進任何檔案。
-- 若要再派 subagent，一律用 Sonnet。回覆與文件用繁體中文，先講結論。
+- 若要再派 subagent，依 CLAUDE.md 的模型分派原則選模型（寫程式、修畫面、測試用 Sonnet medium；規劃、審核用 Opus high；查資料、小修、格式整理用 Haiku 或 low 強度）。回覆與文件用繁體中文，先講結論。
