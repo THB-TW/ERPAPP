@@ -49,11 +49,12 @@ export async function monthBreakdown(q: Queryable, month: string, flow: Flow): P
     'SELECT COALESCE(SUM(amount), 0) AS total FROM transactions WHERE flow <> ? AND substr(date, 1, 7) = ?',
     [flow, month],
   );
-  const state = await readState(q);
-  const closed = state.months.find(m => m.month === month);
-  const revision = closed ? closed.revision : effectiveRevision(state, month);
+  const state = flow === 'expense' && rows.length > 0 ? await readState(q) : null;
+  const closed = state?.months.find(m => m.month === month);
+  const revision = closed ? closed.revision : state && effectiveRevision(state, month);
   const budgetCategory = (name: string) => {
-    const id = flow === 'expense' && revision ? mappedBudgetCategory(revision, name) : undefined;
+    if (!state || !revision) return null;
+    const id = mappedBudgetCategory(revision, name);
     const definition = state.categories.find(c => c.id === id);
     return definition ? { id: definition.id, name: definition.name } : null;
   };
