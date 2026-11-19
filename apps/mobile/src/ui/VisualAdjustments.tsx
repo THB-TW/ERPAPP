@@ -198,7 +198,7 @@ function MoneyTile({ item, wallet = false, level, disabled, selected, onTap, onS
       x.set(event.translationX);
       y.set(event.translationY);
     })
-    .onEnd(event => { if (held.get()) runOnJS(onDrop)(item, event.absoluteX, event.absoluteY); })
+    .onEnd((event, completed) => { if (completed && held.get()) runOnJS(onDrop)(item, event.absoluteX, event.absoluteY); })
     .onFinalize(() => {
       if (held.get()) {
         held.set(false);
