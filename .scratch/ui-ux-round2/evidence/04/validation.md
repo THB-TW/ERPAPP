@@ -39,3 +39,4 @@ Lint：目前基底沒有 ESLint 設定與依賴；嘗試 CI=1 EXPO_OFFLINE=1 np
 - `EXPO_OFFLINE=1 CI=1 npx expo export --platform ios` 通過，輸出含 1,854 個模組的 iOS Hermes bundle。
 - 基底先執行 `unmappedOther.test.ts` 及開帳草稿的服務測試，確認 5 項依預期失敗。補做首次建立「其他」的額外案例，確認原先未拒絕非儲備類再修改規則。
 - 在 Node 啟動時移除全域 `structuredClone`，先確認兩個舊帳相容讀取案例失敗。修改後以同樣環境執行 `unmappedOther.test.ts` 和 `onboarding.test.ts`，20 項通過。
+- 借用暫存目錄中的 Expo CLI 預設 ESLint 設定檢查 `src`，未改專案依賴。基底與本分支皆為 exit 1，逐檔比對的規則及訊息完全一致（29 個錯誤、46 個警告）。

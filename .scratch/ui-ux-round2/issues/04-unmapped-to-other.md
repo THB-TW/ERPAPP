@@ -45,7 +45,7 @@ iPhone 驗收步驟：
 
 在基底先執行帳本服務測試，確認未歸屬進度、固定類別保護、舊資料補齊及同月草稿的 5 項預期失敗。另先重現首次可建立非儲備類「其他」的問題與缺少 `structuredClone` 時的讀取失敗，再修正。
 
-`npm test` 通過 563 項，`npx tsc --noEmit` 與 `EXPO_OFFLINE=1 CI=1 npx expo export --platform ios` 均通過。限制環境的帳本服務測試通過 20 項。詳見[本輪驗證紀錄](../evidence/04/validation.md#2026-11-19)。
+`npm test` 通過 563 項，`npx tsc --noEmit` 與 `EXPO_OFFLINE=1 CI=1 npx expo export --platform ios` 均通過。移除 `structuredClone` 後有 20 項服務測試通過。用暫存 Expo ESLint 設定檢查 `src`，基底與本分支都回報相同的 29 個既有錯誤與 46 個既有警告。詳見[本輪驗證紀錄](../evidence/04/validation.md#2026-11-19)。
 
 iPhone 驗收請使用測試帳本：
 
