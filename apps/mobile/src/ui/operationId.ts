@@ -5,4 +5,3 @@ export function newOperationId(): string {
     return (character === 'x' ? value : (value & 3) | 8).toString(16);
   });
 }
-

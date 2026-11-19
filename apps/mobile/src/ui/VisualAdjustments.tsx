@@ -173,19 +173,43 @@ function MoneyTile({ item, wallet = false, level, disabled, selected, onTap, onS
   item: Source; wallet?: boolean; level: number; disabled: boolean; selected: boolean;
   onTap: () => void; onStart: () => void; onCancel: () => void; onDrop: (source: Source, x: number, y: number) => void;
 }) {
-  const x = useSharedValue(0); const y = useSharedValue(0); const held = useSharedValue(false);
-  const style = useAnimatedStyle(() => ({ zIndex: held.value ? 100 : 0, transform: [{ translateX: x.value }, { translateY: y.value }, { scale: held.value ? 1.04 : 1 }] }));
-  const shake = () => { 'worklet'; x.value = withSequence(withTiming(-6, { duration: 60 }), withTiming(6, { duration: 60 }), withTiming(0, { duration: 60 })); runOnJS(warning)(); };
+  const x = useSharedValue(0);
+  const y = useSharedValue(0);
+  const held = useSharedValue(false);
+  const style = useAnimatedStyle(() => ({
+    zIndex: held.get() ? 100 : 0,
+    transform: [{ translateX: x.get() }, { translateY: y.get() }, { scale: held.get() ? 1.04 : 1 }],
+  }));
+  const shake = () => {
+    'worklet';
+    x.set(withSequence(withTiming(-6, { duration: 60 }), withTiming(6, { duration: 60 }), withTiming(0, { duration: 60 })));
+  };
   const pan = Gesture.Pan().enabled(!disabled).activateAfterLongPress(220)
     .onStart(() => {
-      if (item.balance <= 0) { shake(); return; }
-      held.value = true; runOnJS(onStart)();
-    }).onUpdate(event => { if (held.value) { x.value = event.translationX; y.value = event.translationY; } })
-    .onEnd(event => { if (held.value) runOnJS(onDrop)(item, event.absoluteX, event.absoluteY); })
-    .onFinalize(() => { if (held.value) { held.value = false; x.value = withTiming(0); y.value = withTiming(0); } runOnJS(onCancel)(); });
+      if (item.balance <= 0) {
+        shake();
+        runOnJS(warning)();
+        return;
+      }
+      held.set(true);
+      runOnJS(onStart)();
+    }).onUpdate(event => {
+      if (!held.get()) return;
+      x.set(event.translationX);
+      y.set(event.translationY);
+    })
+    .onEnd(event => { if (held.get()) runOnJS(onDrop)(item, event.absoluteX, event.absoluteY); })
+    .onFinalize(() => {
+      if (held.get()) {
+        held.set(false);
+        x.set(withTiming(0));
+        y.set(withTiming(0));
+      }
+      runOnJS(onCancel)();
+    });
   return <GestureDetector gesture={pan}>
     <Animated.View style={style}>
-      <Pressable onPress={() => { if (item.balance <= 0 && !selected) { x.value = withSequence(withTiming(-6), withTiming(6), withTiming(0)); } onTap(); }}
+      <Pressable onPress={() => { if (item.balance <= 0 && !selected) shake(); onTap(); }}
         disabled={disabled} accessibilityRole="button" accessibilityState={{ disabled, selected }} accessibilityLabel={`${item.name}，${formatAmount(item.balance)} 元`}
         accessibilityHint="按住拖到另一個罐子，或點選來源再點目標"
         style={[kit.card, kit.cardPadding, selected && styles.selected]}>
