@@ -1,6 +1,6 @@
 # 專案長期 agent 團隊
 
-定義檔在 `.claude/agents/`，每個都固定 `model: sonnet`。入口是 `/chief-of-staff`（`.claude/skills/chief-of-staff/`）或直接派給下表的 agent。
+定義檔在 `.claude/agents/`，frontmatter 都有 `model` 與 `effort`：`chief-of-staff`、`tw-legal-tax-counsel`、`marketing-pricing` 為 opus／high，其餘八個模組 agent 為 sonnet／medium（分派表與模型原則見根目錄 `CLAUDE.md`）。入口是 `/chief-of-staff`（`.claude/skills/chief-of-staff/`）或直接派給下表的 agent。
 
 | Agent | 負責 | 何時找它 |
 |---|---|---|
