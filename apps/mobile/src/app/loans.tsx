@@ -22,7 +22,7 @@ const FIELDS: { key: keyof FormFields; label: string; numeric?: boolean; placeho
   { key: 'totalAmount', label: '總額（元）', numeric: true },
   { key: 'monthlyPayment', label: '每月繳款（元）', numeric: true },
   { key: 'remainingPrincipal', label: '剩餘本金（元）', numeric: true },
-  { key: 'expectedEndMonth', label: '預計結清月份', placeholder: 'YYYY-MM' },
+  { key: 'expectedEndMonth', label: '預計結清月份' },
   { key: 'reason', label: '設定原因（必填）', placeholder: '請填寫這次新增或修改的原因' },
 ];
 
@@ -206,7 +206,7 @@ export default function LoansScreen() {
             <Text style={styles.label}>{preview.name}</Text>
             <Text style={styles.label}>總額 {formatAmount(preview.totalAmount)} 元・每月 {formatAmount(preview.monthlyPayment)} 元</Text>
             <Text style={styles.label}>剩餘本金 {formatAmount(preview.remainingPrincipal)} 元</Text>
-            <Text style={styles.label}>預計 {(preview.expectedEndMonth ? monthTitle(preview.expectedEndMonth) : '未定')}結清</Text>
+            <Text style={styles.label}>預計結清月份：{preview.expectedEndMonth ? monthTitle(preview.expectedEndMonth) : '未定'}</Text>
             <Text style={styles.label}>原因：{preview.reason}</Text>
             <Text style={styles.note}>確認儲存後從開放月份生效。</Text>
           </View> : null}

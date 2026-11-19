@@ -1,5 +1,3 @@
-import { MonthPicker } from '../ui/MonthPicker.tsx';
-import { DatePicker } from '../ui/DatePicker.tsx';
 import { Stack, useFocusEffect } from 'expo-router';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useCallback, useRef, useState, type ReactNode } from 'react';
@@ -7,11 +5,14 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { Account, Ledger } from '../ledger/index.ts';
 import { BudgetRuleError } from '../ledger/index.ts';
-import { shiftMonth, taipeiDate } from '../calc/dates.ts';
+import { monthOf, shiftMonth, taipeiDate } from '../calc/dates.ts';
+import { DatePicker } from '../ui/DatePicker.tsx';
+import { MonthPicker } from '../ui/MonthPicker.tsx';
 import { hasMonthlyCloseEntitlement, useHasPaidAccess } from '../ui/closeEntitlement.ts';
 import { PaidLock } from '../ui/PaidLock.tsx';
 import { formatAmount, userMessage } from '../ui/format.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
+import { PrimaryButton } from '../ui/kit.tsx';
 import { colors } from '../ui/theme.ts';
 
 type Portfolio = Awaited<ReturnType<Ledger['getInvestmentPortfolio']>>;
@@ -84,6 +85,8 @@ export default function InvestmentScreen() {
   }, [load, applyLoaded]));
 
   const disabled = !loaded || saving || !hasEntitlement;
+  const unavailableMonths = form === 'transaction' && txType !== 'opening' ? closedMonths : [];
+  const saveDisabled = disabled || unavailableMonths.includes(monthOf(date));
   const selected = portfolio?.positions.find((p) => p.holdingId === holdingId);
   const isTrade = txType === 'buy' || txType === 'sell';
   const needsQuantity = selected?.assetClass === 'stock' && txType !== 'dividend';
@@ -113,7 +116,7 @@ export default function InvestmentScreen() {
   }
 
   async function save() {
-    if (disabled || savingRef.current || !form) return;
+    if (saveDisabled || savingRef.current || !form) return;
     savingRef.current = true;
     setSaving(true);
     setError(null);
@@ -242,7 +245,7 @@ export default function InvestmentScreen() {
                 <>
                   <Text style={{ color: colors.muted }}>標的</Text>
                   <Choices>{portfolio?.positions.filter((p) => p.active).map((p) => <Choice key={p.holdingId} label={`${p.symbol ? `${p.symbol} ` : ''}${p.name}`} selected={holdingId === p.holdingId} disabled={disabled} onPress={() => setHoldingId(p.holdingId)} />)}</Choices>
-                  <DatePicker unavailableMonths={form === 'transaction' && txType !== 'opening' ? closedMonths : []} label="日期" value={date} onChange={setDate} disabled={disabled} />
+                  <DatePicker unavailableMonths={unavailableMonths} label="日期" value={date} onChange={setDate} disabled={disabled} />
                 </>
               ) : null}
               {form === 'transaction' ? (
@@ -283,7 +286,7 @@ export default function InvestmentScreen() {
           {notice ? <Text accessibilityLiveRegion="polite" style={{ color: colors.income }}>{notice}</Text> : null}
           {error ? <Text accessibilityLiveRegion="polite" style={{ color: colors.expense }}>{error}</Text> : null}
         </ScrollView>
-        {form ? <Pressable accessibilityRole="button" onPress={save} disabled={disabled} style={{ margin: 16, padding: 14, minHeight: 50, justifyContent: 'center', borderRadius: 14, borderCurve: 'continuous', alignItems: 'center', backgroundColor: colors.accent, opacity: disabled ? 0.5 : 1 }}><Text style={{ color: '#fff', fontSize: 17, fontWeight: '600' }}>{saving ? '儲存中…' : '儲存'}</Text></Pressable> : null}
+        {form ? <View style={{ margin: 16 }}><PrimaryButton title={saving ? '儲存中…' : '儲存'} onPress={save} disabled={saveDisabled} /></View> : null}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
