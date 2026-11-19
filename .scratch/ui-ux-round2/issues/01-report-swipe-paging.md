@@ -12,7 +12,7 @@
 - [x] 手指移動時內容即時跟隨；放開時依位移或速度決定翻頁或彈回；垂直捲動不受影響
 - [x] 切換鈕的選取狀態在翻頁完成時同步；點切換鈕同樣有翻頁動畫
 - [x] 換月份、展開類別等既有行為不變
-- [ ] 模擬器錄影或截圖：拖到一半、翻頁完成、彈回三種狀態
+- [x] 模擬器錄影或截圖：拖到一半、翻頁完成、彈回三種狀態
 
 **共同規則**：從最新 `claude/project-thread-xdtlp5` 開分支 `claude/ui2-NN-<slug>`，PR（draft）合回 xdtlp5。畫面照 `apps/mobile/AGENTS.md`「UI 風格」（只用 `theme.ts`、`kit.tsx`、`LargeTitle.tsx`）。驗收前在 `apps/mobile` 跑 `npm test`、`npx tsc --noEmit`、`EXPO_OFFLINE=1 CI=1 npx expo export --platform ios`；規則改動先寫帳本服務層的失敗測試（ADR 0006）。不碰翰陞的私人帳本。
 
@@ -43,6 +43,6 @@ iPhone 驗收步驟：
 
 `npm test` 556 項全過，`npx tsc --noEmit` 與離線 iOS 匯出通過。用暫存的 Expo SDK 58 預設 ESLint 檢查修改的四個檔案，無錯誤或警告。
 
-隔離模擬器可開啟明細頁。AXe 回報無法取得觸控座標轉換，Simulator 視窗的拖曳也未成功送達，半途／彈回證據保留未勾。上一輪的收入完成截圖仍可參考。
+用隔離模擬器載入本分支，錄到短拖途中、放手彈回支出，以及長拖翻到收入。拖曳時圓餅圖區、分類區和切換底色一起移動。[明細跟手翻頁錄影](../evidence/01/report-paging.mp4)
 
 iPhone 請用測試帳本開啟明細，先慢拖確認圖表、分類列表和選取底色同步位移。短拖應回原頁，長拖或快滑應翻頁。展開一列後試短拖和成功換頁，再試點按切換與垂直捲動。短拖後保留展開，換頁後收合。
