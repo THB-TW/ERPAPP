@@ -1,5 +1,5 @@
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { monthOf, shiftMonth, taipeiDate } from '../../../calc/dates.ts';
 import type { DayTransaction, Flow, MonthBreakdown } from '../../../ledger/index.ts';
@@ -21,25 +21,38 @@ export default function ReportScreen() {
   const [thisMonth, setThisMonth] = useState(() => monthOf(taipeiDate(new Date())));
   const [month, setMonth] = useState(thisMonth);
   const [selected, setSelected] = useState(0);
+  const [openKey, setOpenKey] = useState<string | null>(null);
   useFocusEffect(useCallback(() => { setThisMonth(monthOf(taipeiDate(new Date()))); }, []));
+  function chooseMonth(next: string) {
+    setMonth(next);
+    setOpenKey(null);
+  }
+  function choosePage(next: number) {
+    if (next === selected) return;
+    setSelected(next);
+    setOpenKey(null);
+  }
   return (
     <TabScrollView title="明細">
-      <MonthBar title={monthTitle(month)} onPrev={() => setMonth(shiftMonth(month, -1))}
-        onNext={() => setMonth(shiftMonth(month, 1))} nextDisabled={month >= thisMonth}
+      <MonthBar title={monthTitle(month)} onPrev={() => chooseMonth(shiftMonth(month, -1))}
+        onNext={() => chooseMonth(shiftMonth(month, 1))} nextDisabled={month >= thisMonth}
         hint={month === thisMonth ? '本月' : '回到本月'}
-        onHintPress={month === thisMonth ? undefined : () => setMonth(thisMonth)} />
-      <ReportPager options={FLOW_OPTIONS} onChange={setSelected}>
-        {(['expense', 'income'] as const).map((flow, index) => <ReportPage key={`${month}-${flow}`} month={month} flow={flow} active={selected === index} />)}
+        onHintPress={month === thisMonth ? undefined : () => chooseMonth(thisMonth)} />
+      <ReportPager options={FLOW_OPTIONS} selected={selected} onChange={choosePage}>
+        {(['expense', 'income'] as const).map((flow, index) => (
+          <ReportPage key={`${month}-${flow}`} month={month} flow={flow}
+            openKey={selected === index ? openKey : null} onOpen={setOpenKey} />
+        ))}
       </ReportPager>
     </TabScrollView>
   );
 }
 
-function ReportPage({ month, flow, active }: { month: string; flow: Flow; active: boolean }) {
+function ReportPage({ month, flow, openKey, onOpen }: {
+  month: string; flow: Flow; openKey: string | null; onOpen: (key: string | null) => void;
+}) {
   const ledger = useLedger();
   const [breakdown, setBreakdown] = useState<MonthBreakdown | null>(null);
-  const [openKey, setOpenKey] = useState<string | null>(null);
-  useEffect(() => { if (!active) setOpenKey(null); }, [active]);
   // 展開的類別的交易，連同它屬於哪個月份、哪個類別一起存；對不上目前展開的那一列就不顯示。
   const [openList, setOpenList] = useState<{ month: string; key: string; rows: DayTransaction[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -140,7 +153,7 @@ function ReportPage({ month, flow, active }: { month: string; flow: Flow; active
             return (
               <View key={slice.key}>
                 <Pressable
-                  onPress={() => setOpenKey(open ? null : slice.key)}
+                  onPress={() => onOpen(open ? null : slice.key)}
                   accessibilityRole="button"
                   accessibilityState={{ expanded: open }}
                   style={({ pressed }) => [kit.row, pressed && kit.pressed]}
