@@ -336,7 +336,6 @@ const styles = StyleSheet.create({
   errorText: { ...typeScale.body, color: colors.expense },
   summary: { gap: 14 },
   progressRow: { paddingHorizontal: 16, paddingVertical: 14, gap: 8 },
-  warning: { gap: 8, borderWidth: 1, borderColor: '#f5d0a9' },
   footnoteInCard: { ...typeScale.footnote, color: colors.muted, fontVariant: ['tabular-nums'] },
   progressFill: { height: 6, borderRadius: 3 },
 });

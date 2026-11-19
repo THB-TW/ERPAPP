@@ -108,7 +108,7 @@ export default function BudgetSettingsScreen() {
     setSuccess(null);
   }
 
-  function chooseCategory(id: string) {
+  function chooseCategory(id: string | null) {
     invalidatePreview();
     const category = status?.categories.find((candidate) => candidate.id === id);
     setSelectedId(id);
@@ -127,8 +127,9 @@ export default function BudgetSettingsScreen() {
       setName('');
       setKind('actual');
       setAmount('0');
-    } else if (selectedId) {
-      chooseCategory(selectedId);
+    } else if (next === 'edit' || next === 'retire') {
+      const eligible = next === 'retire' ? retireable : active;
+      chooseCategory(eligible.find(category => category.id === selectedId)?.id ?? eligible[0]?.id ?? null);
     }
   }
 
@@ -185,6 +186,8 @@ export default function BudgetSettingsScreen() {
   }
 
   const active = status?.categories.filter((category) => category.active) ?? [];
+  const retireable = active.filter(category => category.name !== '其他');
+  const selectable = mode === 'retire' ? retireable : active;
   const disabled = busy || loading;
   const fixedOther = mode === 'edit' && status?.categories.find(c => c.id === selectedId)?.name === '其他';
   const canPreview = status && (mode === 'add' || (mode === 'map' ? sourceName && mapTo : selectedId));
@@ -214,9 +217,9 @@ export default function BudgetSettingsScreen() {
                 <View style={styles.field}>
                   <Text style={styles.label}>選擇預算分類</Text>
                   <View style={styles.chips}>
-                    {active.filter(category => mode !== 'retire' || category.name !== '其他').map((category) => <Chip key={category.id} label={category.name} selected={selectedId === category.id} disabled={disabled} onPress={() => chooseCategory(category.id)} />)}
+                    {selectable.map((category) => <Chip key={category.id} label={category.name} selected={selectedId === category.id} disabled={disabled} onPress={() => chooseCategory(category.id)} />)}
                   </View>
-                  {active.length === 0 ? <Text style={styles.note}>還沒有使用中的預算分類，請先新增分類。</Text> : null}
+                  {selectable.length === 0 ? <Text style={styles.note}>{mode === 'retire' ? '目前沒有可停用的預算分類。' : '還沒有使用中的預算分類，請先新增分類。'}</Text> : null}
                 </View>
               ) : null}
 
@@ -234,7 +237,7 @@ export default function BudgetSettingsScreen() {
                       <TextInput value={amount} editable={!disabled} onChangeText={(value) => { invalidatePreview(); setAmount(value.replace(/\D/g, '')); }} keyboardType="number-pad" maxLength={7} accessibilityLabel="每月上限" placeholder="0～1,000,000" style={styles.input} />
                     </>
                   )}
-                  {mode === 'edit' ? <Text style={styles.note}>若分類仍有儲備，請先移轉或補足至 0，才能更改預算組。</Text> : null}
+                  {mode === 'edit' ? <Text style={styles.note}>{fixedOther ? '「其他」是固定儲備類，只能修改上限。' : '若分類仍有儲備，請先移轉或補足至 0，才能更改預算組。'}</Text> : null}
                 </View>
               ) : null}
 

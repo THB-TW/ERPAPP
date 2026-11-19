@@ -264,6 +264,7 @@ export function applyBudgetCommand(state: BudgetState, input: BudgetCommand, con
       }
       const kind = command.kind ?? 'reserve';
       if (kind !== 'reserve' && kind !== 'fixed' && kind !== 'actual') throw argumentError('類別用途不正確。');
+      if (name === '其他' && kind !== 'reserve') throw argumentError('其他是固定分類，只能修改上限。');
       cap(amount);
       next.categories.push({ id: opId, name, kind });
       draft.limits.push({ categoryId: opId, amount: kind === 'actual' ? 0 : amount });

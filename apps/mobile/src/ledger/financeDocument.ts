@@ -14,8 +14,9 @@ export async function readStoredDocument(q: Queryable, hydrate = true): Promise<
   const row = await q.get<Row>('SELECT version, document FROM finance_document WHERE id = 1');
   if (!row) return { exists: false, state: emptyBudgetState() };
   const state = parseBudgetDocument(row.document);
+  if (!hydrate) return { exists: true, state };
   const fallback = (await q.get<{ value: string }>("SELECT value FROM settings WHERE key = 'opening_date'"))?.value.slice(0, 7) ?? state.revisions.at(-1)?.month ?? '1900-01';
-  return { exists: true, state: hydrate ? withFixedOther(state, fallback) : state };
+  return { exists: true, state: withFixedOther(state, fallback) };
 }
 
 export async function readState(q: Queryable): Promise<BudgetState> {

@@ -50,6 +50,16 @@ test('其他只能改上限，不能停用、改名或改成非儲備類', async
   assert.equal((await ledger.getBudgetProgress('2026-10')).rows.find(r => r.name === '其他')!.cap, 400);
 });
 
+test('首次建立其他時，只接受儲備類', async t => {
+  const ledger = await openLedger(openNodeDatabase(':memory:'));
+  t.after(() => ledger.close());
+  await assert.rejects(command(ledger, { action: 'add', name: '其他', kind: 'fixed', amount: 400 }), /其他.*固定/);
+  await command(ledger, { action: 'add', name: '其他', kind: 'reserve', amount: 400 });
+  const other = (await ledger.getBudgetStatus()).categories.find(c => c.name === '其他');
+  assert.ok(other?.active);
+  assert.equal(other.kind, 'reserve');
+});
+
 test('缺少其他的舊帳可補上固定儲備，保留歷史基準與月結數字', async t => {
   const ledger = await setup(false); t.after(() => ledger.close());
   const historical = await ledger.getBudgetMonth('2026-09');
