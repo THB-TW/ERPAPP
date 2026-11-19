@@ -2,7 +2,7 @@ import { newOperationId as operationId } from './operationId.ts';
 import { Stack, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { ScrollViewInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { shiftMonth } from '../calc/dates.ts';
@@ -228,7 +228,7 @@ function Chip({ title, selected, disabled, onPress }: { title: string; selected:
   return <KitChip label={title} active={selected} disabled={disabled} onPress={onPress} />;
 }
 
-function Button({ title, disabled, onPress, secondary = false }: { title: string; disabled: boolean; onPress: () => void; secondary?: boolean; onCard?: boolean }) {
+function Button({ title, disabled, onPress, secondary = false }: { title: string; disabled: boolean; onPress: () => void; secondary?: boolean }) {
   return secondary ? <NavRow title={title} disabled={disabled} onPress={onPress} tone="accent" />
     : <PrimaryButton title={title} disabled={disabled} onPress={onPress} />;
 }
@@ -244,13 +244,9 @@ const styles = StyleSheet.create({
   card: { ...kit.card, ...kit.cardPadding },
   field: { gap: 10 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  selected: { borderWidth: 1, borderColor: colors.accent, backgroundColor: colors.accentSoft },
   monthPicker: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   input: kit.input,
   reason: { minHeight: 88, textAlignVertical: 'top' },
-  button: { minHeight: 46, justifyContent: 'center', alignItems: 'center', borderRadius: 10, padding: 12 },
-  // 滿版主要按鈕（預覽、確認生效）：與其他子頁一致的 14 圓角、50 高。
-  primary: { minHeight: 50, borderRadius: 14, borderCurve: 'continuous' },
   preview: { ...kit.card, ...kit.cardPadding, borderWidth: 1, borderColor: colors.accent },
   links: { gap: 8 },
 });
