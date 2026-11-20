@@ -1,10 +1,10 @@
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { monthOf, shiftMonth, taipeiDate } from '../../../calc/dates.ts';
 import { REST_SLICE_KEY, pieSlices, type PieSlice } from '../../../calc/shares.ts';
 import type { DayTransaction, Flow, MonthBreakdown } from '../../../ledger/index.ts';
-import { ReportPager } from '../../../ui/ReportPager.tsx';
+import { HorizontalPager, usePagerTap } from '../../../ui/HorizontalPager.tsx';
 import { Donut } from '../../../ui/Donut.tsx';
 import { formatAmount, formatPermille, monthTitle, userMessage } from '../../../ui/format.ts';
 import { useLedger } from '../../../ui/LedgerProvider.tsx';
@@ -22,26 +22,35 @@ const FLOW_OPTIONS = (['expense', 'income'] as const).map((f) => ({ key: f, labe
 export default function ReportScreen() {
   const [thisMonth, setThisMonth] = useState(() => monthOf(taipeiDate(new Date())));
   const [month, setMonth] = useState(thisMonth);
-  const [selected, setSelected] = useState(0);
+  const [expanded, setExpanded] = useState<{ flow: Flow; key: string } | null>(null);
   useFocusEffect(useCallback(() => { setThisMonth(monthOf(taipeiDate(new Date()))); }, []));
+  function chooseMonth(next: string) {
+    setMonth(next);
+    setExpanded(null);
+  }
   return (
     <TabScrollView title="明細">
-      <MonthBar title={monthTitle(month)} onPrev={() => setMonth(shiftMonth(month, -1))}
-        onNext={() => setMonth(shiftMonth(month, 1))} nextDisabled={month >= thisMonth}
+      <MonthBar title={monthTitle(month)} onPrev={() => chooseMonth(shiftMonth(month, -1))}
+        onNext={() => chooseMonth(shiftMonth(month, 1))} nextDisabled={month >= thisMonth}
         hint={month === thisMonth ? '本月' : '回到本月'}
-        onHintPress={month === thisMonth ? undefined : () => setMonth(thisMonth)} />
-      <ReportPager options={FLOW_OPTIONS} onChange={setSelected}>
-        {(['expense', 'income'] as const).map((flow, index) => <ReportPage key={`${month}-${flow}`} month={month} flow={flow} active={selected === index} />)}
-      </ReportPager>
+        onHintPress={month === thisMonth ? undefined : () => chooseMonth(thisMonth)} />
+      <HorizontalPager options={FLOW_OPTIONS} onChange={() => setExpanded(null)}>
+        {(['expense', 'income'] as const).map(flow => (
+          <ReportPage key={`${month}-${flow}`} month={month} flow={flow}
+            openKey={expanded?.flow === flow ? expanded.key : null}
+            onOpen={key => setExpanded(key === null ? null : { flow, key })} />
+        ))}
+      </HorizontalPager>
     </TabScrollView>
   );
 }
 
-function ReportPage({ month, flow, active }: { month: string; flow: Flow; active: boolean }) {
+function ReportPage({ month, flow, openKey, onOpen }: {
+  month: string; flow: Flow; openKey: string | null; onOpen: (key: string | null) => void;
+}) {
+  const tap = usePagerTap();
   const ledger = useLedger();
   const [breakdown, setBreakdown] = useState<MonthBreakdown | null>(null);
-  const [openKey, setOpenKey] = useState<string | null>(null);
-  useEffect(() => { if (!active) setOpenKey(null); }, [active]);
   // 展開的類別的交易，連同它屬於哪個月份、哪個類別一起存；對不上目前展開的那一列就不顯示。
   const [openList, setOpenList] = useState<{ month: string; key: string; rows: DayTransaction[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -136,7 +145,7 @@ function ReportPage({ month, flow, active }: { month: string; flow: Flow; active
             return (
               <View key={slice.key}>
                 <Pressable
-                  onPress={() => setOpenKey(open ? null : slice.key)}
+                  onPress={tap(() => onOpen(open ? null : slice.key))}
                   accessibilityRole="button"
                   accessibilityState={{ expanded: open }}
                   style={({ pressed }) => [kit.row, pressed && kit.pressed]}
@@ -161,7 +170,7 @@ function ReportPage({ month, flow, active }: { month: string; flow: Flow; active
                         key={t.id}
                         label={`${Number(t.date.slice(5, 7))}/${Number(t.date.slice(8))}・${t.accountName}${t.note ? `・${t.note}` : ''}`}
                         amount={t.amount}
-                        onPress={() => router.push({ pathname: '/entry', params: { id: String(t.id) } })}
+                        onPress={tap(() => router.push({ pathname: '/entry', params: { id: String(t.id) } }))}
                       />
                     ))
                   : null}
