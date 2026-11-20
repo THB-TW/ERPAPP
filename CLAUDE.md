@@ -24,6 +24,30 @@ CSV 匯入的流程與數量式去重只在 `Services/Import/ImportRun.cs` 寫�
 資料結構依 `docs/sql/` 的腳本升級，先備份並在副本驗證。
 「為什麼投資要記兩個成本數字」見 `docs/adr/0001`。
 
+## 專案 agent 團隊
+
+產品化（iOS App）的工作依模組分給 `.claude/agents/` 的長期 agent，名冊與交叉審核規則見 `docs/agents/team.md`；入口 `/chief-of-staff`。每個 agent 的 `model` 與 `effort` 寫在定義檔 frontmatter，由 Claude Code 自動套用。
+
+### 任務分派表（開討論串與叫 subagent 時一律照表）
+
+| 任務 | 交給 |
+|---|---|
+| 影響月結數字或交易／信用卡／投資總量 | `legacy-migration`（須確認 58 個月比對 0 誤差） |
+| 稅務、法規、上架文字、審查備註、隱私權政策、付費牆文字 | `tw-legal-tax-counsel` |
+| 訂閱方案、定價、試用、免費／付費切分 | `marketing-pricing`（落實由 `subscription-iap`） |
+| 單一模組的改動 | 對應模組 agent：`ledger-entry`、`budget-reserve`、`monthly-close`、`investment`、`import-export-backup`、`local-notifications`、`subscription-iap` |
+| 跨模組或不知道歸誰 | `chief-of-staff` |
+
+### 模型原則
+
+| 工作 | 模型 | 推理強度 |
+|---|---|---|
+| 規劃、規格、決策、程式審核、稅務法規審核 | Opus（`claude-opus-5-5`） | high |
+| 寫程式、修畫面、測試、合併 PR | Sonnet（`claude-sonnet-5-5`） | medium |
+| 查資料、小修正、格式整理 | Haiku（`claude-haiku-5-5`） | low |
+
+`chief-of-staff`、`tw-legal-tax-counsel`、`marketing-pricing` 固定 opus／high；其餘八個模組 agent 固定 sonnet／medium。需要查資料或小修時，派 subagent 可覆寫為 haiku／low。
+
 ## Agent skills
 
 ### Issue tracker

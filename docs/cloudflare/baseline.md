@@ -71,3 +71,13 @@ dotnet run --project tests/ERPAPP.Tests.csproj
 - 個人資料的登入與存取限制；保留員工/權限歷史，但不公開舊密碼驗證。
 
 Cloudflare 版本逐項驗收通過前，舊平台不退役。現有缺失與改善應另外列案，不能在搬移時偷偷重算或刪資料。
+
+## 2026-11-11 由原生備份重新匯出（雲端工作環境）
+
+原本在 Windows 產生的 JSON 匯出沒有帶到 Mac／雲端，改由同一份原生備份重新匯出，供 App 的舊帳轉換與 58 個月比對使用（見 `docs/legacy-migration.md`）。
+
+- 來源：上面記錄的原生備份檔，SHA-256 `aa73b94440f68db28dca1c8fa43babea6de856e784fe75db58339ea0d23549de`，重新計算相符；`RESTORE VERIFYONLY ... WITH CHECKSUM` 成功。
+- 還原成 `ERPDB_CloudflareBaseline_20261108_115129`（SQL Server 2022 Linux 容器），`DBCC CHECKDB` 無訊息，設為 `READ_ONLY` 後才匯出。16 張表、7,823 列，與上表相同。
+- 用 `tools/export-finance-baseline.ps1`（PowerShell 7，`-Server` 指到容器、`-SqlUser` 搭配環境變數 `ERPAPP_SQL_PASSWORD`）匯出：16 張表、58 個資產月份、歷史資產不符 0 個月。
+- **這份匯出的清冊（`manifest.json`）SHA-256：`636041caf67752429e49124595e325328306da773d45f64661ad40ec2ab5ded0`**。之後跑轉換或比對時可用 `--manifest-sha256` 釘住。清冊含產生時間，所以每次重新匯出雜湊都不同；資料內容以備份檔雜湊為準。
+- 私人資料只在工作環境的 `.private/`，沒有進 Git。
