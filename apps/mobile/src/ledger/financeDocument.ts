@@ -1,5 +1,6 @@
 // 財務文件的儲存：資料表 finance_document 一列（id=1），內容是舊系統格式的 JSON，欄位 version 與文件內的
 // Version 一致。寫入用「版本相符才更新」的條件式更新（樂觀鎖），並與呼叫端的資料庫交易同一個。
+import { withFixedOther } from '../calc/budgetOther.ts';
 import type { Queryable } from '../db/driver.ts';
 import { BudgetDocumentError, emptyBudgetState, parseBudgetDocument, serializeBudgetDocument } from '../calc/budgetDocument.ts';
 import type { BudgetState } from '../calc/budgetTypes.ts';
@@ -9,10 +10,12 @@ import { replaceLegacyLoans } from './loanMigration.ts';
 
 interface Row { version: number; document: string }
 
-export async function readStoredDocument(q: Queryable): Promise<{ exists: boolean; state: BudgetState }> {
+export async function readStoredDocument(q: Queryable, hydrate = true): Promise<{ exists: boolean; state: BudgetState }> {
   const row = await q.get<Row>('SELECT version, document FROM finance_document WHERE id = 1');
   if (!row) return { exists: false, state: emptyBudgetState() };
-  return { exists: true, state: parseBudgetDocument(row.document) };
+  const state = parseBudgetDocument(row.document);
+  const fallback = (await q.get<{ value: string }>("SELECT value FROM settings WHERE key = 'opening_date'"))?.value.slice(0, 7) ?? state.revisions.at(-1)?.month ?? '1900-01';
+  return { exists: true, state: hydrate ? withFixedOther(state, fallback) : state };
 }
 
 export async function readState(q: Queryable): Promise<BudgetState> {

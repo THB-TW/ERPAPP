@@ -54,13 +54,13 @@ async function spend(ledger: Ledger, category: string, amount: number, date = '2
 test('未月結的開放月份採開帳月；查詢與指令一致，跨日曆月份仍可改開帳月', async (t) => {
   const ledger = await setup(t);
   assert.equal((await ledger.getBudgetStatus()).openMonth, '2026-10');
-  const c = await command(ledger, { action: 'caps', limits: fixture().revisions[0].limits, tuition: 75 });
+  const c = await command(ledger, { action: 'caps', limits: (await ledger.getBudgetStatus()).currentRevision!.limits, tuition: 75 });
   await ledger.runBudgetCommand(c);
   assert.equal((await ledger.getBudgetStatus()).currentRevision!.tuition, 75);
   await assert.rejects(ledger.runBudgetCommand(await command(ledger, { action: 'caps', month: '2026-11', limits: c.limits })), /開放月份/);
 });
 
-test('本月進度依有效歸屬加總三組，只計當月支出；照實支無上限，未歸屬仍列出', async (t) => {
+test('本月進度依有效歸屬加總三組，只計當月支出；照實支無上限，未歸屬計入其他', async (t) => {
   const ledger = await setup(t);
   await spend(ledger, '飲食', 900);
   await spend(ledger, '交通', 150);
@@ -73,9 +73,9 @@ test('本月進度依有效歸屬加總三組，只計當月支出；照實支�
   assert.equal(view.month, '2026-11');
   assert.equal(view.openMonth, '2026-10');
   assert.deepEqual(view.rows.map((r) => [r.kind, r.cap, r.spent, r.remaining]), [
-    ['reserve', 1000, 1050, -50], ['fixed', 200, 80, 120], ['actual', null, 60, null],
+    ['reserve', 1000, 1050, -50], ['fixed', 200, 80, 120], ['actual', null, 60, null], ['reserve', 0, 20, -20],
   ]);
-  assert.deepEqual(view.unmapped.map((r) => [r.name, r.spent]), [['未歸屬', 20]]);
+  assert.deepEqual(view.unmapped.map((r) => [r.name, r.spent]), []);
   assert.equal(view.totalSpent, 1210);
   assert.equal(view.totalCap, 1200);
   assert.equal((await ledger.getBudgetProgress('2026-10')).rows[0].spent, 999);
@@ -104,7 +104,7 @@ test('預覽不寫入；確認後完整上限版本保留，重送不重做且�
   await ledger.runBudgetCommand(c);
   const revisions = await ledger.listBudgetRevisions();
   assert.equal(revisions.length, before.length + 1);
-  assert.equal(revisions.at(-1)!.limits.length, 3);
+  assert.equal(revisions.at(-1)!.limits.length, 4);
   assert.equal(revisions.at(-1)!.reason, c.reason);
   assert.equal((await ledger.runBudgetCommand(c)).replayed, true);
   await assert.rejects(ledger.runBudgetCommand({ ...c, kind: 'fixed' }), /其他內容/);
@@ -208,7 +208,7 @@ test('未月結且零儲備可停用，停用不刪交易，不能以舊分類�
   await ledger.runBudgetCommand(await command(ledger, { action: 'retire', from: 'food' }));
   assert.equal((await ledger.getDayTransactions('2026-11-01'))[0].amount, 10);
   await assert.rejects(ledger.addTransaction({ date: '2026-11-02', categoryId: old.id, accountId: 1, flow: 'expense', amount: 10 }), /停用/);
-  assert.equal((await ledger.getBudgetProgress()).unmapped[0].spent, 10);
+  assert.equal((await ledger.getBudgetProgress()).rows.find(r => r.name === '其他')!.spent, 10);
 });
 
 test('進度查已結月份時使用凍結快照，之後改上限不影響舊月', async (t) => {

@@ -79,12 +79,12 @@ test('進入計算即取得票03同一案例的八項數字與逐類變動，預
   const preview = await ledger.previewMonthlyClose({ month: '2026-10', hasEntitlement: true });
   assert.equal(preview.version, 4);
   assert.deepEqual([preview.income, preview.summary.surplus, preview.summary.spare, preview.summary.tuition,
-    preview.summary.reserve, preview.summary.total], [40000, 36650, 46650, 5000, 2800, 54450]);
+    preview.summary.reserve, preview.summary.total], [40000, 36700, 46700, 5000, 2750, 54450]);
   assert.deepEqual(preview.rows.map((r) => [r.name, r.cap, r.spent, r.change, r.balance]), [
-    ['學習', 3000, 1200, 1800, 2800], ['飲食', null, 300, null, null], ['其他', 0, 50, -50, null],
+    ['學習', 3000, 1200, 1800, 2800], ['飲食', null, 300, null, null], ['其他', 0, 50, -50, -50],
   ]);
   assert.equal(preview.summary.capSnapshot!.month, '2026-10');
-  assert.deepEqual(preview.summary.capSnapshot!.limits, fixture().revisions[0].limits);
+  assert.deepEqual(preview.summary.capSnapshot!.limits, (await ledger.getBudgetStatus()).currentRevision!.limits);
   assert.equal(await ledger.exportFinanceDocument(), before);
   assert.equal(await ledger.isMonthClosed('2026-10'), false);
 });
@@ -109,7 +109,7 @@ test('確認才完成月結、凍結沿用版本並鎖定全部交易異動；�
   const old = await ledger.getTransaction(id);
   await assert.rejects(ledger.updateTransaction(id, { ...old, amount: 200 }), /已結月份/);
   await assert.rejects(ledger.deleteTransaction(id), /已結月份/);
-  await command(ledger, { action: 'caps', limits: fixture().revisions[0].limits.map((l) => ({ ...l, amount: l.categoryId === 'learn' ? 8000 : 0 })) });
+  await command(ledger, { action: 'caps', limits: (await ledger.getBudgetStatus()).currentRevision!.limits.map((l) => ({ ...l, amount: l.categoryId === 'learn' ? 8000 : 0 })) });
   assert.deepEqual((await ledger.getBudgetMonth('2026-10')).capSnapshot, closed.capSnapshot);
   await assert.rejects(ledger.completeMonthlyClose({ ...request, previewToken: '不同預覽' }), /操作識別碼|預覽/);
 });
@@ -152,7 +152,7 @@ test('預覽後交易新增、修改、刪除或上限變更都拒絕舊預覽�
   await ledger.deleteTransaction(expense.id);
   await assert.rejects(ledger.completeMonthlyClose(remove), /重新預覽/);
   const caps = await request();
-  await command(ledger, { action: 'caps', limits: fixture().revisions[0].limits, tuition: 100 });
+  await command(ledger, { action: 'caps', limits: (await ledger.getBudgetStatus()).currentRevision!.limits, tuition: 100 });
   await assert.rejects(ledger.completeMonthlyClose(caps), /重新預覽/);
   assert.equal(await ledger.isMonthClosed('2026-10'), false);
   assert.equal((await ledger.listBudgetMonths()).length, 1);
@@ -161,16 +161,16 @@ test('預覽後交易新增、修改、刪除或上限變更都拒絕舊預覽�
   assert.equal((await ledger.getBudgetMonth('2026-10')).income, 35000);
 });
 
-test('未歸屬支出由引擎指出分類；拒絕後補歸屬即可完成', async (t) => {
+test('未歸屬支出自動計入其他；也可在月結前指定歸屬', async (t) => {
   const ledger = await setup(t);
   await transaction(ledger, '娛樂', 500);
   const before = await ledger.exportFinanceDocument();
-  await assert.rejects(ledger.previewMonthlyClose({ month: '2026-10', hasEntitlement: true }), /分類「娛樂」尚未設定有效的預算歸屬/);
+  await ledger.previewMonthlyClose({ month: '2026-10', hasEntitlement: true });
   assert.equal(await ledger.exportFinanceDocument(), before);
-  await command(ledger, { action: 'map', sourceCategory: '娛樂', to: 'other' });
+  await command(ledger, { action: 'map', sourceCategory: '娛樂', to: (await ledger.getBudgetStatus()).categories.find(c => c.name === '其他' && c.active)!.id });
   const preview = await readyToClose(ledger);
   await ledger.completeMonthlyClose({ ...preview, operationId: randomUUID(), hasEntitlement: true });
-  assert.equal((await ledger.getBudgetMonth('2026-10')).surplus, -3500);
+  assert.equal((await ledger.getBudgetMonth('2026-10')).surplus, -3000);
 });
 
 test('前期更正與補入儲備經精靈撤銷重結只生效一次，並保留原始快照', async (t) => {

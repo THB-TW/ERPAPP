@@ -215,24 +215,11 @@ export default function BudgetScreen() {
               <Text style={text.value}>NT$ {formatAmount(progress.totalCap)}</Text>
             </View>
           </Card>
-          <Footnote>上限合計不含照實支；本月已花包含照實支與尚未設定歸屬的支出。可編輯的開放月份：{monthTitle(progress.openMonth)}。已結月份沿用當時的上限快照。</Footnote>
+          <Footnote>上限合計不含照實支；未設定歸屬的支出計入「其他」。可編輯的開放月份：{monthTitle(progress.openMonth)}。已結月份沿用當時的上限快照。</Footnote>
 
           {progress.rows.length === 0 ? (
             <Footnote>這個月還沒有預算上限設定，請到「設定 → 預算與分類」建立。</Footnote>
           ) : null}
-          {progress.unmapped.length > 0 ? (
-            <Card style={styles.warning}>
-              <Text style={text.headline}>以下支出尚未設定預算歸屬</Text>
-              {progress.unmapped.map((category) => (
-                <View key={category.categoryId} style={kit.rowBetween}>
-                  <Text style={[text.body, { flex: 1 }]}>{category.name}</Text>
-                  <Text style={text.value}>已花 {formatAmount(category.spent)}</Text>
-                </View>
-              ))}
-              <Footnote>請到設定指定歸屬，這些金額才會計入對應分類的進度。</Footnote>
-            </Card>
-          ) : null}
-
           {closed ? <>
             <SectionHead>{monthTitle(closed.month)}已結資產</SectionHead>
             <MonthlyCloseSummary summary={closed} cardStyle={styles.card} />

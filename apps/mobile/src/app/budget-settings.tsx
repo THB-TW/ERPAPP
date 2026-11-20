@@ -186,6 +186,7 @@ export default function BudgetSettingsScreen() {
 
   const active = status?.categories.filter((category) => category.active) ?? [];
   const disabled = busy || loading;
+  const fixedOther = mode === 'edit' && status?.categories.find(c => c.id === selectedId)?.name === '其他';
   const canPreview = status && (mode === 'add' || (mode === 'map' ? sourceName && mapTo : selectedId));
 
   return (
@@ -213,7 +214,7 @@ export default function BudgetSettingsScreen() {
                 <View style={styles.field}>
                   <Text style={styles.label}>選擇預算分類</Text>
                   <View style={styles.chips}>
-                    {active.map((category) => <Chip key={category.id} label={category.name} selected={selectedId === category.id} disabled={disabled} onPress={() => chooseCategory(category.id)} />)}
+                    {active.filter(category => mode !== 'retire' || category.name !== '其他').map((category) => <Chip key={category.id} label={category.name} selected={selectedId === category.id} disabled={disabled} onPress={() => chooseCategory(category.id)} />)}
                   </View>
                   {active.length === 0 ? <Text style={styles.note}>還沒有使用中的預算分類，請先新增分類。</Text> : null}
                 </View>
@@ -222,10 +223,10 @@ export default function BudgetSettingsScreen() {
               {mode === 'add' || mode === 'edit' ? (
                 <View style={styles.field}>
                   <Text style={styles.label}>分類名稱</Text>
-                  <TextInput value={name} editable={!disabled} maxLength={30} onChangeText={(value) => { invalidatePreview(); setName(value); }} placeholder="1～30 字，不可重複" accessibilityLabel="分類名稱" style={styles.input} />
+                  <TextInput value={name} editable={!disabled && !fixedOther} maxLength={30} onChangeText={(value) => { invalidatePreview(); setName(value); }} placeholder="1～30 字，不可重複" accessibilityLabel="分類名稱" style={styles.input} />
                   <Text style={styles.label}>預算組</Text>
                   <View style={styles.chips}>
-                    {GROUPS.map((group) => <Chip key={group.id} label={group.label} selected={kind === group.id} disabled={disabled} onPress={() => { invalidatePreview(); setKind(group.id); }} />)}
+                    {GROUPS.map((group) => <Chip key={group.id} label={group.label} selected={kind === group.id} disabled={disabled || fixedOther} onPress={() => { invalidatePreview(); setKind(group.id); }} />)}
                   </View>
                   {kind === 'actual' ? <Text style={styles.note}>照實支不設定上限。</Text> : (
                     <>
