@@ -1,0 +1,583 @@
+<title>Afterbills 預算操作提案</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* 版面：左邊說明、右邊可點的 iPhone 原型；手機寬度上下堆疊。配色沿用 App 的 theme.ts（Apple 分組清單）。 */
+:root{
+  --bg:#f2f2f7; --surface:#ffffff; --fill:#ececf0; --text:#1d1d1f; --muted:#6e6e73; --border:#e5e5ea;
+  --accent:#007aff; --accent-soft:#e5f1ff; --expense:#dc3b40; --expense-soft:#fde8e8; --income:#12855a; --income-soft:#e2f4ec;
+  --reserve:#5b7fd6; --fixed:#d99a2b; --actual:#34a37a; --water:#8fb3f0; --water-deep:#5b7fd6;
+  --phone-edge:#1d1d1f; --shadow:0 18px 40px rgba(20,24,40,.14);
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang TC","Noto Sans TC","Helvetica Neue",Arial,sans-serif;
+  --num:"SF Pro Display",-apple-system,"Helvetica Neue",Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#000000; --surface:#1c1c1e; --fill:#2c2c2e; --text:#f5f5f7; --muted:#98989f; --border:#38383a;
+  --accent:#0a84ff; --accent-soft:#0a2a4d; --expense:#ff6961; --expense-soft:#3a1715; --income:#30d158; --income-soft:#0f2e1b;
+  --reserve:#7d9ce6; --fixed:#e6ac45; --actual:#4cc492; --water:#3f63a8; --water-deep:#7d9ce6;
+  --phone-edge:#3a3a3c; --shadow:0 18px 40px rgba(0,0,0,.5); color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#000000; --surface:#1c1c1e; --fill:#2c2c2e; --text:#f5f5f7; --muted:#98989f; --border:#38383a;
+  --accent:#0a84ff; --accent-soft:#0a2a4d; --expense:#ff6961; --expense-soft:#3a1715; --income:#30d158; --income-soft:#0f2e1b;
+  --reserve:#7d9ce6; --fixed:#e6ac45; --actual:#4cc492; --water:#3f63a8; --water-deep:#7d9ce6;
+  --phone-edge:#3a3a3c; --shadow:0 18px 40px rgba(0,0,0,.5); color-scheme:dark }
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:15px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 64px}
+.wrap{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:40px}
+h1{font-size:30px;line-height:1.25;margin:0;text-wrap:balance;letter-spacing:-.01em}
+h2{font-size:21px;margin:0 0 10px;text-wrap:balance}
+h3{font-size:17px;margin:0}
+p{margin:0}
+.lede{color:var(--muted);max-width:62ch;margin-top:10px}
+.task{display:inline-flex;gap:8px;align-items:center;margin-top:16px;background:var(--surface);border-radius:12px;padding:10px 14px;font-weight:600}
+.task b{color:var(--expense)}
+.pain{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.pain div{background:var(--surface);border-radius:14px;padding:14px 16px}
+.pain strong{display:block;margin-bottom:4px}
+.pain span{color:var(--muted);font-size:14px}
+.tablewrap{overflow-x:auto;background:var(--surface);border-radius:14px}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
+th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--border);vertical-align:top}
+th{font-size:12px;color:var(--muted);font-weight:600;letter-spacing:.04em}
+tr:last-child td{border-bottom:0}
+td:first-child{font-weight:600;white-space:nowrap}
+.src{font-size:12px;color:var(--muted);margin-top:8px}
+.src a{color:var(--accent)}
+/* 分頁 */
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px}
+.tab{border:0;background:var(--surface);color:var(--text);font:inherit;font-weight:600;padding:9px 14px;border-radius:999px;cursor:pointer}
+.tab[aria-selected="true"]{background:var(--accent);color:#fff}
+.tab:focus-visible,.p button:focus-visible,.p input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.tab small{font-weight:400;opacity:.8;margin-left:4px}
+.stage{display:grid;grid-template-columns:minmax(0,1fr) 384px;gap:32px;align-items:start}
+@media (max-width:860px){.stage{grid-template-columns:minmax(0,1fr)}.stage .phone{order:-1}}
+.notes{display:flex;flex-direction:column;gap:14px;min-width:0}
+.notes .how{background:var(--surface);border-radius:14px;padding:14px 16px}
+.notes ol{margin:6px 0 0;padding-left:20px}
+.notes ul{margin:6px 0 0;padding-left:20px}
+.pros{color:var(--income);font-weight:600}
+.cons{color:var(--expense);font-weight:600}
+.badge{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent);margin-left:6px;vertical-align:2px}
+/* 手機外框 */
+.phone{width:100%;max-width:384px;margin:0 auto;border:10px solid var(--phone-edge);border-radius:46px;background:var(--bg);box-shadow:var(--shadow);overflow:hidden;position:relative;height:760px;display:flex;flex-direction:column}
+.p-top{height:30px;flex:none;display:flex;justify-content:center;align-items:flex-end}
+.p-top i{width:96px;height:24px;border-radius:14px;background:var(--phone-edge)}
+.p-nav{flex:none;display:flex;align-items:center;justify-content:space-between;padding:8px 14px 6px;font-size:16px}
+.p-nav .back{color:var(--accent)}
+.p-nav strong{font-size:16px}
+.p-nav .ctr{font-size:12px;color:var(--muted);min-width:60px;text-align:right}
+.p-body>*{flex-shrink:0}
+.p-body{flex:1;min-height:0;overflow-y:auto;padding:4px 14px 120px;display:flex;flex-direction:column;gap:10px;position:relative}
+.p{font-size:14px}
+.p button{font:inherit;color:inherit}
+.p .foot{font-size:12px;color:var(--muted);padding:0 4px;line-height:1.5}
+.p .card{background:var(--surface);border-radius:14px;padding:12px}
+.p .sect{font-size:12px;font-weight:600;color:var(--muted);padding:6px 4px 0;letter-spacing:.04em}
+.num{font-family:var(--num);font-variant-numeric:tabular-nums}
+.neg{color:var(--expense)}
+.p .reset{position:absolute;right:14px;bottom:14px;z-index:30;border:0;background:var(--fill);border-radius:999px;padding:6px 12px;font-size:12px;cursor:pointer}
+.toast{position:absolute;left:14px;right:14px;top:84px;z-index:40;background:var(--text);color:var(--bg);border-radius:12px;padding:10px 12px;font-size:13px;font-weight:600;transition:opacity .3s}
+/* 罐子圖示 */
+.jar{position:relative;flex:none;border-radius:7px 7px 11px 11px;background:var(--fill);overflow:hidden}
+.jar::before{content:"";position:absolute;left:22%;right:22%;top:0;height:12%;background:var(--border);border-radius:0 0 3px 3px;z-index:2}
+.jar .w{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(var(--water),var(--water-deep));transition:height .6s cubic-bezier(.2,.8,.2,1)}
+.jar.neg-j{background:var(--expense-soft);box-shadow:inset 0 0 0 1.5px var(--expense)}
+.jar.wallet-j{border-radius:8px;background:var(--income-soft)}
+.jar.wallet-j::before{display:none}
+.jar.wallet-j .w{background:linear-gradient(#7dd3a8,var(--income))}
+/* 方案 A：小罐子牆 */
+.grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.tile{border:0;background:var(--surface);border-radius:12px;padding:8px 4px 7px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;transition:transform .15s,box-shadow .15s}
+.tile .nm{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.tile .am{font-size:12px}
+.tile.src{box-shadow:0 0 0 2.5px var(--accent);transform:translateY(-3px)}
+.tile.tgt{box-shadow:0 0 0 1.5px var(--accent) inset;background:var(--accent-soft)}
+.tile.hover{transform:scale(1.06);box-shadow:0 0 0 2.5px var(--accent)}
+.tile.dim{opacity:.4}
+.walletbar{display:flex;align-items:center;gap:12px;padding:10px 12px;text-align:left;flex-direction:row;width:100%}
+.walletbar .nm{font-size:13px}
+.ghost{position:fixed;z-index:999;pointer-events:none;transform:translate(-50%,-60%) scale(1.1);opacity:.92;box-shadow:var(--shadow)}
+.bar{position:absolute;left:10px;right:10px;bottom:10px;z-index:25;background:var(--text);color:var(--bg);border-radius:14px;padding:10px 12px;display:flex;align-items:center;gap:10px;font-size:13px}
+.bar b{font-weight:700}
+.bar button{margin-left:auto;border:0;background:transparent;color:var(--bg);opacity:.8;cursor:pointer;text-decoration:underline}
+/* 方案 B：清單＋錢袋 */
+.rowlist{background:var(--surface);border-radius:14px;overflow:hidden}
+.row{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--border);width:100%;border-left:0;border-right:0;border-top:0;background:transparent;text-align:left}
+.row:last-child{border-bottom:0}
+.row .grow{flex:1;min-width:0}
+.row .nm{font-weight:600}
+.row .sub{font-size:12px;color:var(--muted)}
+.pill{border:0;border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer;background:var(--accent-soft);color:var(--accent)}
+.pill.solid{background:var(--accent);color:#fff}
+.pill:disabled{opacity:.35;cursor:not-allowed}
+.bag{position:absolute;left:10px;right:10px;bottom:10px;z-index:25;background:var(--surface);border-radius:16px;padding:10px 12px;display:flex;align-items:center;gap:10px;box-shadow:var(--shadow);border:1.5px solid var(--accent)}
+.bag .bagicon{width:34px;height:34px;border-radius:10px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:700}
+/* 方案 C：清單＋面板 */
+.alert{display:flex;align-items:center;gap:10px;background:var(--expense-soft);border-radius:14px;padding:10px 12px}
+.alert .grow{flex:1}
+.chev{color:var(--muted);font-size:18px;line-height:1}
+.mini{height:4px;border-radius:2px;background:var(--fill);margin-top:4px;overflow:hidden}
+.mini i{display:block;height:100%;background:var(--reserve)}
+/* 面板 */
+.sheet-layer{position:absolute;inset:0;z-index:50;display:none}
+.sheet-layer.on{display:block}
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.28)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--bg);border-radius:18px 18px 0 0;padding:8px 14px 18px;max-height:88%;overflow-y:auto;display:flex;flex-direction:column;gap:10px;animation:up .25s cubic-bezier(.2,.8,.2,1)}
+@keyframes up{from{transform:translateY(40%);opacity:.4}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.sheet{animation:none}.jar .w{transition:none}.tile{transition:none}}
+.grab{width:36px;height:5px;border-radius:3px;background:var(--border);margin:0 auto 2px}
+.sh-head{display:flex;align-items:center;justify-content:space-between}
+.sh-head strong{font-size:17px}
+.x{border:0;background:var(--fill);border-radius:999px;width:28px;height:28px;cursor:pointer;color:var(--muted)}
+.ft{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center}
+.ft .end{background:var(--surface);border-radius:12px;padding:10px;display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center}
+.ft .end small{color:var(--muted);font-size:11px}
+.swap{border:0;background:var(--fill);border-radius:999px;width:32px;height:32px;cursor:pointer;color:var(--accent);font-weight:700}
+.amt{display:flex;align-items:center;gap:8px;background:var(--surface);border-radius:12px;padding:8px 12px}
+.amt span{color:var(--muted)}
+.amt input{flex:1;min-width:0;border:0;background:transparent;font-family:var(--num);font-size:28px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums}
+.amt input:focus{outline:none}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:0;background:var(--surface);border-radius:999px;padding:6px 11px;font-size:13px;cursor:pointer}
+.chip.on{background:var(--accent);color:#fff}
+.chip.hot{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.reason{width:100%;border:1px solid var(--border);background:var(--surface);border-radius:10px;padding:9px 10px;font:inherit;color:var(--text)}
+.warn{font-size:12px;color:var(--expense);font-weight:600}
+.preview{background:var(--surface);border-radius:12px;padding:10px 12px;font-size:13px;display:flex;flex-direction:column;gap:3px}
+.preview div{display:flex;justify-content:space-between;gap:8px}
+.preview .lbl{color:var(--muted);font-size:11px}
+.cta{border:0;background:var(--accent);color:#fff;border-radius:14px;padding:13px;font-weight:700;font-size:16px;cursor:pointer;width:100%}
+.cta:disabled{opacity:.35;cursor:not-allowed}
+.cta.ghostbtn{background:var(--surface);color:var(--accent)}
+.cta.danger{background:transparent;color:var(--expense);font-weight:600;font-size:14px;padding:8px}
+.pick{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.act{border:0;background:var(--surface);border-radius:14px;padding:12px 10px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:2px}
+.act b{font-size:14px}
+.act small{color:var(--muted);font-size:11px;line-height:1.4}
+.bigjar{display:flex;align-items:center;gap:14px;background:var(--surface);border-radius:14px;padding:12px}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);background:var(--fill);border-radius:9px;padding:2px;gap:2px}
+.seg button{border:0;background:transparent;border-radius:7px;padding:6px 4px;font-size:13px;cursor:pointer}
+.seg button.on{background:var(--surface);font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.stepper{display:flex;align-items:center;gap:8px}
+.stepper button{border:0;background:var(--fill);border-radius:10px;width:44px;height:40px;font-size:20px;cursor:pointer;color:var(--accent)}
+.stepper .v{flex:1;text-align:center;font-size:26px;font-weight:600}
+.range{width:100%;accent-color:var(--accent)}
+.stack{display:flex;height:16px;border-radius:6px;overflow:hidden;gap:2px}
+.stack i{display:block;height:100%}
+.legend{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:11px;color:var(--muted);margin-top:8px}
+.legend span{display:inline-flex;align-items:center;gap:4px}
+.legend i{width:8px;height:8px;border-radius:2px;display:inline-block}
+.dot{width:10px;height:10px;border-radius:3px;flex:none}
+.mapchips .chip{background:var(--fill)}
+.hl{animation:flash 1.2s}
+@keyframes flash{0%{background:var(--accent-soft)}100%{background:var(--surface)}}
+/* 現況示意 */
+.bigtiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.bigtiles .t{background:var(--surface);border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:6px}
+.bigtiles .t .jar{width:100%;height:84px}
+.bigtiles .t strong{font-size:22px}
+.marker{background:var(--expense);color:#fff;font-size:11px;font-weight:700;border-radius:6px;padding:2px 6px;align-self:flex-start}
+.verdict{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.verdict div{background:var(--surface);border-radius:14px;padding:14px 16px}
+.keep{background:var(--surface);border-radius:14px;padding:14px 16px}
+.keep ul{margin:6px 0 0;padding-left:20px}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>預算操作改版提案：挪用與預算設定</h1>
+    <p class="lede">目標是讓第一次用的人一眼就知道怎麼搬錢、怎麼改預算，畫面仍然是圖像化的存錢罐。下面有三個搬錢做法和一個新的預算設定頁，都能直接在手機框裡點點看。數字是示意用的範例，分類名稱照你現在的帳本。</p>
+    <div class="task">試做任務：把最上面「飲食」的錢搬去補最下面「其他」的透支 <b class="num">−2,300</b></div>
+  </header>
+
+  <section>
+    <h2>現在卡在哪裡</h2>
+    <div class="pain">
+      <div><strong>看不出來能拖</strong><span>罐子看起來是一張卡片，沒有任何提示說按住可以拖；說明文字擠在錢包下面一行小字。</span></div>
+      <div><strong>罐子太大，最上搬到最下要邊拖邊捲</strong><span>你有 10 個儲備罐，兩欄大卡片要 5 排，大概 3 個畫面高。飲食在第 1 排，其他在第 5 排，手指按著還得把畫面捲下去。</span></div>
+      <div><strong>預算與分類是填表</strong><span>要先選「改上限／新增／停用／歸屬」四種模式，再選分類、填原因、按預覽、往下捲看結果、再按確認。先選動作再選東西，和 iPhone 習慣相反。</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>別的 App 怎麼搬錢</h2>
+    <div class="tablewrap"><table>
+      <thead><tr><th>App</th><th>搬錢怎麼開始</th><th>選來源與目標</th><th>值得學的地方</th></tr></thead>
+      <tbody>
+        <tr><td>YNAB（iPhone）</td><td>在分類名稱上右滑，點 Move Money；透支時頂端出現「Cover Overspending」橫幅</td><td>面板裡選「從」「到」兩個分類，有對調按鈕</td><td>透支會主動跳出來，點一下就幫你算好要補多少</td></tr>
+        <tr><td>Actual Budget</td><td>點分類的餘額數字</td><td>選單直接列出「轉到其他分類」「補透支」</td><td>從「錢在哪」開始，而不是從「要做什麼」開始</td></tr>
+        <tr><td>Goodbudget（信封）</td><td>新增一筆，種類選「信封轉帳」</td><td>表單選兩個信封與金額</td><td>信封比喻和存錢罐一樣好懂，但表單式操作較慢，是反例</td></tr>
+        <tr><td>iOS 系統慣例</td><td>清單列點一下，從下方升起半高面板</td><td>面板裡用分段按鈕、加減按鈕、格子選項</td><td>不用拖拉，按一下就能完成；拖拉在 iOS 多半是「排序」的意思</td></tr>
+      </tbody>
+    </table></div>
+    <p class="src">來源：<a href="https://support.ynab.com/en_us/moving-money-in-your-plan-ryyCKbBJi.md" target="_blank" rel="noopener">YNAB：Moving Money in Your Plan</a>、<a href="https://support.ynab.com/en_us/overspending-in-ynab-a-guide-ryWoxEyi.md" target="_blank" rel="noopener">YNAB：Handling Overspending</a>、<a href="https://goodbudget.com/help/budgeting-with-goodbudget/transaction-types/" target="_blank" rel="noopener">Goodbudget：Transaction types</a>。Actual Budget 依其開源版操作整理。</p>
+  </section>
+
+  <section>
+    <h2>點點看</h2>
+    <div class="tabs" role="tablist" id="tabs"></div>
+    <div class="stage">
+      <div class="notes" id="notes"></div>
+      <div class="phone p" id="phone"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>三個搬錢做法比較</h2>
+    <div class="tablewrap"><table>
+      <thead><tr><th>做法</th><th>試做任務幾下</th><th>要捲畫面嗎</th><th>一眼看懂</th><th>改動大小</th></tr></thead>
+      <tbody>
+        <tr><td>現在（大罐子拖拉）</td><td>按住拖＋捲 2 次＋打字原因＋預覽＋確認</td><td>要，邊拖邊捲</td><td>差，看不出能拖</td><td>—</td></tr>
+        <tr><td>A 小罐子牆</td><td>5 下</td><td>不用，10 罐一個畫面</td><td>中，要讀提示才知道「點兩下」</td><td>小，改 PR #40 的版面</td></tr>
+        <tr><td>B 錢袋暫存</td><td>6 下以上</td><td>可能要，但錢袋一直浮在下面</td><td>中，「先拿出再放入」要學一次</td><td>中，一次只能一個來源一個目標</td></tr>
+        <tr><td>C 點罐子開面板 <span class="badge">建議</span></td><td>透支時 4 下；一般搬錢 6 下</td><td>不用，目標在面板裡一次看完</td><td>好，點一下就看到能做什麼</td><td>中，搬錢和預算設定共用同一個面板</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section class="verdict">
+    <div>
+      <h3>建議：C 點罐子開面板，加透支捷徑</h3>
+      <p style="margin-top:6px">點任何一個罐子都會跳出同一個面板，裡面直接寫著「搬到別的罐子」「從錢包存入」「改每月上限」。目標罐子用小格子一次列完，所以最上搬到最下和隔壁搬隔壁一樣快。有罐子透支時，最上面會出現紅色橫幅，按「補洞」就從錢包或其他罐子補，金額自動帶好。</p>
+    </div>
+    <div>
+      <h3>預算設定一起改</h3>
+      <p style="margin-top:6px">「預算與分類」改成依組別排好的清單，上方一條彩色長條看上限怎麼分配。點分類開面板改名稱、組別、每月上限（加減按鈕和滑桿），歸屬的交易分類顯示成標籤。每組最下面有「新增分類」，停用放在面板最下面。原因仍然必填，但提供常用原因一按就帶入。</p>
+    </div>
+  </section>
+
+  <section class="keep">
+    <h3>不會變的規則</h3>
+    <ul>
+      <li>搬錢照舊走帳本服務的預覽與確認（儲備挪用、補入儲備），不加新規則，月結數字不受影響。</li>
+      <li>錢包只能存進罐子，罐子不能搬回錢包；超過可搬金額時確認鈕不能按，並寫出最多可搬多少。</li>
+      <li>改上限、組別、歸屬仍從開放月份起生效，已結月份和 58 個月舊帳不動；每次修改都要有原因。</li>
+      <li>「其他」仍是固定分類，只能改上限。圖像／會計模式開關照舊，這次只換圖像模式的畫面和預算設定頁。</li>
+      <li>拖拉在方案 C 拿掉，因為和捲動互搶手勢；如果你想保留，可以在 A 的小罐子牆上留著當進階用法。</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+(function(){
+'use strict';
+const BASE={wallet:43500,jars:[
+  {id:'food',name:'飲食',bal:12200,cap:10000},{id:'car',name:'汽車',bal:27100,cap:1000},
+  {id:'fun',name:'娛樂',bal:17300,cap:3000},{id:'study',name:'學習深造',bal:19000,cap:1500},
+  {id:'cloth',name:'服飾',bal:22300,cap:2000},{id:'articles',name:'日常用品',bal:19400,cap:1500},
+  {id:'furniture',name:'大型器具',bal:13700,cap:500},{id:'hair',name:'美容美髮',bal:9600,cap:700},
+  {id:'health',name:'醫療保健',bal:10900,cap:300},{id:'other',name:'其他',bal:-2300,cap:1000,fixed:true}],
+  fixed:[{id:'phone',name:'電話網路',cap:599},{id:'gogoro',name:'gogoro電費',cap:849}],
+  actual:[{id:'electricity',name:'電費'},{id:'water',name:'水費'},{id:'gas',name:'瓦斯'}]};
+const PALETTE=['#5b7fd6','#d08a2e','#3f6fb5','#c2544b','#7a5ea8','#3c97a8','#8a7a3a','#16705a','#b06a9a','#7d8a86','#d99a2b','#e0b25c'];
+const REASONS=['補透支','這個月花比較多','預算調整','買大東西'];
+const fmt=n=>(n<0?'−':'')+Math.abs(n).toLocaleString('en-US');
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const WALLET={id:'wallet',name:'錢包',wallet:true};
+
+const phone=document.getElementById('phone');
+let S, mode, taps=0, toastTimer=null;
+function fresh(){const s=JSON.parse(JSON.stringify(BASE));s.history=[];s.revisions=[];
+  s.map={};s.jars.concat(s.fixed,s.actual).forEach(c=>{s.map[c.id]=[c.name]});return s}
+function jarOf(id){return id==='wallet'?{...WALLET,bal:S.wallet}:S.jars.find(j=>j.id===id)}
+function maxBal(){return Math.max(1,...S.jars.map(j=>j.bal),S.wallet)}
+function jarHtml(item,w,h){
+  if(item.wallet){const lv=Math.min(1,S.wallet/maxBal());
+    return `<div class="jar wallet-j" style="width:${w}px;height:${h}px"><div class="w" style="height:${Math.max(8,lv*100)}%"></div></div>`}
+  const neg=item.bal<0, lv=neg?0:Math.min(1,item.bal/maxBal());
+  return `<div class="jar${neg?' neg-j':''}" style="width:${w}px;height:${h}px"><div class="w" style="height:${neg?0:Math.max(6,lv*100)}%"></div></div>`}
+
+/* ---------- 共用：計點擊、面板、提示 ---------- */
+function tap(){taps++;const c=phone.querySelector('.ctr');if(c)c.textContent=taps+' 下'}
+function toast(msg){let t=phone.querySelector('.toast');if(!t){t=document.createElement('div');t.className='toast';phone.appendChild(t)}
+  t.textContent=msg;t.style.opacity=1;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{t.style.opacity=0},3200)}
+function sheet(html,bind){const L=phone.querySelector('.sheet-layer');
+  L.innerHTML=`<div class="scrim" data-close></div><div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div>${html}</div>`;
+  L.classList.add('on');L.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>{closeSheet()}));
+  if(bind)bind(L.querySelector('.sheet'));const f=L.querySelector('.sheet button');if(f)f.focus({preventScroll:true})}
+function closeSheet(){const L=phone.querySelector('.sheet-layer');L.classList.remove('on');L.innerHTML=''}
+function shell(title,body,extra){
+  phone.innerHTML=`<div class="p-top"><i></i></div>
+  <div class="p-nav"><span class="back">‹ ${title.back||'預算'}</span><strong>${title.t}</strong><span class="ctr">${taps} 下</span></div>
+  <div class="p-body">${body}</div>${extra||''}<button class="reset" data-reset>重來</button><div class="sheet-layer"></div>`;
+  phone.querySelector('[data-reset]').addEventListener('click',()=>{S=fresh();taps=0;render()})}
+
+/* 搬錢面板：A、B、C 共用。from 可以是錢包（補入儲備），to 一定是罐子（儲備挪用）。 */
+function moveSheet(fromId,toId,opts={}){
+  let from=jarOf(fromId),to=jarOf(toId);
+  let amount=opts.amount!=null?opts.amount:(to.bal<0?Math.min(-to.bal,from.bal):from.bal);
+  let reason='';
+  const draw=()=>{
+    const over=amount>from.bal, ok=amount>0&&!over&&reason.trim().length>0;
+    const kind=from.wallet?'補入儲備':'儲備挪用';
+    sheet(`<div class="sh-head"><strong>${from.wallet?'存進罐子':'搬錢'}</strong><button class="x" data-close aria-label="關閉">✕</button></div>
+      <div class="ft">
+        <div class="end">${jarHtml(from,34,40)}<b>${esc(from.name)}</b><small>有 <span class="num">${fmt(from.bal)}</span></small></div>
+        ${from.wallet?'<span style="color:var(--muted);font-size:20px">→</span>':'<button class="swap" data-swap aria-label="對調來源與目標">⇄</button>'}
+        <div class="end">${jarHtml(to,34,40)}<b>${esc(to.name)}</b><small>有 <span class="num${to.bal<0?' neg':''}">${fmt(to.bal)}</span></small></div>
+      </div>
+      <label class="amt"><span>NT$</span><input id="amt-input" inputmode="numeric" class="num" value="${amount||''}" aria-label="金額"></label>
+      <div class="chips">
+        ${to.bal<0?`<button class="chip hot" data-q="fill">補到 0（${fmt(Math.min(-to.bal,from.bal))}）</button>`:''}
+        <button class="chip" data-q="all">全部 ${fmt(from.bal)}</button>
+        <button class="chip" data-q="100">+100</button><button class="chip" data-q="1000">+1,000</button><button class="chip" data-q="clear">清除</button>
+      </div>
+      ${over?`<div class="warn">最多可搬 ${fmt(from.bal)} 元</div>`:''}
+      <div class="foot" style="padding:0">原因（必填）</div>
+      <div class="chips">${REASONS.map(r=>`<button class="chip${reason===r?' on':''}" data-r="${r}">${r}</button>`).join('')}</div>
+      <input id="reason-input" class="reason" placeholder="或自己寫" value="${esc(reason)}" aria-label="原因">
+      <div class="preview"><div class="lbl">搬完以後（小字：${kind}）</div>
+        <div><span>${esc(from.name)}</span><span class="num">${fmt(from.bal)} → <b>${fmt(from.bal-(over?0:amount))}</b></span></div>
+        <div><span>${esc(to.name)}</span><span class="num">${fmt(to.bal)} → <b class="${to.bal+(over?0:amount)<0?'neg':''}">${fmt(to.bal+(over?0:amount))}</b></span></div></div>
+      <button class="cta" data-ok ${ok?'':'disabled'}>確認搬 ${fmt(over?0:amount)} 元</button>`,
+    el=>{
+      const inp=el.querySelector('#amt-input');
+      inp.addEventListener('change',()=>{amount=parseInt(inp.value.replace(/\D/g,''))||0;draw()});
+      el.querySelectorAll('[data-q]').forEach(b=>b.addEventListener('click',()=>{tap();const q=b.dataset.q;
+        if(q==='fill')amount=Math.min(-to.bal,from.bal);else if(q==='all')amount=from.bal;else if(q==='clear')amount=0;else amount=(amount||0)+Number(q);draw()}));
+      el.querySelectorAll('[data-r]').forEach(b=>b.addEventListener('click',()=>{tap();reason=b.dataset.r;draw()}));
+      const ri=el.querySelector('#reason-input');ri.addEventListener('change',()=>{reason=ri.value;draw()});
+      const sw=el.querySelector('[data-swap]');if(sw)sw.addEventListener('click',()=>{tap();[from,to]=[to,from];
+        if(amount>from.bal)amount=Math.max(0,from.bal);draw()});
+      el.querySelector('[data-ok]').addEventListener('click',()=>{tap();commit(from.id,to.id,amount,reason,kind)});
+    });
+  };
+  draw();
+}
+function commit(fromId,toId,amount,reason,kind){
+  if(fromId==='wallet')S.wallet-=amount;else jarOf(fromId).bal-=amount;
+  jarOf(toId).bal+=amount;
+  S.history.unshift({from:fromId==='wallet'?'錢包':jarOf(fromId).name,to:jarOf(toId).name,amount,reason,kind});
+  closeSheet();render();
+  const done=toId==='other'&&jarOf('other').bal>=0;
+  toast(`已搬 ${fmt(amount)}：${S.history[0].from} → ${S.history[0].to}${done?`　任務完成，共 ${taps} 下`:''}`);
+}
+function historyHtml(){if(!S.history.length)return '<div class="foot">最近搬錢：還沒有紀錄</div>';
+  return `<div class="sect">最近搬錢</div><div class="rowlist">${S.history.slice(0,4).map(h=>
+    `<div class="row"><div class="grow"><div>${esc(h.from)} → ${esc(h.to)}</div><div class="sub">${esc(h.reason)}・${h.kind}</div></div><span class="num">${fmt(h.amount)}</span></div>`).join('')}</div>`}
+
+/* ---------- 現況 ---------- */
+function renderNow(){
+  shell({t:'挪用與調整'},`
+    <div class="card"><b>錢包</b><div class="foot" style="padding:0">可用餘額</div><div class="num" style="font-size:26px;font-weight:600">${fmt(S.wallet)}</div></div>
+    <div class="foot">按住錢包或罐子，拖到另一個罐子後放開。也可先點來源、再點目標。</div>
+    <div class="bigtiles">${S.jars.map((j,i)=>`<div class="t">${i===0?'<span class="marker">從這裡</span>':''}${j.id==='other'?'<span class="marker">拖到這裡</span>':''}
+      ${jarHtml(j,0,84).replace('width:0px;','')}<div>${esc(j.name)}</div><strong class="num${j.bal<0?' neg':''}">${fmt(j.bal)}</strong></div>`).join('')}</div>
+    <div class="foot">這是 PR #40 現在的版面縮小示意，不能點。往下捲看看「其他」在多遠。</div>`);
+}
+
+/* ---------- 方案 A：小罐子牆 ---------- */
+let aSrc=null;
+function renderA(){
+  const tile=(it)=>{const neg=!it.wallet&&it.bal<0;
+    const cls=['tile',aSrc===it.id?'src':'',aSrc&&aSrc!==it.id&&!it.wallet?'tgt':'',aSrc&&it.wallet&&aSrc!=='wallet'?'dim':''].join(' ');
+    return it.wallet
+      ?`<button class="${cls} walletbar" data-id="wallet">${jarHtml(it,30,30)}<div><div class="nm">錢包・可用餘額</div><div class="am num" style="font-size:17px;font-weight:600">${fmt(S.wallet)}</div></div><span style="margin-left:auto" class="foot">只能存進罐子</span></button>`
+      :`<button class="${cls}" data-id="${it.id}">${jarHtml(it,30,36)}<span class="nm">${esc(it.name)}</span><span class="am num${neg?' neg':''}">${fmt(it.bal)}</span></button>`};
+  const src=aSrc?jarOf(aSrc):null;
+  shell({t:'挪用與調整'},`
+    <div class="foot">點一個罐子當來源，再點要放進去的罐子。熟了也可以按住直接拖過去。</div>
+    ${tile({...WALLET,bal:S.wallet})}
+    <div class="grid4">${S.jars.map(tile).join('')}</div>
+    <div class="foot">水位代表累積儲備，紅框是透支。</div>
+    ${historyHtml()}`,
+    src?`<div class="bar">從 <b>${esc(src.name)}</b> 搬出 → 點要放進去的罐子<button data-cancel>取消</button></div>`:'');
+  const c=phone.querySelector('[data-cancel]');if(c)c.addEventListener('click',()=>{tap();aSrc=null;renderA()});
+  phone.querySelectorAll('.tile').forEach(el=>bindTile(el));
+}
+function bindTile(el){
+  let timer=null,drag=false,ghost=null,start=null,over=null;
+  const id=el.dataset.id;
+  el.addEventListener('pointerdown',e=>{start={x:e.clientX,y:e.clientY};
+    const it=jarOf(id);if(it.bal<=0)return;
+    timer=setTimeout(()=>{drag=true;el.setPointerCapture(e.pointerId);ghost=el.cloneNode(true);ghost.classList.add('ghost');
+      ghost.style.width=el.offsetWidth+'px';ghost.style.left=e.clientX+'px';ghost.style.top=e.clientY+'px';document.body.appendChild(ghost);
+      el.classList.add('src')},280)});
+  el.addEventListener('pointermove',e=>{if(!drag){if(start&&Math.hypot(e.clientX-start.x,e.clientY-start.y)>8)clearTimeout(timer);return}
+    ghost.style.left=e.clientX+'px';ghost.style.top=e.clientY+'px';
+    const t=document.elementFromPoint(e.clientX,e.clientY);const tile=t&&t.closest('.tile:not(.walletbar)');
+    if(over&&over!==tile)over.classList.remove('hover');over=tile&&tile!==el?tile:null;if(over)over.classList.add('hover')});
+  const end=()=>{clearTimeout(timer);if(ghost){ghost.remove();ghost=null}
+    if(drag){drag=false;el.classList.remove('src');if(over){over.classList.remove('hover');tap();tap();const to=over.dataset.id;over=null;aSrc=null;moveSheet(id,to)}return true}return false};
+  el.addEventListener('pointerup',e=>{if(end())e.preventDefault()});
+  el.addEventListener('pointercancel',end);
+  el.addEventListener('click',e=>{if(e.defaultPrevented)return;tap();
+    const it=jarOf(id);
+    if(aSrc&&aSrc!==id&&id!=='wallet'){const f=aSrc;aSrc=null;renderA();moveSheet(f,id);return}
+    if(aSrc===id){aSrc=null;renderA();return}
+    if(it.bal<=0){el.animate([{transform:'translateX(0)'},{transform:'translateX(-5px)'},{transform:'translateX(5px)'},{transform:'translateX(0)'}],{duration:260});toast('這個罐子沒有錢可以搬');return}
+    aSrc=id;renderA()});
+}
+
+/* ---------- 方案 B：錢袋暫存 ---------- */
+let bag=null;
+function renderB(){
+  const row=(it)=>{const neg=!it.wallet&&it.bal<0;let btn;
+    if(!bag)btn=`<button class="pill" data-take="${it.id}" ${it.bal<=0?'disabled':''}>拿出</button>`;
+    else if(bag.from===it.id)btn=`<span class="foot">來源</span>`;
+    else btn=it.wallet?'':`<button class="pill solid" data-put="${it.id}">放入</button>`;
+    return `<div class="row">${jarHtml(it,24,28)}<div class="grow"><div class="nm">${esc(it.name)}</div><div class="sub">${it.wallet?'可用餘額':'上限 '+fmt(it.cap)+'／月'}</div></div><span class="num${neg?' neg':''}" style="margin-right:6px">${fmt(it.bal)}</span>${btn}</div>`};
+  shell({t:'挪用與調整'},`
+    <div class="foot">先從一個罐子「拿出」錢放進錢袋，錢袋會一直浮在畫面下方；再到要補的罐子按「放入」。</div>
+    <div class="rowlist">${row({...WALLET,name:'錢包',bal:S.wallet})}</div>
+    <div class="sect">儲備罐</div>
+    <div class="rowlist">${S.jars.map(row).join('')}</div>
+    ${historyHtml()}`,
+    bag?`<div class="bag"><div class="bagicon">袋</div><div style="flex:1"><b class="num">${fmt(bag.amount)}</b><div class="foot" style="padding:0">從 ${esc(jarOf(bag.from).name)} 拿出，點「放入」</div></div><button class="pill" data-return>放回</button></div>`:'');
+  phone.querySelectorAll('[data-take]').forEach(b=>b.addEventListener('click',()=>{tap();takeSheet(b.dataset.take)}));
+  phone.querySelectorAll('[data-put]').forEach(b=>b.addEventListener('click',()=>{tap();const f=bag.from,a=bag.amount;bag=null;moveSheet(f,b.dataset.put,{amount:a})}));
+  const r=phone.querySelector('[data-return]');if(r)r.addEventListener('click',()=>{tap();bag=null;renderB()});
+}
+function takeSheet(id){const it=jarOf(id);let amount=Math.min(it.bal,1000);
+  const draw=()=>sheet(`<div class="sh-head"><strong>從「${esc(it.name)}」拿出</strong><button class="x" data-close aria-label="關閉">✕</button></div>
+    <label class="amt"><span>NT$</span><input id="take-input" class="num" inputmode="numeric" value="${amount}" aria-label="金額"></label>
+    <div class="chips"><button class="chip" data-q="all">全部 ${fmt(it.bal)}</button><button class="chip" data-q="half">一半</button><button class="chip" data-q="100">+100</button><button class="chip" data-q="1000">+1,000</button><button class="chip" data-q="clear">清除</button></div>
+    ${amount>it.bal?`<div class="warn">最多可拿 ${fmt(it.bal)} 元</div>`:''}
+    <div class="foot" style="padding:0">還不知道要補多少？先拿一個大概，放入時還能改。</div>
+    <button class="cta" data-ok ${amount>0&&amount<=it.bal?'':'disabled'}>放進錢袋</button>`,el=>{
+      const inp=el.querySelector('#take-input');inp.addEventListener('change',()=>{amount=parseInt(inp.value.replace(/\D/g,''))||0;draw()});
+      el.querySelectorAll('[data-q]').forEach(b=>b.addEventListener('click',()=>{tap();const q=b.dataset.q;
+        amount=q==='all'?it.bal:q==='half'?Math.floor(it.bal/2):q==='clear'?0:amount+Number(q);draw()}));
+      el.querySelector('[data-ok]').addEventListener('click',()=>{tap();bag={from:id,amount};closeSheet();renderB()})});
+  draw()}
+
+/* ---------- 方案 C：點罐子開面板 ---------- */
+function renderC(){
+  const negs=S.jars.filter(j=>j.bal<0);
+  shell({t:'挪用與調整'},`
+    ${negs.map(j=>`<div class="alert">${jarHtml(j,24,28)}<div class="grow"><b>${esc(j.name)}</b> 透支 <span class="num neg">${fmt(-j.bal)}</span><div class="foot" style="padding:0">從錢包或別的罐子補回來</div></div><button class="pill solid" data-cover="${j.id}">補洞</button></div>`).join('')}
+    <button class="row card" style="border-radius:14px" data-open="wallet">${jarHtml({...WALLET},30,30)}<div class="grow"><div class="nm">錢包・可用餘額</div><div class="sub">點一下存進罐子</div></div><span class="num" style="font-size:17px;font-weight:600">${fmt(S.wallet)}</span><span class="chev">›</span></button>
+    <div class="sect">儲備罐・點一下看能做什麼</div>
+    <div class="rowlist">${S.jars.map(j=>`<button class="row" data-open="${j.id}" style="cursor:pointer">${jarHtml(j,26,32)}<div class="grow"><div class="nm">${esc(j.name)}</div><div class="sub">每月上限 ${fmt(j.cap)}</div></div><span class="num${j.bal<0?' neg':''}">${fmt(j.bal)}</span><span class="chev">›</span></button>`).join('')}</div>
+    ${historyHtml()}`);
+  phone.querySelectorAll('[data-open]').forEach(b=>b.addEventListener('click',()=>{tap();b.dataset.open==='wallet'?pickTarget('wallet'):jarSheet(b.dataset.open)}));
+  phone.querySelectorAll('[data-cover]').forEach(b=>b.addEventListener('click',()=>{tap();coverSheet(b.dataset.cover)}));
+}
+function jarSheet(id){const j=jarOf(id);
+  sheet(`<div class="sh-head"><strong>${esc(j.name)}</strong><button class="x" data-close aria-label="關閉">✕</button></div>
+    <div class="bigjar">${jarHtml(j,54,66)}<div><div class="foot" style="padding:0">累積儲備</div><div class="num${j.bal<0?' neg':''}" style="font-size:28px;font-weight:600">${fmt(j.bal)}</div><div class="foot" style="padding:0">每月上限 ${fmt(j.cap)}</div></div></div>
+    <div class="actions">
+      <button class="act" data-a="out" ${j.bal<=0?'disabled style="opacity:.4"':''}><b>搬到別的罐子</b><small>把這裡多的錢分出去</small></button>
+      <button class="act" data-a="in"><b>從錢包存入</b><small>錢包有 <span class="num">${fmt(S.wallet)}</span></small></button>
+      <button class="act" data-a="from"><b>從別的罐子補</b><small>這個罐子不夠用時</small></button>
+      <button class="act" data-a="cap"><b>改每月上限</b><small>從 11 月開始</small></button>
+    </div>
+    <button class="cta danger" data-a="more">${j.fixed?'「其他」是固定分類，只能改上限':'換組別或停用分類…'}</button>`,el=>{
+      el.querySelectorAll('[data-a]').forEach(b=>b.addEventListener('click',()=>{tap();const a=b.dataset.a;
+        if(a==='out'){if(j.bal>0)pickTarget(id)}else if(a==='in')moveSheet('wallet',id);else if(a==='from')coverSheet(id);
+        else if(!j.fixed||a==='cap')editSheet(id,'reserve',true)}))})}
+function pickTarget(fromId){const f=jarOf(fromId);
+  const list=[...S.jars].filter(j=>j.id!==fromId).sort((a,b)=>(b.bal<0)-(a.bal<0));
+  sheet(`<div class="sh-head"><strong>從「${esc(f.name)}」搬到哪裡？</strong><button class="x" data-close aria-label="關閉">✕</button></div>
+    <div class="foot" style="padding:0">全部罐子都在這裡，透支的排最前面。</div>
+    <div class="pick">${list.map(j=>`<button class="tile${j.bal<0?' tgt':''}" data-to="${j.id}" style="touch-action:auto">${jarHtml(j,26,32)}<span class="nm">${esc(j.name)}</span><span class="am num${j.bal<0?' neg':''}">${fmt(j.bal)}</span></button>`).join('')}</div>`,
+    el=>el.querySelectorAll('[data-to]').forEach(b=>b.addEventListener('click',()=>{tap();moveSheet(fromId,b.dataset.to)})))}
+function coverSheet(toId){const t=jarOf(toId);const need=t.bal<0?-t.bal:0;
+  const srcs=[{...WALLET,bal:S.wallet},...[...S.jars].filter(j=>j.id!==toId&&j.bal>0).sort((a,b)=>b.bal-a.bal)];
+  sheet(`<div class="sh-head"><strong>用哪裡的錢補「${esc(t.name)}」？</strong><button class="x" data-close aria-label="關閉">✕</button></div>
+    ${need?`<div class="foot" style="padding:0">需要 <b class="num neg">${fmt(need)}</b> 才能補到 0，選好來源後金額會自動帶入。</div>`:''}
+    <div class="rowlist">${srcs.map(s=>`<button class="row" data-from="${s.id}" style="cursor:pointer">${jarHtml(s,24,28)}<div class="grow"><div class="nm">${esc(s.name)}${s.wallet?'・可用餘額':''}</div>${need&&s.bal<need?'<div class="sub neg">不夠補滿</div>':''}</div><span class="num">${fmt(s.bal)}</span><span class="chev">›</span></button>`).join('')}</div>`,
+    el=>el.querySelectorAll('[data-from]').forEach(b=>b.addEventListener('click',()=>{tap();moveSheet(b.dataset.from,toId)})))}
+
+/* ---------- 預算設定（共用） ---------- */
+function allCats(){return [...S.jars.map(j=>({...j,group:'reserve'})),...S.fixed.map(j=>({...j,group:'fixed'})),...S.actual.map(j=>({...j,group:'actual',cap:0}))]}
+function renderSettings(){
+  const cats=allCats(), capped=cats.filter(c=>c.group!=='actual'), total=capped.reduce((s,c)=>s+c.cap,0);
+  const color=id=>PALETTE[capped.findIndex(c=>c.id===id)%PALETTE.length];
+  const groups=[['reserve','儲備類','沒花完的會存進罐子','var(--reserve)'],['fixed','固定支出','沒花完的回到當月盈餘','var(--fixed)'],['actual','照實支','花多少算多少，不設上限','var(--actual)']];
+  shell({t:'預算與分類',back:'設定'},`
+    <div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline"><b>每月上限合計</b><span class="num" style="font-size:20px;font-weight:600">NT$ ${fmt(total)}</span></div>
+      <div class="stack" style="margin-top:8px">${capped.map(c=>`<i style="width:${c.cap/total*100}%;background:${color(c.id)}" title="${esc(c.name)}"></i>`).join('')}</div>
+      <div class="legend">${capped.map(c=>`<span><i style="background:${color(c.id)}"></i>${esc(c.name)} ${fmt(c.cap)}</span>`).join('')}</div>
+      <div class="foot" style="padding:6px 0 0">改動從 2026 年 11 月開始，已結月份不變。</div></div>
+    ${groups.map(([g,label,note,col])=>`<div class="sect" style="display:flex;align-items:center;gap:6px"><span class="dot" style="background:${col}"></span>${label}<span style="font-weight:400">・${note}</span></div>
+      <div class="rowlist">${cats.filter(c=>c.group===g).map(c=>`<button class="row" data-edit="${c.id}" data-g="${g}" style="cursor:pointer">${g==='actual'?'<span class="dot" style="background:var(--actual)"></span>':`<span class="dot" style="background:${color(c.id)}"></span>`}<div class="grow"><div class="nm">${esc(c.name)}</div><div class="sub">${S.map[c.id].length>1||S.map[c.id][0]!==c.name?'包含：'+S.map[c.id].map(esc).join('、'):'記帳分類同名'}</div></div><span class="num">${g==='actual'?'<span class="foot">照實支</span>':fmt(c.cap)}</span><span class="chev">›</span></button>`).join('')}
+      <button class="row" data-add="${g}" style="color:var(--accent);cursor:pointer;font-weight:600">＋ 新增${label}分類</button></div>`).join('')}
+    ${S.revisions.length?`<div class="sect">修改紀錄</div><div class="rowlist">${S.revisions.slice(0,4).map(r=>`<div class="row"><div class="grow"><div>${esc(r.what)}</div><div class="sub">${esc(r.reason)}・11 月起</div></div></div>`).join('')}</div>`:''}`);
+  phone.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>{tap();editSheet(b.dataset.edit,b.dataset.g)}));
+  phone.querySelectorAll('[data-add]').forEach(b=>b.addEventListener('click',()=>{tap();editSheet(null,b.dataset.add)}));
+}
+function editSheet(id,group,fromC){
+  const isNew=!id; const src=id?allCats().find(c=>c.id===id):{name:'',cap:group==='actual'?0:1000,group};
+  let name=src.name,g=src.group||group,cap=src.cap||0,reason='';const locked=!!src.fixed;
+  const draw=()=>{const changed=isNew?name.trim():(name!==src.name||g!==src.group||cap!==src.cap);
+    sheet(`<div class="sh-head"><strong>${isNew?'新增分類':esc(src.name)}</strong><button class="x" data-close aria-label="關閉">✕</button></div>
+      <div class="foot" style="padding:0">名稱</div>
+      <input id="name-input" class="reason" value="${esc(name)}" ${locked?'disabled':''} placeholder="例如：寵物" aria-label="分類名稱">
+      <div class="foot" style="padding:0">組別</div>
+      <div class="seg">${[['reserve','儲備類'],['fixed','固定支出'],['actual','照實支']].map(([k,l])=>`<button class="${g===k?'on':''}" data-g="${k}" ${locked?'disabled':''}>${l}</button>`).join('')}</div>
+      ${g==='actual'?'<div class="foot" style="padding:0">照實支不設上限，花多少算多少。</div>':`
+      <div class="foot" style="padding:0">每月上限</div>
+      <div class="stepper"><button data-s="-500" aria-label="減 500">−</button><span class="v num">${fmt(cap)}</span><button data-s="500" aria-label="加 500">＋</button></div>
+      <input type="range" class="range" id="cap-range" min="0" max="20000" step="100" value="${cap}" aria-label="每月上限滑桿">`}
+      ${!isNew?`<div class="foot" style="padding:0">記帳時這些分類算在這裡</div><div class="chips mapchips">${S.map[id].map(n=>`<span class="chip">${esc(n)}</span>`).join('')}<button class="chip hot" data-mapadd>＋ 加入</button></div>`:''}
+      ${locked?'<div class="foot" style="padding:0">「其他」是固定分類：沒設歸屬的支出都算在這裡，只能改上限。</div>':''}
+      <div class="foot" style="padding:0">原因（必填）</div>
+      <div class="chips">${['薪水調整','這類開銷變多','這類開銷變少','新的生活習慣'].map(r=>`<button class="chip${reason===r?' on':''}" data-r="${r}">${r}</button>`).join('')}</div>
+      <div class="preview"><div class="lbl">存了以後（從 11 月起）</div>
+        ${isNew?`<div><span>新增</span><span>${esc(name||'（未命名）')}・${{reserve:'儲備類',fixed:'固定支出',actual:'照實支'}[g]}${g==='actual'?'':'・'+fmt(cap)}</span></div>`
+        :`<div><span>每月上限</span><span class="num">${src.group==='actual'?'照實支':fmt(src.cap)} → <b>${g==='actual'?'照實支':fmt(cap)}</b></span></div>${g!==src.group?`<div><span>組別</span><span>改了</span></div>`:''}`}</div>
+      <button class="cta" data-ok ${changed&&reason?'':'disabled'}>儲存</button>
+      ${!isNew&&!locked?'<button class="cta danger" data-retire>停用這個分類…</button>':''}`,el=>{
+      const ni=el.querySelector('#name-input');ni.addEventListener('change',()=>{name=ni.value;draw()});
+      el.querySelectorAll('.seg [data-g]').forEach(b=>b.addEventListener('click',()=>{tap();g=b.dataset.g;draw()}));
+      el.querySelectorAll('[data-s]').forEach(b=>b.addEventListener('click',()=>{tap();cap=Math.max(0,cap+Number(b.dataset.s));draw()}));
+      const rg=el.querySelector('#cap-range');if(rg){rg.addEventListener('input',()=>{cap=Number(rg.value);el.querySelector('.stepper .v').textContent=fmt(cap)});rg.addEventListener('change',draw)}
+      el.querySelectorAll('[data-r]').forEach(b=>b.addEventListener('click',()=>{tap();reason=b.dataset.r;draw()}));
+      const ma=el.querySelector('[data-mapadd]');if(ma)ma.addEventListener('click',()=>{tap();toast('會跳出還沒歸屬到這裡的記帳分類，點一下就加入')});
+      const rt=el.querySelector('[data-retire]');if(rt)rt.addEventListener('click',()=>{tap();toast(src.group==='reserve'?'停用前會請你選剩下的儲備要搬去哪個罐子':'停用後記帳不再出現，舊帳保留')});
+      el.querySelector('[data-ok]').addEventListener('click',()=>{tap();saveCat(id,src,{name,g,cap},reason,fromC)});
+    })};
+  draw();
+}
+function saveCat(id,src,v,reason,fromC){
+  const arr={reserve:S.jars,fixed:S.fixed,actual:S.actual};
+  if(!id){const nid='n'+Date.now();const c={id:nid,name:v.name.trim(),cap:v.g==='actual'?0:v.cap,bal:0};arr[v.g].push(c);S.map[nid]=[c.name];
+    S.revisions.unshift({what:`新增 ${c.name}`,reason})}
+  else{let c;for(const k in arr){const i=arr[k].findIndex(x=>x.id===id);if(i>=0){c=arr[k].splice(i,1)[0];break}}
+    const old=c.cap;c.name=v.name;c.cap=v.g==='actual'?0:v.cap;if(v.g==='reserve'&&c.bal==null)c.bal=0;arr[v.g].push(c);
+    if(v.g==='reserve'){const o=BASE.jars.findIndex(j=>j.id===id);if(o>=0){S.jars.sort((a,b)=>{const ia=BASE.jars.findIndex(j=>j.id===a.id),ib=BASE.jars.findIndex(j=>j.id===b.id);return (ia<0?99:ia)-(ib<0?99:ib)})}}
+    S.revisions.unshift({what:`${c.name} 上限 ${fmt(old)} → ${fmt(c.cap)}`,reason})}
+  closeSheet();render();toast('已儲存，從 11 月開始生效');
+}
+
+/* ---------- 分頁與說明 ---------- */
+const MODES={
+  now:{label:'現在',sub:'PR #40',render:renderNow,notes:`
+    <div class="how"><h3>現在的圖像模式</h3><p style="margin-top:6px">每個罐子是一張半個畫面寬的大卡片，10 個罐子排 5 排。拖拉時要按住罐子，同時把畫面捲到第 5 排的「其他」。</p></div>
+    <div class="how"><span class="cons">問題</span><ul><li>看起來像資訊卡，不像能拖的東西。</li><li>罐子越多越難搬，手指按住時畫面捲動和拖拉互搶。</li><li>原因要自己打字，搬一次要寫一次。</li></ul></div>`},
+  a:{label:'A 小罐子牆',render:()=>{aSrc=null;renderA()},notes:`
+    <div class="how"><h3>A　小罐子牆，點兩下搬錢</h3><p style="margin-top:6px">保留 PR #40 的罐子比喻，但把罐子縮小成一排 4 個，10 個罐子一個畫面看完。</p>
+    <ol><li>點「飲食」，它會浮起來，其他罐子變成可放的樣子。</li><li>點「其他」，跳出搬錢面板。</li><li>按「補到 0」、選一個原因、確認。</li></ol></div>
+    <div class="how"><span class="pros">好處</span><ul><li>改動最小，PR #40 大部分能留。</li><li>一個畫面就看得到全部罐子，拖拉也不用捲。</li></ul>
+    <span class="cons">缺點</span><ul><li>還是要讀提示才知道「先點來源、再點目標」。</li><li>罐子很小，分類再多（15 個以上）又會擠。</li><li>改上限要另外去設定頁。</li></ul></div>`},
+  b:{label:'B 錢袋暫存',render:()=>{bag=null;renderB()},notes:`
+    <div class="how"><h3>B　先拿出，再放入</h3><p style="margin-top:6px">每個罐子一列，右邊有「拿出」。拿出的錢放進浮在畫面下方的錢袋，捲到哪裡都看得到，再到目標罐子按「放入」。</p>
+    <ol><li>飲食按「拿出」，選金額，放進錢袋。</li><li>捲到「其他」按「放入」。</li><li>確認金額、選原因、確認。</li></ol></div>
+    <div class="how"><span class="pros">好處</span><ul><li>上下距離完全不是問題，像真的把錢拿在手上。</li><li>按鈕上直接寫「拿出」「放入」，不用猜。</li></ul>
+    <span class="cons">缺點</span><ul><li>拿出時還不知道目標缺多少，常常要回頭改金額。</li><li>步驟最多；錢袋裡的錢在確認前不算數，要說明清楚。</li><li>第一版只能一個來源搬到一個目標。</li></ul></div>`},
+  c:{label:'C 點罐子開面板',sub:'建議',render:renderC,notes:`
+    <div class="how"><h3>C　點罐子開面板，加透支捷徑<span class="badge">建議</span></h3><p style="margin-top:6px">罐子排成清單，每列左邊是有水位的小罐子。點任何一個罐子，下方升起面板，直接寫出能做的事。有罐子透支時，最上面出現紅色橫幅。</p>
+    <ol><li>按橫幅上的「補洞」。</li><li>選「飲食」當來源，金額自動帶 2,300。</li><li>選一個原因、確認。</li></ol>
+    <p class="foot" style="padding:6px 0 0">一般搬錢：點罐子 → 搬到別的罐子 → 在格子裡點目標 → 確認。面板裡的「改每月上限」會開預算設定的同一個編輯面板。</p></div>
+    <div class="how"><span class="pros">好處</span><ul><li>點一下就看到所有能做的事，不用先學手勢。</li><li>目標罐子在面板裡一次列完，透支的排最前面，上下距離不影響。</li><li>搬錢和改上限在同一個地方，符合 iPhone「先點東西、再選動作」。</li></ul>
+    <span class="cons">缺點</span><ul><li>沒有拖拉的手感，圖像感主要靠罐子水位和面板動畫。</li><li>要重做 PR #40 的畫面（帳本服務不用改）。</li></ul></div>`},
+  set:{label:'預算設定',sub:'三案共用',render:renderSettings,notes:`
+    <div class="how"><h3>新的「預算與分類」</h3><p style="margin-top:6px">取代現在「先選四種模式之一」的表單。上方彩色長條一眼看出每月上限怎麼分；下面依儲備類、固定支出、照實支分組列出分類。</p>
+    <ol><li>點「飲食」，用 ＋／− 或滑桿改上限。</li><li>選一個常用原因，按儲存。上方長條跟著變。</li><li>每組最下面有「新增分類」，組別已經幫你選好。</li></ol></div>
+    <div class="how"><span class="pros">改進</span><ul><li>先點分類再改，改什麼都在同一個面板。</li><li>原因仍然必填，但常用原因一按就好。</li><li>儲存前直接看到前後差異，不用另外按「預覽」再往下捲。</li><li>交易分類歸屬變成分類裡的標籤，不再是獨立模式。</li></ul></div>`}
+};
+const order=['now','a','b','c','set'];
+const tabs=document.getElementById('tabs'),notes=document.getElementById('notes');
+tabs.innerHTML=order.map(k=>`<button class="tab" role="tab" id="tab-${k}" data-k="${k}" aria-selected="false">${MODES[k].label}${MODES[k].sub?`<small>${MODES[k].sub}</small>`:''}</button>`).join('');
+function render(){MODES[mode].render===renderNow?renderNow():mode==='a'?renderA():mode==='b'?renderB():mode==='c'?renderC():renderSettings()}
+function select(k){mode=k;S=fresh();taps=0;aSrc=null;bag=null;
+  tabs.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.k===k?'true':'false'));
+  notes.innerHTML=MODES[k].notes;MODES[k].render();
+  try{history.replaceState(null,'','#'+k)}catch(e){}}
+tabs.addEventListener('click',e=>{const t=e.target.closest('.tab');if(t)select(t.dataset.k)});
+const h=(location.hash||'').slice(1);select(order.includes(h)?h:'c');
+window.addEventListener('hashchange',()=>{const k=location.hash.slice(1);if(order.includes(k)&&k!==mode)select(k)});
+})();
+</script>
