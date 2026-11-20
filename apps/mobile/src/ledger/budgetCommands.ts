@@ -97,7 +97,7 @@ export async function executeBudgetCommand(q: Queryable, input: BudgetCommand, n
   if (['transfer', 'fund', 'correct', 'reverse', 'retire'].includes(input.action) && access.hasEntitlement !== undefined && access.hasEntitlement !== true) {
     throw new BudgetRuleError('operation', '需要有效的付費權益才能進行調整；既有紀錄仍可查閱。');
   }
-  // 新增分類預設照實支，既有引擎與舊文件的 reserve 預設不變。
+  // 明確新增「預算類別」仍可選照實支；單純交易分類未指定歸屬則由其他承接。
   const command = input.action === 'add' ? { ...input, kind: input.kind ?? 'actual' } : input;
   const { exists, state } = await readStoredDocument(q);
   const operationId = typeof command.operationId === 'string' ? command.operationId.toLowerCase() : '';

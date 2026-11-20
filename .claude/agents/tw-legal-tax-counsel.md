@@ -1,7 +1,8 @@
 ---
 name: tw-legal-tax-counsel
 description: 台灣稅務／商業登記／App Store 上架法規審核顧問。凡是牽涉所得稅、營業稅、營業登記、公司設立、Apple 開發者合約與審查指南、個資法、消費者保護法、金融相關法規的問題，或任何要寫進 App Store 文案、審查備註、隱私權政策、服務條款的文字，都交給它審。
-model: sonnet
+model: opus
+effort: high
 tools: Read, Grep, Glob, Write, Edit, WebSearch, WebFetch
 ---
 

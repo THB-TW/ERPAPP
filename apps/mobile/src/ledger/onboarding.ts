@@ -7,7 +7,7 @@ import { executeBudgetCommand } from './budgetCommands.ts';
 import { DEFAULT_OPENING_BUDGETS, type Flow } from './defaults.ts';
 import { LedgerError } from './errors.ts';
 
-export type OpeningBudgetKind = 'reserve' | 'fixed' | 'actual';
+export type OpeningBudgetKind = 'reserve' | 'fixed' | 'actual' | 'other';
 export interface OpeningBudgetRow {
   categoryId: number;
   name: string;
@@ -84,13 +84,13 @@ export async function openingBudgetSuggestions(q: Queryable, now: Date, options:
   const categories = await q.all<{ id: number; name: string }>("SELECT id, name FROM categories WHERE flow = 'expense' ORDER BY sort_order, id");
   return { source: months.length ? 'history' : 'income', months, rows: categories.map((c) => {
     const preset = DEFAULT_OPENING_BUDGETS.find((row) => row.name === c.name);
-    const kind = preset?.kind ?? 'actual';
+    const kind = preset?.kind ?? 'other';
     const total = totals.get(c.id) ?? 0n;
     const divisor = BigInt(months.length || 1);
     // 平均後進位百元，以整數計算避免浮點誤差；沒有資料時按比例四捨五入到元。
     const suggested = months.length ? safe(((total + divisor * 100n - 1n) / (divisor * 100n)) * 100n)
       : safe((BigInt(monthlyIncome) * BigInt(preset?.incomePercent ?? 0) + 50n) / 100n);
-    return { categoryId: c.id, name: c.name, kind, amount: kind === 'actual' ? 0 : suggested,
+    return { categoryId: c.id, name: c.name, kind, amount: kind === 'actual' || kind === 'other' ? 0 : suggested,
       averageExpense: months.length ? safe(total) / months.length : null,
       incomeRatio: preset ? preset.incomePercent / 100 : null };
   }) };
@@ -149,6 +149,16 @@ export async function completeOnboarding(q: Queryable, now: Date, input: Complet
   await q.run("INSERT INTO settings (key, value) VALUES ('opening_deployed', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", [String(input.openingDeployed)]);
   for (const category of categories) {
     const budget = input.budgets.find((b) => b.categoryId === category.id)!;
+    if (budget.kind === 'other') {
+      if (category.name === '其他' || budget.amount !== 0) throw new BudgetRuleError('argument', '其他是固定儲備分類；計入其他的新分類不另外設定上限。');
+      const before = (await readStoredDocument(q)).state;
+      const active = before.revisions.filter(r => r.month <= month).at(-1)?.limits ?? [];
+      const other = before.categories.find(c => c.name === '其他' && c.kind === 'reserve' && active.some(l => l.categoryId === c.id))!;
+      // 明確採納此次選擇，覆蓋開帳前草稿的歸屬；原預算分類與歷史仍保留。
+      await executeBudgetCommand(q, { action: 'map', operationId: `00000018-0001-4000-8000-${String(category.id).padStart(12, '0')}`,
+        version: before.version, month, reason: '開帳：計入其他', sourceCategory: category.name, to: other.id }, now);
+      continue;
+    }
     // 每一項仍由既有引擎驗證組別與 0～1,000,000 上限；任何失敗都由外層交易回滾。
     if (budget.kind === 'actual' && budget.amount !== 0) throw new BudgetRuleError('argument', '照實支類別不設定上限。');
     const before = (await readStoredDocument(q)).state;

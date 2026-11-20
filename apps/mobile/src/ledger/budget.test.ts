@@ -78,7 +78,7 @@ test('匯入舊財務文件後，可查某月位置、上限快照與月結列�
   assert.equal(status.latestMonth, '2026-09');
   assert.equal(status.openMonth, '2026-10');
   assert.equal(status.currentRevision!.id, 'caps-oct');
-  assert.deepEqual(status.categories.map((c) => [c.name, c.active]), [['學習', true], ['飲食', true], ['其他', true]]);
+  assert.deepEqual(status.categories.map((c) => [c.name, c.active]), [['學習', true], ['飲食', true], ['其他', false], ['其他', true]]);
 
   const sep = await ledger.getBudgetMonth('2026-09');
   assert.equal(sep.spare, 10000);
@@ -165,28 +165,20 @@ test('月結從該月交易彙總實支（收入不算、依歸屬分到類別�
   const oct = await ledger.getBudgetMonth('2026-10');
   // 當月盈餘 ＝ 收入 40000 －（學習上限 3000 ＋ 飲食實支 300 ＋ 其他固定實支 50）
   assert.equal(oct.income, 40000);
-  assert.equal(oct.surplus, 36650);
-  assert.equal(oct.spare, 46650);
-  assert.deepEqual(oct.reserves.map((r) => [r.name, r.balance]), [['學習', 2800]]);
-  assert.equal(oct.reserve, 2800);
-  assert.equal(oct.total, 46650 + 5000 + 2800);
+  assert.equal(oct.surplus, 36700);
+  assert.equal(oct.spare, 46700);
+  assert.deepEqual(oct.reserves.map((r) => [r.name, r.balance]), [['學習', 2800], ['其他', -50]]);
+  assert.equal(oct.reserve, 2750);
+  assert.equal(oct.total, 46700 + 5000 + 2750);
   assert.equal(oct.capSnapshot!.id, 'caps-oct');
   assert.equal((await ledger.getBudgetStatus()).openMonth, '2026-11');
 });
 
-test('月結遇到沒有歸屬的支出分類就拒絕並指出分類，整筆不生效', async () => {
+test('月結未歸屬支出由其他儲備承接，不再阻擋', async () => {
   const ledger = await newLedger();
   await spend(ledger, '2026-10-03', '娛樂', 500);
-  assert.deepEqual(await ledger.getUnmappedExpenseCategories(), ['娛樂']);
-  await rejects('operation', ledger.runBudgetCommand(cmd({ action: 'close', month: '2026-10', amount: 40000 })), /分類「娛樂」尚未設定有效的預算歸屬/);
-  assert.equal((await ledger.getBudgetStatus()).version, 4);
-  assert.equal((await ledger.listBudgetMonths()).length, 1);
-
-  // 補上歸屬後即可月結
-  await ledger.runBudgetCommand(cmd({ action: 'map', month: '2026-10', sourceCategory: '娛樂', to: 'f-other' }));
-  assert.deepEqual(await ledger.getUnmappedExpenseCategories(), []);
-  await ledger.runBudgetCommand(cmd({ action: 'close', month: '2026-10', amount: 40000, version: 5 }));
-  assert.equal((await ledger.getBudgetMonth('2026-10')).surplus, 40000 - 3000 - 500);
+  await ledger.runBudgetCommand(cmd({ action: 'close', month: '2026-10', amount: 40000 }));
+  assert.equal((await ledger.getBudgetMonth('2026-10')).reserves.find(r => r.name === '其他')!.balance, -500);
 });
 
 test('已結月份的交易不能新增；撤銷月結後又可寫入；其他月份不受影響', async () => {

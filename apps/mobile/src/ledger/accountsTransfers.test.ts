@@ -176,13 +176,13 @@ test('收支混合轉帳：明細圓餅占比、分類金額筆數與兩邊合�
   const incomeBefore = await ledger.getMonthBreakdown('2026-11', 'income');
   assert.deepEqual([expenseBefore.total, expenseBefore.otherFlowTotal, incomeBefore.total, incomeBefore.otherFlowTotal], [300, 50000, 50000, 300]);
   assert.deepEqual(expenseBefore.categories, [
-    { categoryId: cat('飲食'), categoryName: '飲食', amount: 100, count: 2, permille: 334 },
-    { categoryId: cat('交通'), categoryName: '交通', amount: 100, count: 1, permille: 333 },
-    { categoryId: cat('娛樂'), categoryName: '娛樂', amount: 100, count: 1, permille: 333 },
+    { categoryId: cat('飲食'), categoryName: '飲食', amount: 100, count: 2, permille: 334, budgetCategory: null },
+    { categoryId: cat('交通'), categoryName: '交通', amount: 100, count: 1, permille: 333, budgetCategory: null },
+    { categoryId: cat('娛樂'), categoryName: '娛樂', amount: 100, count: 1, permille: 333, budgetCategory: null },
   ]);
   assert.deepEqual(incomeBefore.categories, [
-    { categoryId: cat('薪資'), categoryName: '薪資', amount: 40000, count: 2, permille: 800 },
-    { categoryId: cat('其他收入'), categoryName: '其他收入', amount: 10000, count: 1, permille: 200 },
+    { categoryId: cat('薪資'), categoryName: '薪資', amount: 40000, count: 2, permille: 800, budgetCategory: null },
+    { categoryId: cat('其他收入'), categoryName: '其他收入', amount: 10000, count: 1, permille: 200, budgetCategory: null },
   ]);
 
   await ledger.addTransfer({ date: '2026-11-05', fromAccountId: acc('銀行'), toAccountId: acc('信用卡'), amount: 5000, note: '繳卡費' });

@@ -15,7 +15,7 @@
 - [x] 超過上限確認鈕停用並顯示「最多可搬 X 元」；餘額 0 的不能拿起，晃動＋`src/ui/haptics.ts` warning
 - [x] 下方最近搬錢紀錄（唯讀），白話用語「搬錢」「存進罐子」，小字標會計用語
 - [x] 用 reanimated＋gesture-handler，不加套件；無權益時唯讀（沿用 `closeEntitlement`）
-- [ ] 模擬器截圖：圖像模式、拖拉中、填寫面板、會計模式
+- [x] 模擬器截圖：圖像模式、拖拉中、填寫面板、會計模式
 
 **共同規則**：從最新 `claude/project-thread-xdtlp5` 開分支 `claude/ui2-NN-<slug>`，PR（draft）合回 xdtlp5。畫面照 `apps/mobile/AGENTS.md`「UI 風格」（只用 `theme.ts`、`kit.tsx`、`LargeTitle.tsx`）。驗收前在 `apps/mobile` 跑 `npm test`、`npx tsc --noEmit`、`EXPO_OFFLINE=1 CI=1 npx expo export --platform ios`；規則改動先寫帳本服務層的失敗測試（ADR 0006）。不碰翰陞的私人帳本。
 
@@ -40,3 +40,13 @@ iPhone 驗收步驟：
 5. 零餘額來源不能拿起且有晃動／warning 觸感；無權益只可查看。檢查清單、舊沖銷與待重結標示。
 
 未合併分支，未碰私人帳本。
+
+2026-11-19 複驗
+
+`claude/ui2-06-visual-adjustments-refresh` 接在已從 `228b78e` 開出的票 05 分支。沿用帳本的模式設定及搬錢預覽、確認服務。整理 Reanimated 共享值用法，並讓取消的手勢只復位，成功放手才判斷目的罐。
+
+帳本服務測試在套用 06 前因缺少模式讀取方法而失敗，套用後通過，涵蓋預設值、切換、備份還原及拒絕無效值。`npm test` 557 項通過，`npx tsc --noEmit` 與 `EXPO_OFFLINE=1 CI=1 npx expo export --platform ios` 成功。以 Expo SDK 58 預設設定 lint 本票改動檔案，0 錯誤、29 個匯入順序與重新讀取依賴警告。
+
+在 iOS 26.5 模擬器的合成帳本，長按拖曳可用餘額錢包，移動途中錢包有跟隨，放手後開啟「存進罐子」，目的為「飲食」，金額預填 43,500 元。畫面未確認送出，因此本次沒有搬錢。［[拖曳途中](../evidence/06/drag-in-progress.png)］［[放手後面板](../evidence/06/drag-amount-sheet.png)］［[圖像模式](../evidence/06/visual.png)］［[清單模式](../evidence/06/list.png)］
+
+iPhone 驗收請使用測試帳本。從設定切換圖像／清單後重開 App，再測錢包→罐子和罐子→罐子。長按拖到空白處放手，應復位並留在圖像畫面。拖到罐子放手後核對預填值，測試超過上限與原因留空時無法預覽，再用有效金額預覽、確認，檢查兩邊餘額和新紀錄。零餘額晃動與 warning 觸感須用實機確認。
