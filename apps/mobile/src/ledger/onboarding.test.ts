@@ -59,9 +59,14 @@ test('先明確建立收入及支出分類再匯入歷史 CSV；沿用拒收與�
   assert.equal((await ledger.importTransactionsCsv(csv)).addedRows, 2);
   assert.equal((await ledger.importTransactionsCsv(csv)).skippedRows, 2);
   const suggestion = await ledger.getOpeningBudgetSuggestions();
-  assert.equal(suggestion.rows.find((r) => r.name === '寵物')!.kind, 'actual');
+  assert.equal(suggestion.rows.find((r) => r.name === '寵物')!.kind, 'other');
   assert.equal(suggestion.rows.some((r) => r.name === '獎金'), false);
   await assert.rejects(ledger.addOpeningCategory({ name: '薪資', flow: 'expense' }), /名稱/);
+  await ledger.completeOnboarding(await opening(ledger));
+  assert.ok(!(await ledger.getBudgetStatus()).categories.some(c => c.name === '寵物'));
+  const pet = (await ledger.listCategories()).find(c => c.name === '寵物')!;
+  await ledger.addTransaction({ date: '2026-11-05', categoryId: pet.id, accountId: (await ledger.listAccounts())[0].id, flow: 'expense', amount: 40 });
+  assert.equal((await ledger.getBudgetProgress('2026-11')).rows.find(r => r.name === '其他')!.spent, 40);
 });
 test('近三完整月平均進位百元，缺支出算零、排除本月與收入', async (t) => {
   const ledger = await setup(t);
@@ -88,7 +93,8 @@ test('期初加總帳戶及投入額、儲備零；首月保存零差額核對�
   const input = await opening(ledger);
   input.accounts = input.accounts.map((a, i) => ({ ...a, openingBalance: [1000, 5000, -300, 200][i] }));
   input.openingDeployed = 2500;
-  input.budgets = input.budgets.map((r) => ({ ...r, kind: 'actual', amount: 0 }));
+  const other = (await ledger.listCategories()).find(c => c.name === '其他')!.id;
+  input.budgets = input.budgets.map((r) => ({ ...r, kind: r.categoryId === other ? 'reserve' : 'actual', amount: 0 }));
   await ledger.completeOnboarding(input);
   const b = await ledger.getBudgetMonth('2026-10');
   assert.deepEqual([b.income, b.surplus, b.spare, b.tuition, b.reserve, b.total], [0, 0, 8400, 0, 0, 8400]);
@@ -170,6 +176,24 @@ test('預算已有較晚草稿時給可操作提示且不覆寫；選本月可�
   assert.deepEqual(await ledger.listBudgetRevisions(), before);
   await ledger.completeOnboarding({ ...input, openingDate: '2026-11-01' });
   assert.equal((await ledger.getBudgetProgress()).rows.some((r) => r.name === '寵物'), true);
+});
+
+test('開帳選計入其他會覆蓋既有同月草稿歸屬，保留原草稿分類', async (t) => {
+  for (const name of ['交通', '寵物']) {
+    const ledger = await setup(t);
+    await ledger.runBudgetCommand({ action: 'add', operationId: randomUUID(), version: 0,
+      month: '2026-11', reason: '合成預算草稿', name, kind: 'reserve', amount: 500 });
+    const category = (await ledger.listCategories()).find(c => c.name === name)!;
+    const input = await opening(ledger);
+    input.budgets = input.budgets.map(b => b.categoryId === category.id ? { ...b, kind: 'other', amount: 0 } : b);
+    await ledger.completeOnboarding(input);
+    await ledger.addTransaction({ date: '2026-11-05', categoryId: category.id,
+      accountId: (await ledger.listAccounts())[0].id, flow: 'expense', amount: 100 });
+    const progress = await ledger.getBudgetProgress('2026-11');
+    assert.equal(progress.rows.find(r => r.name === '其他')!.spent, 100, name);
+    assert.equal(progress.rows.find(r => r.name === name)!.spent, 0, name);
+    assert.ok((await ledger.getBudgetStatus()).categories.some(c => c.name === name));
+  }
 });
 
 test('期初補入儲備、首月與撤銷重結各自保存零差額核對且守恆', async (t) => {

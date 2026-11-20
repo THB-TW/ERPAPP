@@ -157,7 +157,7 @@ test('保存零差額後新增收支或轉帳、修改帳戶或預算，舊核�
     (ledger) => ledger.addTransfer({ date: '2026-11-01', fromAccountId: 2, toAccountId: 1, amount: 100 }),
     (ledger) => ledger.updateAccount(2, { openingBalance: 10001 }),
     async (ledger) => ledger.runBudgetCommand({ action: 'caps', month: '2026-10', version: (await ledger.getBudgetStatus()).version,
-      operationId: randomUUID(), limits: [{ categoryId: 'food', amount: 0 }], reason: '同額新上限' }),
+      operationId: randomUUID(), limits: (await ledger.getBudgetStatus()).currentRevision!.limits, reason: '同額新上限' }),
   ];
   for (const mutate of mutations) {
     const ledger = await setup(t);

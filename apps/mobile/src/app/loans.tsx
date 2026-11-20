@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { ScrollViewInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { isValidMonth } from '../calc/dates.ts';
+import { MonthPicker } from '../ui/MonthPicker.tsx';
 import type { BudgetStatus, LoanInput, LoanRevision, LoanView, LoanWriteRequest } from '../ledger/index.ts';
 import { formatAmount, monthTitle } from '../ui/format.ts';
 import { syncNotifications } from '../platform/notificationSync.ts';
@@ -22,7 +22,7 @@ const FIELDS: { key: keyof FormFields; label: string; numeric?: boolean; placeho
   { key: 'totalAmount', label: '總額（元）', numeric: true },
   { key: 'monthlyPayment', label: '每月繳款（元）', numeric: true },
   { key: 'remainingPrincipal', label: '剩餘本金（元）', numeric: true },
-  { key: 'expectedEndMonth', label: '預計結清月份', placeholder: 'YYYY-MM' },
+  { key: 'expectedEndMonth', label: '預計結清月份' },
   { key: 'reason', label: '設定原因（必填）', placeholder: '請填寫這次新增或修改的原因' },
 ];
 
@@ -110,14 +110,13 @@ export default function LoansScreen() {
     setError(null);
     const amount = (text: string) => /^\d+$/.test(text.trim()) ? Number(text.trim()) : Number.NaN;
     const input: LoanInput = { name: form.name.trim(), totalAmount: amount(form.totalAmount), monthlyPayment: amount(form.monthlyPayment),
-      remainingPrincipal: amount(form.remainingPrincipal), expectedEndMonth: form.expectedEndMonth.trim() };
+      remainingPrincipal: amount(form.remainingPrincipal), expectedEndMonth: form.expectedEndMonth || null };
     if (!input.name || input.name.length > 50) { setError('請填寫 1～50 字的貸款名稱。'); return; }
     if (![input.totalAmount, input.monthlyPayment, input.remainingPrincipal].every(Number.isSafeInteger)
       || input.totalAmount <= 0 || input.monthlyPayment <= 0 || input.remainingPrincipal < 0 || input.remainingPrincipal > input.totalAmount) {
       setError('總額與每月繳款請填正整數；剩餘本金請填 0 到總額之間的整數。'); return;
     }
     if (input.monthlyPayment > 1_000_000) { setError('每月繳款須為 1～1,000,000 元的整數。'); return; }
-    if (!isValidMonth(input.expectedEndMonth)) { setError('預計結清月份請用 YYYY-MM，例如 2027-06。'); return; }
     const reason = form.reason.trim();
     if (!reason || reason.length > 300) { setError('請填寫 1～300 字的設定原因。'); return; }
     Keyboard.dismiss();
@@ -194,11 +193,12 @@ export default function LoansScreen() {
           <Text style={styles.heading}>{editingId === null ? '新增貸款／分期' : '修改貸款／分期'}</Text>
           {FIELDS.map((field) => <View key={field.key} style={{ gap: 4 }}>
             <Text style={styles.label}>{field.label}</Text>
-            <TextInput value={form[field.key]} onChangeText={(text) => { setForm((old) => ({ ...old, [field.key]: text })); setPreview(null); }}
+            {field.key === 'expectedEndMonth' ? <MonthPicker label={field.label} value={form.expectedEndMonth}
+              allowUnknown disabled={readOnly} onChange={(value) => { setForm(old => ({ ...old, expectedEndMonth: value })); setPreview(null); }} /> : <TextInput value={form[field.key]} onChangeText={(text) => { setForm((old) => ({ ...old, [field.key]: text })); setPreview(null); }}
               keyboardType={field.numeric ? 'number-pad' : 'default'} autoCapitalize="none" autoCorrect={false}
               placeholder={field.placeholder} accessibilityLabel={field.label} editable={!readOnly}
               multiline={field.key === 'reason'}
-              maxLength={field.key === 'reason' ? 300 : field.key === 'name' ? 50 : field.key === 'expectedEndMonth' ? 7 : 16} style={styles.input} />
+              maxLength={field.key === 'reason' ? 300 : field.key === 'name' ? 50 : 16} style={styles.input} />}
           </View>)}
           <Text style={styles.note}>剩餘本金請填實際尚未償還的金額；累積儲備會保留。結清月份是規劃，停止提撥以剩餘本金歸零為準。</Text>
           {preview ? <View style={styles.preview}>
@@ -206,7 +206,7 @@ export default function LoansScreen() {
             <Text style={styles.label}>{preview.name}</Text>
             <Text style={styles.label}>總額 {formatAmount(preview.totalAmount)} 元・每月 {formatAmount(preview.monthlyPayment)} 元</Text>
             <Text style={styles.label}>剩餘本金 {formatAmount(preview.remainingPrincipal)} 元</Text>
-            <Text style={styles.label}>預計 {monthTitle(preview.expectedEndMonth)}結清</Text>
+            <Text style={styles.label}>預計結清月份：{preview.expectedEndMonth ? monthTitle(preview.expectedEndMonth) : '未定'}</Text>
             <Text style={styles.label}>原因：{preview.reason}</Text>
             <Text style={styles.note}>確認儲存後從開放月份生效。</Text>
           </View> : null}

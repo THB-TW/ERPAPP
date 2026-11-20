@@ -204,6 +204,7 @@ export function applyBudgetCommand(state: BudgetState, input: BudgetCommand, con
       break;
     }
     case 'retire': {
+      if (next.categories.find(c => c.id === command.from)?.name === '其他') throw argumentError('其他是固定分類，只能修改上限。');
       const draft = newRevision(next, command, reason, actor, time, fallbackMonth);
       if (!draft.limits.some((l) => l.categoryId === command.from)) throw argumentError('類別已停用或不存在。');
       const last = latestMonth(next);
@@ -263,6 +264,7 @@ export function applyBudgetCommand(state: BudgetState, input: BudgetCommand, con
       }
       const kind = command.kind ?? 'reserve';
       if (kind !== 'reserve' && kind !== 'fixed' && kind !== 'actual') throw argumentError('類別用途不正確。');
+      if (name === '其他' && kind !== 'reserve') throw argumentError('其他是固定分類，只能修改上限。');
       cap(amount);
       next.categories.push({ id: opId, name, kind });
       draft.limits.push({ categoryId: opId, amount: kind === 'actual' ? 0 : amount });
@@ -275,6 +277,9 @@ export function applyBudgetCommand(state: BudgetState, input: BudgetCommand, con
       const limit = draft.limits.find((l) => l.categoryId === command.from);
       if (!limit) throw argumentError('類別已停用或不存在。');
       const definition = singleCategory(next, limit.categoryId);
+      if (definition.name === '其他' && ((command.name ?? '').trim() !== '其他' || (command.kind ?? definition.kind) !== 'reserve')) {
+        throw argumentError('其他是固定分類，只能修改上限。');
+      }
       const oldName = definition.name;
       const name = (command.name ?? '').trim();
       // 改組留下的歷史定義可與其後繼類別同名；只禁止其他使用中類別占用名稱。
@@ -465,7 +470,7 @@ function close(
   const actual: Record<string, number> = {};
   for (const expense of expenses) {
     if (!Number.isSafeInteger(expense.amount) || expense.amount <= 0) throw operationError('支出含有非正整數金額，請先核對交易。');
-    const categoryId = mappedBudgetCategory(revision, expense.category);
+    const categoryId = expenseBudgetCategory(next, revision, expense.category);
     if (categoryId === undefined) {
       throw operationError(`分類「${expense.category}」尚未設定有效的預算歸屬。`);
     }
@@ -504,4 +509,10 @@ function close(
 export function mappedBudgetCategory(revision: BudgetRevision, category: string): string | undefined {
   const categoryId = own(revision.mapping, category);
   return categoryId !== undefined && revision.limits.some((l) => l.categoryId === categoryId) ? categoryId : undefined;
+}
+
+/** 開放月份的未歸屬支出由固定儲備「其他」承接。 */
+export function expenseBudgetCategory(state: BudgetState, revision: BudgetRevision, category: string): string | undefined {
+  return mappedBudgetCategory(revision, category) ?? state.categories.find(c => c.name === '其他' && c.kind === 'reserve'
+    && revision.limits.some(l => l.categoryId === c.id))?.id;
 }

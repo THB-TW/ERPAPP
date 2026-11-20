@@ -5,11 +5,14 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { Account, Ledger } from '../ledger/index.ts';
 import { BudgetRuleError } from '../ledger/index.ts';
-import { shiftMonth, taipeiDate } from '../calc/dates.ts';
+import { monthOf, shiftMonth, taipeiDate } from '../calc/dates.ts';
+import { DatePicker } from '../ui/DatePicker.tsx';
+import { MonthPicker } from '../ui/MonthPicker.tsx';
 import { hasMonthlyCloseEntitlement, useHasPaidAccess } from '../ui/closeEntitlement.ts';
 import { PaidLock } from '../ui/PaidLock.tsx';
 import { formatAmount, userMessage } from '../ui/format.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
+import { PrimaryButton } from '../ui/kit.tsx';
 import { colors } from '../ui/theme.ts';
 
 type Portfolio = Awaited<ReturnType<Ledger['getInvestmentPortfolio']>>;
@@ -27,6 +30,7 @@ export default function InvestmentScreen() {
   const [transactions, setTransactions] = useState<InvestmentTransaction[]>([]);
   const [valuations, setValuations] = useState<Valuation[]>([]);
   const [opening, setOpening] = useState<Awaited<ReturnType<Ledger['getInvestmentOpening']>>>(null);
+  const [closedMonths, setClosedMonths] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -53,11 +57,11 @@ export default function InvestmentScreen() {
   const [openingNegative, setOpeningNegative] = useState(false);
 
   const load = useCallback(async () => {
-    const [nextPortfolio, nextAccounts, nextTransactions, nextValuations, nextOpening] = await Promise.all([
+    const [nextPortfolio, nextAccounts, nextTransactions, nextValuations, nextOpening, nextClosed] = await Promise.all([
       ledger.getInvestmentPortfolio(), ledger.listAccounts(), ledger.listInvestmentTransactions(),
-      ledger.listInvestmentValuations(), ledger.getInvestmentOpening(),
+      ledger.listInvestmentValuations(), ledger.getInvestmentOpening(), ledger.listBudgetMonths(),
     ]);
-    return { nextPortfolio, nextAccounts, nextTransactions, nextValuations, nextOpening };
+    return { nextPortfolio, nextAccounts, nextTransactions, nextValuations, nextOpening, nextClosed };
   }, [ledger]);
 
   const applyLoaded = useCallback((data: Awaited<ReturnType<typeof load>>) => {
@@ -66,6 +70,7 @@ export default function InvestmentScreen() {
     setTransactions(data.nextTransactions);
     setValuations(data.nextValuations);
     setOpening(data.nextOpening);
+    setClosedMonths(data.nextClosed.map(m => m.month));
     setLoaded(true);
   }, []);
 
@@ -80,6 +85,8 @@ export default function InvestmentScreen() {
   }, [load, applyLoaded]));
 
   const disabled = !loaded || saving || !hasEntitlement;
+  const unavailableMonths = form === 'transaction' && txType !== 'opening' ? closedMonths : [];
+  const saveDisabled = disabled || unavailableMonths.includes(monthOf(date));
   const selected = portfolio?.positions.find((p) => p.holdingId === holdingId);
   const isTrade = txType === 'buy' || txType === 'sell';
   const needsQuantity = selected?.assetClass === 'stock' && txType !== 'dividend';
@@ -109,7 +116,7 @@ export default function InvestmentScreen() {
   }
 
   async function save() {
-    if (disabled || savingRef.current || !form) return;
+    if (saveDisabled || savingRef.current || !form) return;
     savingRef.current = true;
     setSaving(true);
     setError(null);
@@ -225,7 +232,7 @@ export default function InvestmentScreen() {
               {form === 'opening' ? (
                 <>
                   <Text style={{ color: colors.muted }}>這是截至指定月底，已投入且仍包含在帳面總資產內的宣告金額。與「期初」交易的持有成本分開，不從歷史買賣重算。</Text>
-                  <Field label="期初月份" placeholder="YYYY-MM" value={openingMonth} onChangeText={setOpeningMonth} disabled={disabled} />
+                  <MonthPicker label="期初月份" value={openingMonth} onChange={setOpeningMonth} disabled={disabled} />
                   <Field label="期初投入額（元）" value={openingAmount} onChangeText={setOpeningAmount} disabled={disabled} numeric />
                   <Choices>
                     <Choice label="正數／零" selected={!openingNegative} disabled={disabled} onPress={() => setOpeningNegative(false)} />
@@ -238,7 +245,7 @@ export default function InvestmentScreen() {
                 <>
                   <Text style={{ color: colors.muted }}>標的</Text>
                   <Choices>{portfolio?.positions.filter((p) => p.active).map((p) => <Choice key={p.holdingId} label={`${p.symbol ? `${p.symbol} ` : ''}${p.name}`} selected={holdingId === p.holdingId} disabled={disabled} onPress={() => setHoldingId(p.holdingId)} />)}</Choices>
-                  <Field label="日期" placeholder="YYYY-MM-DD" value={date} onChangeText={setDate} disabled={disabled} />
+                  <DatePicker unavailableMonths={unavailableMonths} label="日期" value={date} onChange={setDate} disabled={disabled} />
                 </>
               ) : null}
               {form === 'transaction' ? (
@@ -279,7 +286,7 @@ export default function InvestmentScreen() {
           {notice ? <Text accessibilityLiveRegion="polite" style={{ color: colors.income }}>{notice}</Text> : null}
           {error ? <Text accessibilityLiveRegion="polite" style={{ color: colors.expense }}>{error}</Text> : null}
         </ScrollView>
-        {form ? <Pressable accessibilityRole="button" onPress={save} disabled={disabled} style={{ margin: 16, padding: 14, minHeight: 50, justifyContent: 'center', borderRadius: 14, borderCurve: 'continuous', alignItems: 'center', backgroundColor: colors.accent, opacity: disabled ? 0.5 : 1 }}><Text style={{ color: '#fff', fontSize: 17, fontWeight: '600' }}>{saving ? '儲存中…' : '儲存'}</Text></Pressable> : null}
+        {form ? <View style={{ margin: 16 }}><PrimaryButton title={saving ? '儲存中…' : '儲存'} onPress={save} disabled={saveDisabled} /></View> : null}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

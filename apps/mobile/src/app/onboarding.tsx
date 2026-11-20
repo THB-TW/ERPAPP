@@ -12,12 +12,13 @@ import { colors } from '../ui/theme.ts';
 class InputError extends Error {}
 
 type Step = 'choice' | 'categories' | 'balances' | 'income' | 'budget';
-type Kind = 'reserve' | 'fixed' | 'actual';
+type Kind = 'reserve' | 'fixed' | 'actual' | 'other';
 type BudgetRow = {
   categoryId: number; name: string; kind: Kind; amount: string;
   averageExpense: number | null; incomeRatio: number | null; confirmed: boolean;
 };
 const GROUPS: { value: Kind; label: string }[] = [
+  { value: 'other', label: '計入其他' },
   { value: 'reserve', label: '儲備類' }, { value: 'fixed', label: '固定支出' }, { value: 'actual', label: '照實支' },
 ];
 
@@ -169,7 +170,7 @@ export default function OnboardingScreen() {
       await ledger.completeOnboarding({
         openingDate: `${openingMonth}-01`, openingDeployed: integer(deployed, '期初投入額'),
         accounts: accounts.map((account) => ({ id: account.id, openingBalance: integer(balances[account.id] ?? '', account.name, true) })),
-        budgets: budgetRows.map((row) => ({ categoryId: row.categoryId, kind: row.kind, amount: row.kind === 'actual' ? 0 : integer(row.amount, `${row.name}上限`) })),
+        budgets: budgetRows.map((row) => ({ categoryId: row.categoryId, kind: row.kind, amount: row.kind === 'actual' || row.kind === 'other' ? 0 : integer(row.amount, `${row.name}上限`) })),
       });
       if (focused.current) router.replace('/(tabs)');
     });
@@ -263,11 +264,11 @@ export default function OnboardingScreen() {
               {budgetRows.map((row) => (
                 <View key={row.categoryId} style={styles.card}>
                   <Text style={styles.label}>{row.name}</Text>
-                  <Text style={styles.hint}>{row.averageExpense !== null ? `平均支出約 ${formatAmount(Math.round(row.averageExpense))} 元／月` : row.incomeRatio !== null ? `預設占收入 ${Math.round(row.incomeRatio * 100)}%` : '新分類預設照實支'}</Text>
+                  <Text style={styles.hint}>{row.averageExpense !== null ? `平均支出約 ${formatAmount(Math.round(row.averageExpense))} 元／月` : row.incomeRatio !== null ? `預設占收入 ${Math.round(row.incomeRatio * 100)}%` : '新分類預設計入其他'}</Text>
                   <View style={styles.choices}>{GROUPS.map((group) => (
-                    <Choice key={group.value} label={group.label} selected={row.kind === group.value} disabled={disabled} onPress={() => editBudget(row.categoryId, { kind: group.value, ...(group.value === 'actual' ? { amount: '0' } : {}) })} onCard />
+                    <Choice key={group.value} label={group.label} selected={row.kind === group.value} disabled={disabled || row.name === '其他'} onPress={() => editBudget(row.categoryId, { kind: group.value, ...(group.value === 'actual' || group.value === 'other' ? { amount: '0' } : {}) })} onCard />
                   ))}</View>
-                  {row.kind === 'actual' ? <Text style={styles.hint}>照實支，不設定上限。</Text> : <Field label={`${row.name}每月上限（元）`} value={row.amount} onChangeText={(value) => editBudget(row.categoryId, { amount: value })} editable={!disabled} numeric onCard />}
+                  {row.kind === 'other' ? <Text style={styles.hint}>計入固定儲備類「其他」，不另設上限。</Text> : row.kind === 'actual' ? <Text style={styles.hint}>照實支，不設定上限。</Text> : <Field label={`${row.name}每月上限（元）`} value={row.amount} onChangeText={(value) => editBudget(row.categoryId, { amount: value })} editable={!disabled} numeric onCard />}
                   <Action label={row.confirmed ? '✓ 已確認' : '確認這項預算'} disabled={disabled || row.confirmed} onPress={() => confirmBudget(row)} secondary onCard />
                 </View>
               ))}

@@ -13,7 +13,7 @@ export interface LoanInput {
   totalAmount: number;
   monthlyPayment: number;
   remainingPrincipal: number;
-  expectedEndMonth: string;
+  expectedEndMonth: string | null;
 }
 export interface LoanWriteRequest extends LoanInput { version: number; hasEntitlement: boolean; reason: string }
 export interface LoanView {
@@ -116,7 +116,7 @@ function validate(input: LoanWriteRequest): string {
     || input.totalAmount <= 0 || input.monthlyPayment <= 0 || input.monthlyPayment > 1_000_000 || input.remainingPrincipal < 0 || input.remainingPrincipal > input.totalAmount) {
     throw new BudgetRuleError('argument', '總額與每月繳款須為正整數；剩餘本金須介於 0 與總額之間。');
   }
-  if (!isValidMonth(input.expectedEndMonth)) throw new BudgetRuleError('argument', '預計結清月份請用 YYYY-MM。');
+  if (input.expectedEndMonth !== null && !isValidMonth(input.expectedEndMonth)) throw new BudgetRuleError('argument', '預計結清月份請用 YYYY-MM。');
   return name;
 }
 

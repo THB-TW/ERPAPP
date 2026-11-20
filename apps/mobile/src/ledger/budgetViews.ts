@@ -5,6 +5,7 @@ import {
   openMonth,
   position,
   mappedBudgetCategory,
+  expenseBudgetCategory,
   BudgetRuleError,
 } from '../calc/budgetEngine.ts';
 import type { BudgetAmountChange, BudgetCategoryDefinition, BudgetRevision, BudgetState } from '../calc/budgetTypes.ts';
@@ -59,7 +60,7 @@ export function budgetProgress(state: BudgetState, month: string, fallback: stri
   let totalSpent = 0;
   for (const expense of expenses) {
     totalSpent = safeSum(totalSpent, expense.spent);
-    const id = revision && mappedBudgetCategory(revision, expense.name);
+    const id = revision && (closed || month < openMonth(state, fallback) ? mappedBudgetCategory(revision, expense.name) : expenseBudgetCategory(state, revision, expense.name));
     const row = rows.find((r) => r.categoryId === id);
     if (!row) unmapped.push(expense);
     else {

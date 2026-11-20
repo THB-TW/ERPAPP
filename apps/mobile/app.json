@@ -26,7 +26,13 @@
     "scheme": "ledger",
     "plugins": [
       "expo-router",
-      ["expo-notifications", { "enableRemoteNotifications": false }]
+      [
+        "expo-notifications",
+        {
+          "enableRemoteNotifications": false
+        }
+      ],
+      "@react-native-community/datetimepicker"
     ]
   }
 }
