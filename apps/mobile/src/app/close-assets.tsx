@@ -2,10 +2,10 @@ import { Stack, router, useFocusEffect, useLocalSearchParams } from 'expo-router
 import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { isValidDate } from '../calc/dates.ts';
 import type { AssetCheckPreview, AssetCheckRecord, AssetCheckRequest } from '../ledger/index.ts';
 import { CardStatementMismatchError, type CardReconciliation } from '../ledger/index.ts';
 import { CardStatementCheck } from '../ui/CardStatementCheck.tsx';
+import { DatePicker } from '../ui/DatePicker.tsx';
 import { cardStatementErrorMessage } from '../ui/cardStatementError.ts';
 import { hasMonthlyCloseEntitlement } from '../ui/closeEntitlement.ts';
 import { formatAmount, monthTitle } from '../ui/format.ts';
@@ -35,7 +35,6 @@ export default function CloseAssetsScreen() {
   const headerHeight = useHeaderHeight();
   const [preview, setPreview] = useState<AssetCheckPreview | null>(null);
   const [balances, setBalances] = useState<Record<number, string>>({});
-  const [dateText, setDateText] = useState('');
   const [saved, setSaved] = useState<AssetCheckRecord | null>(null);
   const [dirty, setDirty] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -59,7 +58,6 @@ export default function CloseAssetsScreen() {
 
   function show(value: AssetCheckPreview) {
     setPreview(value);
-    setDateText(value.asOf);
     setBalances(Object.fromEntries(value.accounts.filter((a) => a.editable).map((a) => [a.accountId, String(a.inputBalance)])));
     setDirty(false);
     checkOperation.current = newOperationId();
@@ -91,10 +89,6 @@ export default function CloseAssetsScreen() {
     if (!preview || working.current) return;
     Keyboard.dismiss();
     changed();
-    if (!isValidDate(value) || value < preview.minDate || value > preview.maxDate) {
-      setError(`餘額日期請選 ${preview.minDate} 到 ${preview.maxDate}。`);
-      return;
-    }
     working.current = true;
     setBusy(true);
     const sequence = ++loadSequence.current;
@@ -111,10 +105,6 @@ export default function CloseAssetsScreen() {
 
   function input(): AssetCheckRequest | null {
     if (!preview) return null;
-    if (dateText !== preview.asOf) {
-      setError('請先套用餘額日期，再輸入該日期的實際餘額。');
-      return null;
-    }
     const values: { accountId: number; balance: number }[] = [];
     for (const account of preview.accounts.filter((a) => a.editable)) {
       const text = balances[account.accountId]?.trim() ?? '';
@@ -209,11 +199,8 @@ export default function CloseAssetsScreen() {
             <View style={styles.card}>
               <Text style={styles.heading}>餘額日期</Text>
               <Text style={styles.note}>可選 {preview.minDate} 至 {preview.maxDate}。更換日期會重新帶入 App 餘額。</Text>
-              <TextInput value={dateText} editable={!busy} accessibilityLabel="餘額日期" placeholder="YYYY-MM-DD"
-                autoCapitalize="none" autoCorrect={false} keyboardType="numbers-and-punctuation"
-                style={localStyles.input}
-                onChangeText={(value) => { setDateText(value); changed(); }} />
-              <CloseButton title="套用日期" onPress={() => { void selectDate(dateText); }} disabled={busy} />
+              <DatePicker key={preview.asOf} label="餘額日期" value={preview.asOf} minimum={preview.minDate} maximum={preview.maxDate}
+                disabled={busy} onChange={(value) => { void selectDate(value); }} />
               <View style={styles.row}>
                 <DateButton title="‹ 前一天" disabled={busy || preview.asOf <= preview.minDate} onPress={() => { void selectDate(shiftDate(preview.asOf, -1)); }} />
                 <DateButton title="後一天 ›" disabled={busy || preview.asOf >= preview.maxDate} onPress={() => { void selectDate(shiftDate(preview.asOf, 1)); }} />

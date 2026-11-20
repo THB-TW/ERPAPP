@@ -1,7 +1,10 @@
-import { router, type Href } from 'expo-router';
-import { View } from 'react-native';
+import { useCallback, useRef, useState } from 'react';
+import { useLedger } from '../../../ui/LedgerProvider.tsx';
+import { userMessage } from '../../../ui/format.ts';
+import { router, useFocusEffect, type Href } from 'expo-router';
+import { Text, View } from 'react-native';
 import { useSubscriptionStatus } from '../../../ui/closeEntitlement.ts';
-import { Banner, Footnote, Group, kit, NavRow } from '../../../ui/kit.tsx';
+import { Banner, Footnote, Group, kit, NavRow, text } from '../../../ui/kit.tsx';
 import { TabScrollView } from '../../../ui/LargeTitle.tsx';
 
 // 區段順序（由上到下）只由這個陣列決定；SettingsGroup 型別由它推得，名稱只寫這一次。
@@ -14,7 +17,8 @@ type SettingsGroup = (typeof GROUPS)[number];
 const ROWS: { group: SettingsGroup; title: string; hint: string; href: Href }[] = [
   { group: '訂閱', title: '訂閱', hint: '訂閱狀態、管理訂閱、還原購買', href: '/subscription' }, // 票 22
   { group: '預算', title: '預算與分類', hint: '修改預算上限、預算組與交易分類歸屬', href: '/budget-settings' }, // 票 10
-  { group: '預算', title: '預算挪用與調整', hint: '補入儲備、前期更正、沖銷與調整紀錄', href: '/adjustments' }, // 票 14
+  { group: '預算', title: '預算挪用與調整', hint: '儲備挪用、補入儲備與調整紀錄', href: '/adjustments' }, // 票 14
+  { group: '預算', title: '月結管理', hint: '撤銷最近一次月結、前期更正', href: '/close-management' },
   { group: '資料', title: '匯入 CSV', hint: '其他 App 搬家、匯出全部交易、CSV 規格', href: '/csv-import' }, // 票 15
   { group: '帳戶與投資', title: '帳戶管理與餘額', hint: '新增、改名、停用帳戶，開帳餘額與目前餘額', href: '/accounts' }, // 票 08
   { group: '帳戶與投資', title: '投資', hint: '台股與虛擬貨幣部位、買賣、手動市值與財產分配', href: '/investment' }, // 票 20
@@ -25,11 +29,35 @@ const ROWS: { group: SettingsGroup; title: string; hint: string; href: Href }[] 
 
 export default function SettingsScreen() {
   const status = useSubscriptionStatus();
+  const ledger = useLedger();
+  const [mode, setMode] = useState<'visual' | 'list' | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const saving = useRef(false);
+  useFocusEffect(useCallback(() => {
+    let cancelled = false;
+    ledger.getAdjustmentViewMode().then(value => { if (!cancelled) { setMode(value); setError(null); } }, e => { if (!cancelled) setError(userMessage(e, '讀取顯示模式失敗。')); });
+    return () => { cancelled = true; };
+  }, [ledger]));
+  async function toggleMode() {
+    if (!mode || saving.current) return;
+    saving.current = true; setBusy(true); setError(null);
+    const next = mode === 'visual' ? 'list' : 'visual';
+    try { await ledger.setAdjustmentViewMode(next); setMode(next); }
+    catch (e) { setError(userMessage(e, '儲存顯示模式失敗。')); }
+    finally { saving.current = false; setBusy(false); }
+  }
   return (
     <TabScrollView title="設定">
       {status.kind === 'dev_unlocked' ? (
         <Banner tone="warning">開發版・未接內購：進階功能全部開放，上架版本不會有這個狀態。</Banner>
       ) : null}
+      <View style={kit.section}>
+        <Footnote>顯示</Footnote>
+        <Group><NavRow title="調整畫面" value={mode === 'list' ? '清單（會計）' : mode === 'visual' ? '圖像（記帳小白）' : '讀取中…'}
+          subtitle="點一下切換；只影響預算調整畫面" disabled={busy || mode === null} onPress={() => void toggleMode()} /></Group>
+        {error ? <Text style={text.error}>{error}</Text> : null}
+      </View>
       {GROUPS.map((group) => {
         const rows = ROWS.filter((row) => row.group === group);
         if (rows.length === 0) return null;

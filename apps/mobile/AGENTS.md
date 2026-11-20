@@ -50,5 +50,4 @@ Docs: https://docs.expo.dev/eas/index.md
 - 分頁大標題**不用**原生 `headerLargeTitleEnabled`：iOS 26 導覽列有底色時，原生大標題收合後小標題看不見（模擬器實測）。改用 `src/ui/LargeTitle.tsx`：一般分頁最外層用 `<TabScrollView title=…>`；需要自己的 ScrollView（例如預算頁的吸頂頁籤）就用 `useLargeTitle()`，把 `element` 放第一項、`onScroll` 接上。
 - `stickyHeaderIndices` 指到的子節點外面要多包一層沒樣式的 `View`：React Native 會把吸頂子節點的樣式搬到它自己的外框，橫排會變直排。
 - 頁內不要再放和導覽列同名的標題。
-- 長頁面的區段跳轉用 `src/ui/sectionNav.ts`。
 - 記帳、轉帳表單以 iOS 面板（modal）呈現；面板裡不要用 `KeyboardAvoidingView`，用 `src/ui/useKeyboardHeight.ts`。

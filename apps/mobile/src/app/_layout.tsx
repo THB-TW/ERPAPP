@@ -1,3 +1,4 @@
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { LedgerProvider } from '../ui/LedgerProvider.tsx';
@@ -7,6 +8,7 @@ import { colors } from '../ui/theme.ts';
 // 放在 src/app/ 底下、由這個堆疊推入，返回後回到原本的分頁。
 export default function RootLayout() {
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <LedgerProvider>
       <StatusBar style="dark" />
       {/* iOS 26 起原生導覽列預設半透明、內容會跑到列底下；統一改回不透明，各頁不必自己避開。
@@ -29,5 +31,6 @@ export default function RootLayout() {
         <Stack.Screen name="transfer" options={{ title: '新增轉帳', presentation: 'modal' }} />
       </Stack>
     </LedgerProvider>
+    </GestureHandlerRootView>
   );
 }

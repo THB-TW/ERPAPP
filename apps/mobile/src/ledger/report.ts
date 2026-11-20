@@ -1,5 +1,7 @@
 // 明細（票 09）的查詢：某月某收支別的分類彙總與占比、某分類當月的交易。
 // 只讀 transactions（收入與支出）。轉帳（票 08）不是交易、沒有分類，不在這張表裡，所以不計入。
+import { effectiveRevision, mappedBudgetCategory } from '../calc/budgetEngine.ts';
+import { readState } from './financeDocument.ts';
 import type { Queryable } from '../db/driver.ts';
 import { isValidMonth } from '../calc/dates.ts';
 import { allocateShares } from '../calc/shares.ts';
@@ -10,6 +12,8 @@ import { selectTransactions, type DayTransaction } from './transactions.ts';
 export interface CategoryShare {
   categoryId: number;
   categoryName: string;
+  /** 所選月份的有效支出歸屬；收入與未歸屬為 null。 */
+  budgetCategory: { id: string; name: string } | null;
   amount: number;
   count: number;
   /** 占該月該收支別合計的千分比（最大餘數法）；全部分類加起來一定是 1000。畫面顯示成一位小數的百分比。 */
@@ -34,7 +38,7 @@ export async function monthBreakdown(q: Queryable, month: string, flow: Flow): P
   if (flow !== 'expense' && flow !== 'income') {
     throw new LedgerError('invalid_flow', '收支別只能是「支出」或「收入」。');
   }
-  const rows = await q.all<Omit<CategoryShare, 'permille'>>(
+  const rows = await q.all<Omit<CategoryShare, 'permille' | 'budgetCategory'>>(
     `SELECT c.id AS categoryId, c.name AS categoryName, SUM(t.amount) AS amount, COUNT(*) AS count
        FROM transactions t JOIN categories c ON c.id = t.category_id
       WHERE t.flow = ? AND substr(t.date, 1, 7) = ?
@@ -45,13 +49,22 @@ export async function monthBreakdown(q: Queryable, month: string, flow: Flow): P
     'SELECT COALESCE(SUM(amount), 0) AS total FROM transactions WHERE flow <> ? AND substr(date, 1, 7) = ?',
     [flow, month],
   );
+  const state = flow === 'expense' && rows.length > 0 ? await readState(q) : null;
+  const closed = state?.months.find(m => m.month === month);
+  const revision = closed ? closed.revision : state && effectiveRevision(state, month);
+  const budgetCategory = (name: string) => {
+    if (!state || !revision) return null;
+    const id = mappedBudgetCategory(revision, name);
+    const definition = state.categories.find(c => c.id === id);
+    return definition ? { id: definition.id, name: definition.name } : null;
+  };
   const permilles = allocateShares(rows.map((r) => r.amount), 1000);
   return {
     month,
     flow,
     total: rows.reduce((sum, r) => sum + r.amount, 0),
     otherFlowTotal: other?.total ?? 0,
-    categories: rows.map((r, i) => ({ ...r, permille: permilles[i] })),
+    categories: rows.map((r, i) => ({ ...r, permille: permilles[i], budgetCategory: budgetCategory(r.categoryName) })),
   };
 }
 

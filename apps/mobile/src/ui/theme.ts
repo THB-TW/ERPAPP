@@ -72,3 +72,14 @@ export const typeScale = {
   /** 大金額：等寬數字，上下列對齊。 */
   amount: { fontSize: 28, lineHeight: 34, fontWeight: '600' as const, fontVariant: ['tabular-nums' as const] },
 };
+
+/** 明細灰色只留給預算「其他」；第八個彩色分類起使用原色的淺色階。 */
+export const reportOtherColor = chartColors[7];
+export function reportCategoryColor(index: number): string {
+  const base = chartColors[index % 7];
+  const tier = Math.floor(index / 7);
+  if (tier === 0) return base;
+  const mix = Math.min(0.65, 0.22 * tier);
+  const channels = [1, 3, 5].map(offset => Math.round(parseInt(base.slice(offset, offset + 2), 16) * (1 - mix) + 255 * mix));
+  return `rgb(${channels.join(',')})`;
+}

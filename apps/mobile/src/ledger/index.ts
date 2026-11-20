@@ -133,6 +133,9 @@ export interface Ledger extends AccountsLedger, TransfersLedger, InvestmentsLedg
   /** 調整先看完整金額預覽；確認時核對原指令與預覽，並重新驗權益。 */
   previewAdjustment(input: AdjustmentRequest): Promise<AdjustmentPreview>;
   confirmAdjustment(input: ConfirmAdjustmentRequest): Promise<BudgetCommandResult>;
+  /** 儲存在帳本的調整畫面偏好。未設定時使用圖像模式。 */
+  getAdjustmentViewMode(): Promise<'visual' | 'list'>;
+  setAdjustmentViewMode(mode: 'visual' | 'list'): Promise<void>;
   /** 月結精靈的開放月份與唯讀收入；當月尚未結束時不能完成。 */
   getMonthlyCloseDraft(): Promise<MonthlyCloseDraft>;
   /** 讀當月收入並立即試算，不寫入月結或快照。 */
@@ -261,6 +264,12 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
     listAssetChecks: (month) => serial(() => listAssetChecks(db, month)),
     previewAdjustment: (input) => serial(() => previewAdjustment(db, input, now())),
     confirmAdjustment: (input) => serial(() => db.transaction((tx) => confirmAdjustment(tx, input, now()))),
+    getAdjustmentViewMode: () => serial(async () =>
+      (await db.get<{ value: string }>("SELECT value FROM settings WHERE key = 'adjustment_view_mode'"))?.value === 'list' ? 'list' : 'visual'),
+    setAdjustmentViewMode: (mode) => serial(() => db.transaction(async tx => {
+      if (mode !== 'visual' && mode !== 'list') throw new LedgerError('invalid_setting', '請選擇有效的調整顯示模式。');
+      await tx.run("INSERT INTO settings (key, value) VALUES ('adjustment_view_mode', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", [mode]);
+    })),
     getMonthlyCloseDraft: () => serial(() => monthlyCloseDraft(db, now())),
     previewMonthlyClose: (input) => serial(() => previewMonthlyClose(db, input, now())),
     completeMonthlyClose: (input) => serial(() => db.transaction((tx) => completeMonthlyClose(tx, input, now()))),
@@ -390,7 +399,7 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
       ),
 
     exportFinanceDocument: () =>
-      serial(async () => serializeBudgetDocument((await readStoredDocument(db)).state)),
+      serial(async () => serializeBudgetDocument((await readStoredDocument(db, false)).state)),
 
     getBackupStatus: () => serial(backup.status),
     exportBackup: (path) => serial(() => backup.export(path)),
