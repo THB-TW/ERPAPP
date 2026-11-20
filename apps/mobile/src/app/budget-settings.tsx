@@ -9,7 +9,7 @@ import { formatAmount, monthTitle, userMessage } from '../ui/format.ts';
 import { Banner, Card, Chip, Footnote, Group, NavRow, PrimaryButton, SectionTitle, Segmented, kit, text } from '../ui/kit.tsx';
 import { useLedger } from '../ui/LedgerProvider.tsx';
 import { PaidLock } from '../ui/PaidLock.tsx';
-import { chartColors, colors, groupColors } from '../ui/theme.ts';
+import { budgetCategoryColor, colors, groupColors } from '../ui/theme.ts';
 import { useKeyboardHeight } from '../ui/useKeyboardHeight.ts';
 
 type Kind = 'reserve' | 'fixed' | 'actual';
@@ -110,12 +110,13 @@ export default function BudgetSettingsScreen() {
   const balance = latest?.reserves.find(row => row.categoryId === original?.id)?.balance ?? 0;
   const assigned = status && original ? assignedTo(status, original.id) : [];
   const additions = draft?.additions.filter(name => !assigned.includes(name)) ?? [];
-  const canWrite = entitled && !loading && !busy && !loadError;
+  const canWrite = !loading && !busy && !loadError;
+  const canRetire = canWrite && entitled;
   const canSave = !!draft?.name.trim() && !!draft.reason.trim() && validCap
     && (!draft.id || !!original)
     && (!original || draft.name.trim() !== original.name || draft.kind !== original.kind || amount !== originalCap || additions.length > 0);
   const legend = status ? active.filter(category => category.kind !== 'actual').map((category, index) => ({
-    id: category.id, name: category.name, cap: capOf(status, category.id), color: chartColors[index % chartColors.length],
+    id: category.id, name: category.name, cap: capOf(status, category.id), color: budgetCategoryColor(index),
   })) : [];
   const total = legend.reduce((sum, item) => sum + item.cap, 0);
 
@@ -151,7 +152,7 @@ export default function BudgetSettingsScreen() {
   }
 
   async function save() {
-    if (!status || !draft || !canSave || !canWrite || inFlight.current || !hasMonthlyCloseEntitlement()) return;
+    if (!status || !draft || !canSave || !canWrite || inFlight.current) return;
     inFlight.current = true;
     setBusy(true);
     setError(null);
@@ -164,9 +165,7 @@ export default function BudgetSettingsScreen() {
     const base = { month: status.openMonth, reason: draft.reason.trim() };
 
     async function run(command: BudgetCommand) {
-      if (!hasMonthlyCloseEntitlement()) throw new Error('付費權益已失效，已停止儲存。');
       const preview = await ledger.previewBudgetCommand(command);
-      if (!hasMonthlyCloseEntitlement()) throw new Error('付費權益已失效，已停止儲存。');
       const result = await ledger.runBudgetCommand(command);
       version = result.version;
       committed++;
@@ -210,8 +209,8 @@ export default function BudgetSettingsScreen() {
   }
 
   async function retireCategory() {
-    if (!status || !original || locked || !canWrite || !draft?.reason.trim() || balance < 0
-        || (balance > 0 && !transferTo) || inFlight.current) return;
+    if (!status || !original || locked || !canRetire || !draft?.reason.trim() || balance < 0
+        || (balance > 0 && !transferTo) || inFlight.current || !hasMonthlyCloseEntitlement()) return;
     inFlight.current = true;
     setBusy(true);
     setError(null);
@@ -251,7 +250,6 @@ export default function BudgetSettingsScreen() {
       <Stack.Screen options={{ title: '預算與分類' }} />
       <ScrollView contentContainerStyle={[kit.content, styles.pageContent]}>
         {loading && !status ? <ActivityIndicator accessibilityLabel="讀取預算設定中" /> : null}
-        {!entitled ? <PaidLock feature="adjustments" note="目前僅供查看。有效付費權益才能修改預算與分類。" /> : null}
         {saved ? <Banner>{saved}</Banner> : null}
         {loadError ? <>
           <Text style={text.error} accessibilityRole="alert">{loadError}</Text>
@@ -344,18 +342,19 @@ export default function BudgetSettingsScreen() {
                 </Group>
               ) : sheet === 'retire' ? (
                 <>
+                  {!entitled ? <PaidLock feature="adjustments" note="停用分類需要有效的付費權益。" /> : null}
                   <Footnote>停用「{original?.name}」從 {monthTitle(status.openMonth)} 開始。歷史交易與已結月份仍會保留。</Footnote>
                   {original?.kind === 'reserve' ? <Card>
                     <Text style={text.headline}>剩餘儲備 {formatAmount(balance)} 元</Text>
                     {balance < 0 ? <Text style={text.error}>請先補足負儲備。</Text> : balance === 0 ? <Footnote>餘額為 0，不需要轉入其他分類。</Footnote> : <>
                       <Text style={text.subhead}>剩餘儲備轉入</Text>
                       <View style={styles.chips}>{active.filter(category => category.kind === 'reserve' && category.id !== original.id).map(category => (
-                        <Chip key={category.id} label={category.name} active={transferTo === category.id} disabled={!canWrite}
+                        <Chip key={category.id} label={category.name} active={transferTo === category.id} disabled={!canRetire}
                           onPress={() => { setTransferTo(category.id); setRetire(null); setError(null); }} />
                       ))}</View>
                     </>}
                   </Card> : null}
-                  <Reasons value={draft.reason} disabled={!canWrite} onChange={reason => changeDraft({ reason })} />
+                  <Reasons value={draft.reason} disabled={!canRetire} onChange={reason => changeDraft({ reason })} />
                   {retire ? <Card>
                     <Text style={text.headline}>停用後</Text>
                     <Text style={text.subhead}>「{original?.name}」將從開放月份停用。</Text>
@@ -366,7 +365,7 @@ export default function BudgetSettingsScreen() {
                     ))}
                   </Card> : null}
                   <PrimaryButton title={retire ? '確認停用' : '預覽停用'} tone={retire ? 'destructive' : 'accent'}
-                    disabled={!canWrite || !draft.reason.trim() || balance < 0 || (balance > 0 && !transferTo)}
+                    disabled={!canRetire || !draft.reason.trim() || balance < 0 || (balance > 0 && !transferTo)}
                     onPress={() => void retireCategory()} />
                 </>
               ) : (
