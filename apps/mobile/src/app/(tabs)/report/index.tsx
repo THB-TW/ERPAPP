@@ -1,13 +1,14 @@
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { monthOf, shiftMonth, taipeiDate } from '../../../calc/dates.ts';
 import { REST_SLICE_KEY, pieSlices, type PieSlice } from '../../../calc/shares.ts';
 import type { DayTransaction, Flow, MonthBreakdown } from '../../../ledger/index.ts';
+import { ReportPager } from '../../../ui/ReportPager.tsx';
 import { Donut } from '../../../ui/Donut.tsx';
 import { formatAmount, formatPermille, monthTitle, userMessage } from '../../../ui/format.ts';
 import { useLedger } from '../../../ui/LedgerProvider.tsx';
-import { Footnote, Group, MonthBar, SectionTitle, Segmented, kit, text } from '../../../ui/kit.tsx';
+import { Footnote, Group, MonthBar, SectionTitle, kit, text } from '../../../ui/kit.tsx';
 import { TabScrollView } from '../../../ui/LargeTitle.tsx';
 import { chartColors, colors, typeScale } from '../../../ui/theme.ts';
 
@@ -19,12 +20,28 @@ const otherFlow = (flow: Flow): Flow => (flow === 'expense' ? 'income' : 'expens
 const FLOW_OPTIONS = (['expense', 'income'] as const).map((f) => ({ key: f, label: FLOW_NAME[f] }));
 
 export default function ReportScreen() {
-  const ledger = useLedger();
   const [thisMonth, setThisMonth] = useState(() => monthOf(taipeiDate(new Date())));
   const [month, setMonth] = useState(thisMonth);
-  const [flow, setFlow] = useState<Flow>('expense');
+  const [selected, setSelected] = useState(0);
+  useFocusEffect(useCallback(() => { setThisMonth(monthOf(taipeiDate(new Date()))); }, []));
+  return (
+    <TabScrollView title="明細">
+      <MonthBar title={monthTitle(month)} onPrev={() => setMonth(shiftMonth(month, -1))}
+        onNext={() => setMonth(shiftMonth(month, 1))} nextDisabled={month >= thisMonth}
+        hint={month === thisMonth ? '本月' : '回到本月'}
+        onHintPress={month === thisMonth ? undefined : () => setMonth(thisMonth)} />
+      <ReportPager options={FLOW_OPTIONS} onChange={setSelected}>
+        {(['expense', 'income'] as const).map((flow, index) => <ReportPage key={`${month}-${flow}`} month={month} flow={flow} active={selected === index} />)}
+      </ReportPager>
+    </TabScrollView>
+  );
+}
+
+function ReportPage({ month, flow, active }: { month: string; flow: Flow; active: boolean }) {
+  const ledger = useLedger();
   const [breakdown, setBreakdown] = useState<MonthBreakdown | null>(null);
   const [openKey, setOpenKey] = useState<string | null>(null);
+  useEffect(() => { if (!active) setOpenKey(null); }, [active]);
   // 展開的類別的交易，連同它屬於哪個月份、哪個類別一起存；對不上目前展開的那一列就不顯示。
   const [openList, setOpenList] = useState<{ month: string; key: string; rows: DayTransaction[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +50,6 @@ export default function ReportScreen() {
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      setThisMonth(monthOf(taipeiDate(new Date())));
       ledger.getMonthBreakdown(month, flow).then(
         (result) => {
           if (cancelled) return;
@@ -69,64 +85,18 @@ export default function ReportScreen() {
     }, [ledger, month, openKey]),
   );
 
-  function changeMonth(delta: number) {
-    setMonth(shiftMonth(month, delta));
-    setOpenKey(null);
-  }
-
-  function chooseFlow(next: Flow) {
-    if (next === flow) return;
-    setFlow(next);
-    setOpenKey(null);
-  }
-
-  // 在圓餅圖上左右滑：切換支出／收入。只有橫向位移明顯大於縱向時才接手，上下捲動不受影響。
-  const swipeTo = useRef<() => void>(() => undefined);
-  swipeTo.current = () => chooseFlow(otherFlow(flow));
-  const swipe = useMemo(
-    () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 12 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
-        onPanResponderRelease: (_, g) => {
-          if (Math.abs(g.dx) > 40 && Math.abs(g.dx) > Math.abs(g.dy)) swipeTo.current();
-        },
-      }),
-    [],
-  );
-
   // 查詢結果還是上一個月份或收支別的時候不畫，避免標題和圖對不上。
   const current = breakdown && breakdown.month === month && breakdown.flow === flow ? breakdown : null;
   const slices = current ? pieSlices(current.categories, MAX_SLICES) : [];
   const colorOf = (index: number, slice: PieSlice) =>
     slice.key === REST_SLICE_KEY ? chartColors[chartColors.length - 1] : chartColors[index % chartColors.length];
   const kind = FLOW_NAME[flow];
-  const isLatestMonth = month >= thisMonth;
-
   return (
-    <TabScrollView title="明細">
-      <MonthBar
-        title={monthTitle(month)}
-        onPrev={() => changeMonth(-1)}
-        onNext={() => changeMonth(1)}
-        nextDisabled={isLatestMonth}
-        hint={month === thisMonth ? '本月' : '回到本月'}
-        onHintPress={
-          month === thisMonth
-            ? undefined
-            : () => {
-                setMonth(thisMonth);
-                setOpenKey(null);
-              }
-        }
-      />
-
-      <Segmented options={FLOW_OPTIONS} value={flow} onChange={chooseFlow} />
-
+    <View style={styles.page}>
       <View style={styles.chartBlock}>
         {/* kit 的 Card 不收手勢與無障礙屬性，所以這裡直接用 kit.card 樣式的 View。 */}
         <View
           style={[kit.card, styles.donutCard]}
-          {...swipe.panHandlers}
           accessible
           accessibilityRole="image"
           accessibilityLabel={`${monthTitle(month)}${kind}分類圓餅圖，合計 ${formatAmount(current?.total ?? 0)} 元。左右滑可切換支出與收入。`}
@@ -201,7 +171,7 @@ export default function ReportScreen() {
           })}
         </Group>
       </View>
-    </TabScrollView>
+    </View>
   );
 }
 
@@ -230,10 +200,11 @@ function SubRow(props: { label: string; amount: number; onPress?: () => void }) 
 }
 
 const styles = StyleSheet.create({
+  page: { gap: 24 },
   chartBlock: { gap: 10 },
   donutCard: { alignItems: 'center', padding: 20 },
   // 甜甜圈中空只有約 126pt 寬，金額太長時縮字而不是換行。
-  donutTotal: { fontSize: 22, fontWeight: '700', color: colors.text, fontVariant: ['tabular-nums'], maxWidth: 116 },
+  donutTotal: { ...typeScale.title2, fontWeight: '700', color: colors.text, fontVariant: ['tabular-nums'], maxWidth: 116 },
   dots: { flexDirection: 'row', justifyContent: 'center', gap: 6 },
   pageDot: { width: 6, height: 6, borderRadius: 3 },
   otherTotal: { ...typeScale.footnote, color: colors.muted, fontVariant: ['tabular-nums'] },
