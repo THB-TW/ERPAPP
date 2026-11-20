@@ -26,6 +26,19 @@ export const colors = {
 /** 圓餅圖切片的顏色（原型第五版的 c1–c8），依切片順序取用；最後一色給合併的「其他分類」。 */
 export const chartColors = ['#16705a', '#d08a2e', '#3f6fb5', '#c2544b', '#7a5ea8', '#3c97a8', '#8a7a3a', '#7d8a86'];
 
+/** 預算上限分配使用八個原色，第九個分類起沿用同色系的淺階。 */
+export function budgetCategoryColor(index: number): string {
+  const base = chartColors[index % chartColors.length];
+  const tier = Math.floor(index / chartColors.length);
+  if (tier === 0) return base;
+  const mix = 1 - 0.78 ** tier;
+  const channels = [1, 3, 5].map(offset => {
+    const channel = parseInt(base.slice(offset, offset + 2), 16);
+    return Math.round(channel + (255 - channel) * mix);
+  });
+  return `rgb(${channels.join(',')})`;
+}
+
 /** 舊名稱（預算頁使用），與 colors 是同一組顏色；新程式請直接用 colors。 */
 export const grouped = {
   background: colors.background,
