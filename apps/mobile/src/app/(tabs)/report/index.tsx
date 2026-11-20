@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { monthOf, shiftMonth, taipeiDate } from '../../../calc/dates.ts';
 import type { DayTransaction, Flow, MonthBreakdown } from '../../../ledger/index.ts';
-import { ReportPager } from '../../../ui/ReportPager.tsx';
+import { HorizontalPager, usePagerTap } from '../../../ui/HorizontalPager.tsx';
 import { Donut } from '../../../ui/Donut.tsx';
 import { formatAmount, formatPermille, monthTitle, userMessage } from '../../../ui/format.ts';
 import { useLedger } from '../../../ui/LedgerProvider.tsx';
@@ -38,12 +38,12 @@ export default function ReportScreen() {
         onNext={() => chooseMonth(shiftMonth(month, 1))} nextDisabled={month >= thisMonth}
         hint={month === thisMonth ? '本月' : '回到本月'}
         onHintPress={month === thisMonth ? undefined : () => chooseMonth(thisMonth)} />
-      <ReportPager options={FLOW_OPTIONS} selected={selected} onChange={choosePage}>
+      <HorizontalPager options={FLOW_OPTIONS} onChange={choosePage}>
         {(['expense', 'income'] as const).map((flow, index) => (
           <ReportPage key={`${month}-${flow}`} month={month} flow={flow}
             openKey={selected === index ? openKey : null} onOpen={setOpenKey} />
         ))}
-      </ReportPager>
+      </HorizontalPager>
     </TabScrollView>
   );
 }
@@ -51,6 +51,7 @@ export default function ReportScreen() {
 function ReportPage({ month, flow, openKey, onOpen }: {
   month: string; flow: Flow; openKey: string | null; onOpen: (key: string | null) => void;
 }) {
+  const tap = usePagerTap();
   const ledger = useLedger();
   const [breakdown, setBreakdown] = useState<MonthBreakdown | null>(null);
   // 展開的類別的交易，連同它屬於哪個月份、哪個類別一起存；對不上目前展開的那一列就不顯示。
@@ -153,7 +154,7 @@ function ReportPage({ month, flow, openKey, onOpen }: {
             return (
               <View key={slice.key}>
                 <Pressable
-                  onPress={() => onOpen(open ? null : slice.key)}
+                  onPress={tap(() => onOpen(open ? null : slice.key))}
                   accessibilityRole="button"
                   accessibilityState={{ expanded: open }}
                   style={({ pressed }) => [kit.row, pressed && kit.pressed]}
@@ -171,7 +172,7 @@ function ReportPage({ month, flow, openKey, onOpen }: {
                         key={t.id}
                         label={`${Number(t.date.slice(5, 7))}/${Number(t.date.slice(8))}・${t.accountName}${t.note ? `・${t.note}` : ''}`}
                         amount={t.amount}
-                        onPress={() => router.push({ pathname: '/entry', params: { id: String(t.id) } })}
+                        onPress={tap(() => router.push({ pathname: '/entry', params: { id: String(t.id) } }))}
                       />
                     ))
                   : null}
