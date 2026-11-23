@@ -381,3 +381,8 @@ cloudflare/.env*
 ledger-backup-*.db
 before-restore-*.db
 restore-staging-*.db
+
+# 內建 skill 的 bin 目錄不可被忽略
+!.claude/skills/archify/bin/
+!.claude/skills/**/bin/
+.archify/
