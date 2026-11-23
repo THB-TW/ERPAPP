@@ -61,3 +61,7 @@ The five canonical labels, unchanged, written as a `Status:` line in each issue 
 ### Domain docs
 
 Single-context — one `CONTEXT.md` and one `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+### Matt Pocock skills（專案內建）
+
+Matt Pocock 的 skills（`mattpocock-skills` v1.2.2，MIT 授權）已複製到 `.claude/skills/`，雲端 thread 與 Mac 上的 Claude Code session 開在此 repo 就能直接用（如 `/wayfinder`、`/tdd`、`/to-tickets`、`/triage`、`/grill-me`）。來源、授權與更新方式見 `.claude/skills/README-mattpocock.md`；授權全文 `.claude/skills/MATTPOCOCK-LICENSE`。與既有 `chief-of-staff` 及 agent 分派表並行，不取代。
