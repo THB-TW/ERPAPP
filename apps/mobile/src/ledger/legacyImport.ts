@@ -1,6 +1,7 @@
 // 舊帳整批帶入（票 04）。只給轉換程式經由帳本服務使用；畫面不會呼叫。
 // 整個過程在呼叫端給的同一個資料庫交易內，任何一處丟錯就整批還原。
 import type { Queryable } from '../db/driver.ts';
+import { ensureSelfMember } from './members.ts';
 import { isValidDate } from '../calc/dates.ts';
 import { assertAccountKnown, assertCategoryFlow, assertTransactionShape } from './transactionRules.ts';
 import { parseImportedDocument, replaceDocument } from './financeDocument.ts';
@@ -66,7 +67,7 @@ async function assertEmptyLedger(tx: Queryable): Promise<void> {
   };
   const counts = await tx.get<{ t: number; d: number; m: number; s: number; transfers: number; cards: number }>(
     `SELECT (SELECT COUNT(*) FROM transactions) AS t, (SELECT COUNT(*) FROM finance_document) AS d,
-            (SELECT COUNT(*) FROM members) AS m, (SELECT COUNT(*) FROM settings) AS s,
+            (SELECT COUNT(*) FROM members WHERE NOT (is_self = 1 AND name = '自己')) AS m, (SELECT COUNT(*) FROM settings) AS s,
             (SELECT COUNT(*) FROM transfers) AS transfers, (SELECT COUNT(*) FROM card_statements) AS cards`,
   );
   const investments = await tx.get<{ n: number }>(`SELECT (SELECT COUNT(*) FROM investment_holdings) + (SELECT COUNT(*) FROM investment_transactions) + (SELECT COUNT(*) FROM investment_valuations) + (SELECT COUNT(*) FROM investment_opening) AS n`);
@@ -102,6 +103,7 @@ export async function importLegacy(tx: Queryable, data: LegacyImportData): Promi
   }
 
   // 出廠預設的分類與帳戶沒有任何東西參照（上面已確認沒有交易），直接取代。
+  await tx.run('DELETE FROM members'); // 只剩自動建立、沒人用的「自己」（上面已確認沒有交易）
   await tx.run('DELETE FROM categories');
   await tx.run('DELETE FROM accounts');
   for (const [i, a] of data.accounts.entries()) {
@@ -131,7 +133,8 @@ export async function importLegacy(tx: Queryable, data: LegacyImportData): Promi
       throw e;
     }
     let memberId: number | null = null;
-    if (t.member !== null) {
+    if (t.member === null) memberId = await ensureSelfMember(tx); // 每筆交易一定有成員：沒指定的記在「自己」
+    else {
       const found = memberIds.get(t.member);
       if (found === undefined) throw new LedgerError('unknown_member', `${where}：找不到成員「${t.member}」。`);
       memberId = found;
@@ -142,6 +145,7 @@ export async function importLegacy(tx: Queryable, data: LegacyImportData): Promi
     );
   }
 
+  await ensureSelfMember(tx); // 一定要有「自己」（舊帳沒有就建立）
   await importLegacyCardStatements(tx, data.cardStatements ?? []);
   await importLegacyInvestments(tx, data.investments, data.openingDate);
   await replaceDocument(tx, state);

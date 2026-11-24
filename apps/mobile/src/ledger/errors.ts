@@ -1,4 +1,9 @@
 export type LedgerErrorCode =
+  | 'invalid_icon'
+  | 'invalid_member_name'
+  | 'member_name_conflict'
+  | 'cannot_deactivate_self'
+  | 'member_in_use'
   | 'invalid_setting'
   | 'invalid_investment'
   | 'invalid_date'

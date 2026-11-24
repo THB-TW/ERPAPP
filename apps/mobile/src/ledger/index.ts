@@ -67,6 +67,8 @@ import { notificationCommands, type NotificationsLedger } from './notifications.
 export { NotificationSettingsError } from './notifications.ts';
 export type { NotificationKind, NotificationSettings, NotificationPlanInput, PlannedNotification } from './notifications.ts';
 
+import { addMember, deleteMember, listMembers, setMemberActive, updateMember, type Member } from './members.ts';
+import { addEntryCategory, updateEntryCategory, type EntryCategory } from './entryCatalog.ts';
 import { onboardingStatus, openingBudgetSuggestions, addOpeningCategory, completeOnboarding, type OnboardingLedger } from './onboarding.ts';
 export type { OnboardingStatus, OpeningBudgetKind, OpeningBudgetRow, OpeningBudgetSuggestions, CompleteOnboardingInput } from './onboarding.ts';
 
@@ -86,10 +88,11 @@ export type {
 export type { CategoryShare, MonthBreakdown } from './report.ts';
 export type { CompleteMonthlyCloseRequest, MonthlyCloseDraft, MonthlyClosePreview, MonthlyCloseRequest, MonthlyCloseRow, MonthlyCloseSnapshot } from './monthlyClose.ts';
 
-export interface Category { id: number; name: string; flow: Flow }
+export interface Category { id: number; name: string; flow: Flow; icon: string | null }
 export type { Account, AccountBalance, NewAccount, AccountChanges } from './accounts.ts';
 export type { NewTransfer, TransferDetail } from './transfers.ts';
-export interface Member { id: number; name: string }
+export type { Member } from './members.ts';
+export type { EntryCategory } from './entryCatalog.ts';
 export type { LegacyImportData, LegacyImportResult } from './legacyImport.ts';
 
 export type { DayTransaction, NewTransaction, TransactionDetail } from './transactions.ts';
@@ -163,7 +166,16 @@ export interface Ledger extends AccountsLedger, TransfersLedger, InvestmentsLedg
   getDayTransactions(date: string): Promise<DayTransaction[]>;
   /** 預設查開放月份；傳月份可取得當時可選的交易分類（撤銷月結後編輯舊交易使用）。 */
   listCategories(month?: string): Promise<Category[]>;
-  listMembers(): Promise<Member[]>;
+  /** 預設只列使用中的成員；includeInactive 連停用的一起列（設定與修改舊交易用）。第一次呼叫時會建立「自己」。 */
+  listMembers(options?: { includeInactive?: boolean }): Promise<Member[]>;
+  addMember(input: { name: string; icon?: string | null }): Promise<Member>;
+  updateMember(id: number, changes: { name?: string; icon?: string | null }): Promise<Member>;
+  setMemberActive(id: number, active: boolean): Promise<Member>;
+  deleteMember(id: number): Promise<void>;
+  /** 記帳時就地新增分類：收入直接新增；支出同時進預算（照實支、上限 0、開放月份起生效）。 */
+  addEntryCategory(input: { flow: Flow; name: string; icon?: string | null }): Promise<EntryCategory>;
+  /** 改名與圖示。支出分類改名走預算的編輯指令，保留預算組與上限；回傳改名後（可能是新列）的分類。 */
+  updateEntryCategory(id: number, changes: { name?: string; icon?: string | null }): Promise<EntryCategory>;
   /** 全域設定的開帳日（某月 1 號，YYYY-MM-DD）；尚未設定為 null。開帳日以前的交易不計入帳戶餘額（票 08）。 */
   getOpeningDate(): Promise<string | null>;
   /** 日期區間內（含兩端）的全部交易，依日期、編號排序。給讀回核對與匯出用。 */
@@ -332,7 +344,13 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
       if (!isValidMonth(target)) throw new LedgerError('invalid_month', MONTH_MESSAGE);
       return listActiveCategories(db, target);
     }),
-    listMembers: () => serial(() => db.all<Member>('SELECT id, name FROM members ORDER BY sort_order')),
+    listMembers: (options) => serial(() => db.transaction((tx) => listMembers(tx, options?.includeInactive === true))),
+    addMember: (input) => serial(() => db.transaction((tx) => addMember(tx, input))),
+    updateMember: (id, changes) => serial(() => db.transaction((tx) => updateMember(tx, id, changes))),
+    setMemberActive: (id, active) => serial(() => db.transaction((tx) => setMemberActive(tx, id, active))),
+    deleteMember: (id) => serial(() => db.transaction((tx) => deleteMember(tx, id))),
+    addEntryCategory: (input) => serial(() => db.transaction((tx) => addEntryCategory(tx, now(), input))),
+    updateEntryCategory: (id, changes) => serial(() => db.transaction((tx) => updateEntryCategory(tx, now(), id, changes))),
 
     importLegacyLedger: (data) => serial(() => db.transaction((tx) => importLegacy(tx, data))),
 

@@ -37,9 +37,9 @@ test('月份支出彙總：各分類金額、筆數與占比，依金額由大�
   assert.equal(b.total, 1000);
   assert.equal(b.otherFlowTotal, 40000);
   assert.deepEqual(b.categories, [
-    { categoryId: cat('飲食'), categoryName: '飲食', amount: 500, count: 2, permille: 500, budgetCategory: null },
-    { categoryId: cat('交通'), categoryName: '交通', amount: 300, count: 1, permille: 300, budgetCategory: null },
-    { categoryId: cat('娛樂'), categoryName: '娛樂', amount: 200, count: 1, permille: 200, budgetCategory: null },
+    { categoryId: cat('飲食'), categoryName: '飲食', categoryIcon: null, amount: 500, count: 2, permille: 500, budgetCategory: null },
+    { categoryId: cat('交通'), categoryName: '交通', categoryIcon: null, amount: 300, count: 1, permille: 300, budgetCategory: null },
+    { categoryId: cat('娛樂'), categoryName: '娛樂', categoryIcon: null, amount: 200, count: 1, permille: 200, budgetCategory: null },
   ]);
 });
 

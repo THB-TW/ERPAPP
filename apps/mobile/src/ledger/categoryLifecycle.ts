@@ -14,7 +14,7 @@ export async function categoryAvailability(q: Queryable, id: number, month: stri
 }
 
 export async function listActiveCategories(q: Queryable, month: string): Promise<Category[]> {
-  return q.all<Category>(`SELECT c.id, c.name, c.flow FROM categories c
+  return q.all<Category>(`SELECT c.id, c.name, c.flow, c.icon FROM categories c
     WHERE COALESCE((SELECT value FROM settings s WHERE s.key GLOB 'category_status:' || c.id || ':*'
       AND substr(s.key, -7) <= ? ORDER BY s.key DESC LIMIT 1), '1') = '1'
       AND NOT EXISTS (SELECT 1 FROM settings s WHERE s.key = 'category_start:' || c.id AND s.value > ?)

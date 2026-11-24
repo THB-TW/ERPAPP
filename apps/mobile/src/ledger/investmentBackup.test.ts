@@ -38,7 +38,7 @@ test('v13 投資四表隨整本備份取代，成本、歷史、淨額與帳戶�
   await source.addInvestmentValuation({ holdingId: crypto.id, asOf: '2026-10-02T12:00:00', marketValue: 15 }, access);
   const snapshot = await queries(source);
   const exported = await source.exportBackup(join(w.directory, 'investment.db'));
-  assert.equal((await source.inspectBackup(exported.path)).schemaVersion, 13);
+  assert.equal((await source.inspectBackup(exported.path)).schemaVersion, 14);
   assert.equal((await source.getBackupStatus()).lastModifiedAt, '2026-11-11T04:00:00.000Z');
   const target = await w.open('target.db');
   await target.addInvestmentHolding({ assetClass: 'crypto', name: '取代前的合成桶' }, access);

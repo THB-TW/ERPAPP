@@ -181,11 +181,11 @@ export default function HomeScreen() {
                 style={({ pressed }) => [kit.row, pressed && kit.pressed]}
               >
                 <View style={styles.main}>
-                  <Text style={text.body}>{t.categoryName}</Text>
+                  <Text style={text.body}>{t.categoryIcon ? `${t.categoryIcon} ` : ''}{t.categoryName}</Text>
                   <Text style={text.footnote}>
                     {locked ? '🔒 ' : ''}
                     {t.accountName}
-                    {t.memberName ? `・${t.memberName}` : ''}
+                    {t.memberName ? `・${t.memberIcon ? `${t.memberIcon} ` : ''}${t.memberName}` : ''}
                     {t.note ? `・${t.note}` : ''}
                   </Text>
                 </View>

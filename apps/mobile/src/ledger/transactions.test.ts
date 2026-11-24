@@ -56,8 +56,8 @@ test('讀取單筆交易：回傳表單需要的全部欄位，含成員編號',
   assert.equal(t.accountName, '現金');
   assert.equal(t.amount, 120);
   assert.equal(t.note, '午餐');
-  assert.equal(t.memberId, null);
-  assert.equal(t.memberName, null);
+  assert.equal(t.memberName, '自己'); // 沒指定成員記在「自己」
+  assert.equal(t.memberId, (await ledger.listMembers())[0].id);
   await rejects('unknown_transaction', ledger.getTransaction(9999), /找不到這筆交易/);
 });
 
@@ -143,8 +143,7 @@ test('查詢月份是否已結：畫面用來把交易標成鎖定', async () =>
   await rejects('invalid_month', ledger.isMonthClosed('2026-13'));
 });
 
-test('成員選填：新增與修改都能指定或清除成員，未知成員被拒', async () => {
-  // 目前只有舊帳帶入會建立成員（設定頁新增成員是之後的票），用虛構舊帳建一位成員。
+test('成員必填預設自己：新增與修改都能指定成員，不指定記在「自己」，未知成員被拒', async () => {
   const ledger = await openLedger(openNodeDatabase(':memory:'));
   await ledger.importLegacyLedger({
     openingDate: '2026-10-01',
@@ -156,13 +155,13 @@ test('成員選填：新增與修改都能指定或清除成員，未知成員�
   });
   const [cat] = await ledger.listCategories();
   const [acc] = await ledger.listAccounts();
-  const [member] = await ledger.listMembers();
+  const member = (await ledger.listMembers()).find((m) => m.name === '小明')!;
   const input: NewTransaction = { date: '2026-10-05', categoryId: cat.id, accountId: acc.id, flow: 'expense', amount: 120 };
 
   const { id } = await ledger.addTransaction({ ...input, memberId: member.id });
   assert.equal((await ledger.getTransaction(id)).memberName, '小明');
   await ledger.updateTransaction(id, { ...input, memberId: null });
-  assert.equal((await ledger.getTransaction(id)).memberId, null);
+  assert.equal((await ledger.getTransaction(id)).memberName, '自己');
   await ledger.updateTransaction(id, { ...input, memberId: member.id });
   assert.equal((await ledger.getTransaction(id)).memberId, member.id);
   await rejects('unknown_member', ledger.addTransaction({ ...input, memberId: 9999 }));

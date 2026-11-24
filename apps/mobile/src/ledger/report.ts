@@ -12,6 +12,8 @@ import { selectTransactions, type DayTransaction } from './transactions.ts';
 export interface CategoryShare {
   categoryId: number;
   categoryName: string;
+  /** 分類圖示（沒設定為 null）。 */
+  categoryIcon: string | null;
   /** 所選月份的有效支出歸屬；收入與未歸屬為 null。 */
   budgetCategory: { id: string; name: string } | null;
   amount: number;
@@ -39,7 +41,7 @@ export async function monthBreakdown(q: Queryable, month: string, flow: Flow): P
     throw new LedgerError('invalid_flow', '收支別只能是「支出」或「收入」。');
   }
   const rows = await q.all<Omit<CategoryShare, 'permille' | 'budgetCategory'>>(
-    `SELECT c.id AS categoryId, c.name AS categoryName, SUM(t.amount) AS amount, COUNT(*) AS count
+    `SELECT c.id AS categoryId, c.name AS categoryName, c.icon AS categoryIcon, SUM(t.amount) AS amount, COUNT(*) AS count
        FROM transactions t JOIN categories c ON c.id = t.category_id
       WHERE t.flow = ? AND substr(t.date, 1, 7) = ?
       GROUP BY c.id ORDER BY amount DESC, c.sort_order, c.id`,

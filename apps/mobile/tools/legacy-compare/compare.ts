@@ -301,7 +301,7 @@ export function compareTransactions(app: DayTransaction[], source: RawTransactio
   interface Row { date: string; category: string; account: string; flow: string; amount: number; member: string | null }
   const src: Row[] = source.map((t) => ({
     date: parseDate(t.date) ?? `（無法辨識：${String(t.date)}）`, category: text(t.category) ?? '', account: text(t.account) ?? '',
-    flow: flowOf(t.type) ?? `（無法辨識：${String(t.type)}）`, amount: typeof t.amount === 'number' ? t.amount : Number.NaN, member: text(t.member),
+    flow: flowOf(t.type) ?? `（無法辨識：${String(t.type)}）`, amount: typeof t.amount === 'number' ? t.amount : Number.NaN, member: text(t.member) ?? '自己', // App 內每筆交易一定有成員：舊帳沒指定的記在「自己」
   }));
   const apps: Row[] = app.map((t) => ({
     date: t.date, category: mergedName(t.categoryName, t.flow), account: t.accountName, flow: t.flow, amount: t.amount, member: t.memberName,
