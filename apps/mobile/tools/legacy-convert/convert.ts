@@ -275,12 +275,18 @@ async function verifyReopened(file: string, data: LegacyImportData, legacy: Lega
     };
     if (!same((await ledger.listAccounts()).map((a) => [a.name, a.kind, a.openingBalance]), data.accounts.map((a) => [a.name, a.kind, a.openingBalance]))) fail('帳戶');
     if (!same((await ledger.listCategories()).map((c) => [c.name, c.flow]), data.categories.map((c) => [c.name, c.flow]))) fail('分類');
-    if (!same((await ledger.listMembers()).map((m) => m.name), data.members)) fail('成員');
+    // 每筆交易一定有成員：舊帳沒有「自己」就會自動建立（排在最前面），沒指定成員的交易記在「自己」。
+    const SELF = '自己';
+    const expectedMembers = data.members.includes(SELF) ? data.members : [SELF, ...data.members];
+    if (!same((await ledger.listMembers({ includeInactive: true })).map((m) => m.name), expectedMembers)) fail('成員');
     if ((await ledger.getOpeningDate()) !== data.openingDate) fail('開帳日');
     // 交易：多重集合（日期、分類、帳戶、收支別、金額、成員）逐筆比對
     const key = (t: [string, string, string, string, number, string | null]) => JSON.stringify(t);
     const counts = new Map<string, number>();
-    for (const t of data.transactions) counts.set(key([t.date, t.category, t.account, t.flow, t.amount, t.member]), (counts.get(key([t.date, t.category, t.account, t.flow, t.amount, t.member])) ?? 0) + 1);
+    for (const t of data.transactions) {
+      const k = key([t.date, t.category, t.account, t.flow, t.amount, t.member ?? SELF]);
+      counts.set(k, (counts.get(k) ?? 0) + 1);
+    }
     const stored = await ledger.listTransactions(...FULL_RANGE);
     if (stored.length !== data.transactions.length) fail('交易筆數');
     for (const t of stored) {

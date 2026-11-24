@@ -1,5 +1,6 @@
 import { Children, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Svg, { Path, Rect } from 'react-native-svg';
 import type { StyleProp, TextStyle, ViewStyle } from 'react-native';
 import { selection } from './haptics.ts';
 import { colors, typeScale } from './theme.ts';
@@ -255,13 +256,26 @@ export function Banner({ children, tone = 'info' }: { children: ReactNode; tone?
   const background = tone === 'warning' ? colors.warningBackground : tone === 'info' ? colors.accentSoft : colors.surface;
   const color = tone === 'warning' ? colors.warningText : tone === 'info' ? colors.text : colors.muted;
   return (
-    <View style={[styles.banner, { backgroundColor: background }]}>
-      <Text style={[text.subhead, { color }]}>{children}</Text>
+    <View style={[styles.banner, { backgroundColor: background }, tone === 'locked' && styles.bannerRow]}>
+      {tone === 'locked' ? <LockIcon color={color} /> : null}
+      <Text style={[text.subhead, { color }, tone === 'locked' && styles.grow]}>{children}</Text>
     </View>
   );
 }
 
+/** 線條鎖頭（已月結、唯讀）。裝飾用：旁邊一定有文字說明，所以不進讀螢幕。不用表情符號，字型不同時大小才一致。 */
+export function LockIcon({ color = colors.muted, size = 16 }: { color?: string; size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 16 16" accessible={false} importantForAccessibility="no-hide-descendants" style={{ marginTop: 2 }}>
+      <Rect x={3} y={7} width={10} height={7.5} rx={1.8} stroke={color} strokeWidth={1.5} fill="none" />
+      <Path d="M5.25 7V5a2.75 2.75 0 0 1 5.5 0v2" stroke={color} strokeWidth={1.5} fill="none" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
 const styles = StyleSheet.create({
+  bannerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  grow: { flex: 1 },
   chevron: { fontSize: 22, lineHeight: 24, color: colors.chevron },
   sectionTitle: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4 },
   dot: { width: 8, height: 8, borderRadius: 4 },

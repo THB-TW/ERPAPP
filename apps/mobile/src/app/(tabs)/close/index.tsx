@@ -2,6 +2,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 import type { MonthlyCloseDraft } from '../../../ledger/index.ts';
+import { SUBSCRIPTION_ENABLED } from '../../../subscription/featureFlag.ts';
 import { requirePaidFeature, useSubscriptionStatus } from '../../../ui/closeEntitlement.ts';
 import { monthTitle } from '../../../ui/format.ts';
 import { useLedger } from '../../../ui/LedgerProvider.tsx';
@@ -32,7 +33,7 @@ export default function MonthlyCloseScreen() {
   return (
     <TabScrollView title="月結精靈" contentContainerStyle={styles.content}>
       <Footnote>① 月份與收入 → ② 信用卡 → ③ 計算 → ④ 總資產</Footnote>
-      {subscription.kind === 'dev_unlocked' ? <Banner tone="warning">開發版・未接內購：月結精靈開放使用。</Banner> : null}
+      {SUBSCRIPTION_ENABLED && subscription.kind === 'dev_unlocked' ? <Banner tone="warning">開發版・未接內購：月結精靈開放使用。</Banner> : null}
       {subscription.kind === 'expired' ? <Footnote>訂閱已到期，歷史月結仍可檢視；重新訂閱後從最早的開放月份依序補做月結。</Footnote> : null}
       {loading ? <ActivityIndicator accessibilityLabel="讀取開放月份中" /> : null}
       {error ? <><Text style={styles.error} accessibilityRole="alert">{error}</Text><CloseButton title="重新讀取" onPress={() => setRetry((n) => n + 1)} /></> : null}

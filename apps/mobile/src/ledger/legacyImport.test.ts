@@ -60,10 +60,10 @@ test('空帳本整批帶入：交易（含重複列）、分類、帳戶、成�
     ['錢包', 'cash', 500], ['戶頭', 'bank', -20],
   ]);
   assert.equal(await ledger.getOpeningDate(), '2026-10-01');
-  assert.deepEqual(await ledger.listMembers(), [{ id: 1, name: '小明' }]);
+  assert.deepEqual((await ledger.listMembers()).map((m) => [m.name, m.isSelf]), [['自己', true], ['小明', false]]); // 舊帳沒有「自己」就自動建立
   const day = await ledger.getDayTransactions('2026-08-05');
   assert.deepEqual(day.map((t) => [t.amount, t.memberName]), [[100, '小明'], [100, '小明']]);
-  assert.equal((await ledger.getDayTransactions('2026-09-01'))[0].memberName, null);
+  assert.equal((await ledger.getDayTransactions('2026-09-01'))[0].memberName, '自己'); // 沒指定成員的舊交易記在「自己」
   // 財務文件原樣：兩個月、歷史差異同額
   assert.deepEqual((await ledger.listBudgetMonths()).map((m) => [m.month, m.total]), [['2026-08', 1100], ['2026-09', 2207]]);
 });
@@ -121,13 +121,13 @@ test('任何一列不合規定就整批不帶入（一次交易）', async () =>
   }
 });
 
-test('既有的記帳不受成員欄位影響：不指定成員時為空', async () => {
+test('不指定成員的記帳一律記在「自己」', async () => {
   const ledger = await fresh();
   const [cat] = await ledger.listCategories();
   const [acc] = await ledger.listAccounts();
   await ledger.addTransaction({ date: '2026-11-11', categoryId: cat.id, accountId: acc.id, flow: 'expense', amount: 5 });
-  assert.equal((await ledger.getDayTransactions('2026-11-11'))[0].memberName, null);
-  assert.deepEqual(await ledger.listMembers(), []);
+  assert.equal((await ledger.getDayTransactions('2026-11-11'))[0].memberName, '自己');
+  assert.deepEqual((await ledger.listMembers()).map((m) => m.name), ['自己']);
 });
 
 test('開帳日是全域設定：新帳本沒有開帳日；預設帳戶開帳餘額為零且使用中', async () => {
@@ -141,7 +141,7 @@ test('依日期區間列出交易，供讀回核對：含重複列、依日期�
   await ledger.importLegacyLedger(data());
   const all = await ledger.listTransactions('0001-01-01', '9999-12-31');
   assert.deepEqual(all.map((t) => [t.date, t.amount, t.categoryName, t.accountName, t.memberName]), [
-    ['2026-08-05', 100, '甲儲備', '錢包', '小明'], ['2026-08-05', 100, '甲儲備', '錢包', '小明'], ['2026-09-01', 900, '乙收入', '戶頭', null],
+    ['2026-08-05', 100, '甲儲備', '錢包', '小明'], ['2026-08-05', 100, '甲儲備', '錢包', '小明'], ['2026-09-01', 900, '乙收入', '戶頭', '自己'],
   ]);
   assert.equal((await ledger.listTransactions('2026-09-01', '2026-09-30')).length, 1);
   await rejects('invalid_date', ledger.listTransactions('x', '2026-09-30'));

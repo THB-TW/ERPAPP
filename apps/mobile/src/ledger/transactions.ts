@@ -7,6 +7,7 @@ import { assertDateOpen } from './monthLock.ts';
 import { assertCategoryFlow, assertTransactionShape } from './transactionRules.ts';
 import { categoryAvailability } from './categoryLifecycle.ts';
 import { assertAccountUsable } from './accounts.ts';
+import { ensureSelfMember } from './members.ts';
 
 export interface NewTransaction {
   date: string;
@@ -15,7 +16,7 @@ export interface NewTransaction {
   flow: Flow;
   amount: number;
   note?: string;
-  /** 選填；未指定或 null 表示沒有成員。 */
+  /** 選填；未指定或 null 時記在「自己」名下（每筆交易一定有成員）。 */
   memberId?: number | null;
 }
 
@@ -29,14 +30,15 @@ export interface DayTransaction {
   categoryName: string;
   accountId: number;
   accountName: string;
-  /** 沒有指定成員為 null。 */
   memberName: string | null;
+  /** 分類與成員的圖示（沒設定為 null）。 */
+  categoryIcon: string | null;
+  memberIcon: string | null;
 }
 
 /** 單筆交易（修改表單用）：列表欄位之外多帶成員編號，表單才能選回原本的成員。 */
 export interface TransactionDetail extends DayTransaction {
-  /** 沒有指定成員為 null。 */
-  memberId: number | null;
+  memberId: number;
 }
 
 const NOT_FOUND_MESSAGE = '找不到這筆交易，可能已被刪除。';
@@ -69,9 +71,10 @@ export async function insertTransaction(tx: Queryable, input: NewTransaction): P
   assertTransactionShape(input);
   await assertDateOpen(tx, input.date); // 已結月份鎖定
   await assertValidInput(tx, input);
+  const memberId = input.memberId ?? await ensureSelfMember(tx);
   const result = await tx.run(
     'INSERT INTO transactions (date, category_id, account_id, flow, amount, note, member_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [input.date, input.categoryId, input.accountId, input.flow, input.amount, input.note ?? '', input.memberId ?? null],
+    [input.date, input.categoryId, input.accountId, input.flow, input.amount, input.note ?? '', memberId],
   );
   return { id: result.lastInsertRowId };
 }
@@ -83,10 +86,11 @@ export async function updateTransaction(tx: Queryable, id: number, input: NewTra
   await assertDateOpen(tx, input.date); // 改進已結月份：也不行
   const originalAccount = await tx.get<{ account_id: number }>('SELECT account_id FROM transactions WHERE id = ?', [id]);
   await assertValidInput(tx, input, originalAccount!.account_id);
+  const memberId = input.memberId ?? await ensureSelfMember(tx);
   await tx.run(
     `UPDATE transactions SET date = ?, category_id = ?, account_id = ?, flow = ?, amount = ?, note = ?, member_id = ?
       WHERE id = ?`,
-    [input.date, input.categoryId, input.accountId, input.flow, input.amount, input.note ?? '', input.memberId ?? null, id],
+    [input.date, input.categoryId, input.accountId, input.flow, input.amount, input.note ?? '', memberId, id],
   );
 }
 
@@ -112,7 +116,7 @@ export function transactionsBetween(q: Queryable, from: string, to: string): Pro
 const LIST_COLUMNS = `t.id, t.date, t.flow, t.amount, t.note,
             t.category_id AS categoryId, c.name AS categoryName,
             t.account_id AS accountId, a.name AS accountName,
-            m.name AS memberName`;
+            m.name AS memberName, c.icon AS categoryIcon, m.icon AS memberIcon`;
 const LIST_JOINS = `FROM transactions t
        JOIN categories c ON c.id = t.category_id
        JOIN accounts a ON a.id = t.account_id

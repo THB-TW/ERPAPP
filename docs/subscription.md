@@ -46,3 +46,7 @@
 
 - `tw-legal-tax-counsel`：付費功能加「預算資料匯出」、改寫「交易 CSV」、到期段的匯出說明皆可用；已依意見修正設定頁到期句、已關閉自動續訂時不再寫「會自動續訂」、付費牆價格字級不小於試用標題（3.1.2(c)）。上架前必補：可點的隱私權政策連結（付費牆與 App Store Connect）、App Store 描述加 EULA 連結、正式 App 名稱；「含稅價」與退款句仍待會計師／律師。開發版狀態不得出現在正式建置（3.1.1）。非律師意見，上架前請專業人士確認。
 - `subscription-iap`：已修正——開發版全開改為必須明確設定 `EXPO_PUBLIC_IAP=off`；讀狀態時重新判斷到期、回前景重新確認；手機時間回撥不延長權益；空結果先再確認；付費畫面改用會隨權益重繪的判斷；StoreKit 設定檔補寬限期等測試開關。轉接層約定寫在 `storePort.ts`（寬限期到期日取自 SubscriptionInfo.status 的 renewalInfo、只收驗證過的交易、家人共享略過）。套件建議 expo-iap，但沒有來源證實已支援 Expo SDK 58，要先查證再實測。
+
+## 訂閱總開關（2026-11-24）
+
+`apps/mobile/src/subscription/featureFlag.ts` 的 `SUBSCRIPTION_ENABLED` 目前是 `false`：進階功能對所有人全開，設定頁沒有「訂閱」列、也沒有開發版橫幅。訂閱程式都保留。**上架前要改成 `true`**（並完成 StoreKit 轉接層、App Store Connect 商品）。

@@ -12,10 +12,12 @@ export const colors = {
   muted: '#6e6e73',
   /** 分隔線與框線。 */
   border: '#e5e5ea',
-  accent: '#007aff',
+  /** 比 iOS 系統藍 #007aff 深一階：白底對比 5.4（系統藍只有 4.0，低於 4.5）。 */
+  accent: '#0066d6',
   /** 強調色的淡底：被選取的日期、提示區塊。 */
   accentSoft: '#e5f1ff',
-  expense: '#dc3b40',
+  /** 白底對比 5.3（原 #dc3b40 為 4.4）。 */
+  expense: '#c8323a',
   income: '#12855a',
   /** 清單列右側的「›」。 */
   chevron: '#c7c7cc',

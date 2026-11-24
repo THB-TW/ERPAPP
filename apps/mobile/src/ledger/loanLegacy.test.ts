@@ -31,13 +31,14 @@ test('v5 升 v10 保留合成 58 月全部快照與 17 個歷史差異，學費�
   const before = await old.listBudgetMonths();
   const snapshots = await Promise.all(before.map((m) => old.getBudgetMonth(m.month)));
   const document = await old.exportFinanceDocument();
-  const categories = await old.listCategories();
+  // v5 還沒有圖示欄位，直接讀表；升級後的分類列表多了 icon（null），比對時拿掉。
+  const categories = await db.all<{ id: number; name: string; flow: string }>('SELECT id, name, flow FROM categories ORDER BY sort_order');
   const migrated = await openLedger(db, { now: () => NOW });
   t.after(() => migrated.close());
   assert.deepEqual(await migrated.listBudgetMonths(), before);
   assert.deepEqual(await Promise.all(before.map((m) => migrated.getBudgetMonth(m.month))), snapshots);
   assert.equal(await migrated.exportFinanceDocument(), document);
-  assert.deepEqual(await migrated.listCategories(), categories);
+  assert.deepEqual((await migrated.listCategories()).map(({ id, name, flow }) => ({ id, name, flow })), categories);
   const [loan] = await migrated.listLoans();
   assert.equal(loan.name, '學費儲備');
   assert.equal(loan.reserve, 5900);

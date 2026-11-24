@@ -102,7 +102,7 @@ function ReportPage({ month, flow, openKey, onOpen }: {
   let colorIndex = 0;
   const rows = (current?.categories ?? []).map(category => {
     const other = flow === 'expense' && (!category.budgetCategory || category.budgetCategory.name === '其他');
-    return { ...category, key: String(category.categoryId), name: category.categoryName,
+    return { ...category, key: String(category.categoryId), name: category.categoryIcon ? `${category.categoryIcon} ${category.categoryName}` : category.categoryName,
       other, color: other ? reportOtherColor : reportCategoryColor(colorIndex++) };
   });
   const otherAmount = rows.filter(row => row.other).reduce((sum, row) => sum + row.amount, 0);

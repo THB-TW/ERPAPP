@@ -4,6 +4,7 @@
 import Storage from 'expo-sqlite/kv-store';
 import { AppState } from 'react-native';
 import { createSubscriptionService, type SubscriptionService } from '../subscription/subscriptionService.ts';
+import { SUBSCRIPTION_ENABLED } from '../subscription/featureFlag.ts';
 import { unavailableStore, type StorePort } from '../subscription/storePort.ts';
 
 const RECORD_KEY = 'subscription.entitlement.v1';
@@ -14,7 +15,7 @@ const RECORD_KEY = 'subscription.entitlement.v1';
  * 一律當作免費版鎖住，不會誤把進階功能送給所有人。正式建置不得設定這個值（tools 測試會檢查 eas.json）。
  * 目前還沒有 StoreKit 轉接層（要加內購套件，需翰陞同意）。
  */
-const IAP_DISABLED_BY_BUILD = process.env.EXPO_PUBLIC_IAP === 'off';
+const IAP_DISABLED_BY_BUILD = process.env.EXPO_PUBLIC_IAP === 'off' || !SUBSCRIPTION_ENABLED;
 const storeKitAdapter: StorePort | null = null;
 
 const store: StorePort = !IAP_DISABLED_BY_BUILD && storeKitAdapter ? storeKitAdapter : unavailableStore;

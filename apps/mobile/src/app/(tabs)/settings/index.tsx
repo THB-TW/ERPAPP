@@ -1,10 +1,8 @@
-import { useCallback, useRef, useState } from 'react';
-import { useLedger } from '../../../ui/LedgerProvider.tsx';
-import { userMessage } from '../../../ui/format.ts';
-import { router, useFocusEffect, type Href } from 'expo-router';
-import { Text, View } from 'react-native';
+import { router, type Href } from 'expo-router';
+import { View } from 'react-native';
 import { useSubscriptionStatus } from '../../../ui/closeEntitlement.ts';
-import { Banner, Footnote, Group, kit, NavRow, text } from '../../../ui/kit.tsx';
+import { SUBSCRIPTION_ENABLED } from '../../../subscription/featureFlag.ts';
+import { Banner, Footnote, Group, kit, NavRow } from '../../../ui/kit.tsx';
 import { TabScrollView } from '../../../ui/LargeTitle.tsx';
 
 // 區段順序（由上到下）只由這個陣列決定；SettingsGroup 型別由它推得，名稱只寫這一次。
@@ -29,37 +27,13 @@ const ROWS: { group: SettingsGroup; title: string; hint: string; href: Href }[] 
 
 export default function SettingsScreen() {
   const status = useSubscriptionStatus();
-  const ledger = useLedger();
-  const [mode, setMode] = useState<'visual' | 'list' | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const saving = useRef(false);
-  useFocusEffect(useCallback(() => {
-    let cancelled = false;
-    ledger.getAdjustmentViewMode().then(value => { if (!cancelled) { setMode(value); setError(null); } }, e => { if (!cancelled) setError(userMessage(e, '讀取顯示模式失敗。')); });
-    return () => { cancelled = true; };
-  }, [ledger]));
-  async function toggleMode() {
-    if (!mode || saving.current) return;
-    saving.current = true; setBusy(true); setError(null);
-    const next = mode === 'visual' ? 'list' : 'visual';
-    try { await ledger.setAdjustmentViewMode(next); setMode(next); }
-    catch (e) { setError(userMessage(e, '儲存顯示模式失敗。')); }
-    finally { saving.current = false; setBusy(false); }
-  }
   return (
     <TabScrollView title="設定">
-      {status.kind === 'dev_unlocked' ? (
+      {SUBSCRIPTION_ENABLED && status.kind === 'dev_unlocked' ? (
         <Banner tone="warning">開發版・未接內購：進階功能全部開放，上架版本不會有這個狀態。</Banner>
       ) : null}
-      <View style={kit.section}>
-        <Footnote>顯示</Footnote>
-        <Group><NavRow title="調整畫面" value={mode === 'list' ? '清單（會計）' : mode === 'visual' ? '圖像（記帳小白）' : '讀取中…'}
-          subtitle="點一下切換；只影響預算調整畫面" disabled={busy || mode === null} onPress={() => void toggleMode()} /></Group>
-        {error ? <Text style={text.error}>{error}</Text> : null}
-      </View>
       {GROUPS.map((group) => {
-        const rows = ROWS.filter((row) => row.group === group);
+        const rows = ROWS.filter((row) => row.group === group && (SUBSCRIPTION_ENABLED || row.href !== '/subscription'));
         if (rows.length === 0) return null;
         return (
           <View key={group} style={kit.section}>

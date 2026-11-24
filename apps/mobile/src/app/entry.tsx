@@ -8,6 +8,7 @@ import { dayTitle, monthTitle, userMessage } from '../ui/format.ts';
 import { success, warning } from '../ui/haptics.ts';
 import { syncNotifications } from '../platform/notificationSync.ts';
 import { useLedger } from '../ui/LedgerProvider.tsx';
+import { CatalogSheet, type CatalogKind } from '../ui/CatalogSheet.tsx';
 import { Banner, Card, Chip, PrimaryButton, Segmented, text } from '../ui/kit.tsx';
 import { colors, typeScale } from '../ui/theme.ts';
 import { useKeyboardHeight } from '../ui/useKeyboardHeight.ts';
@@ -31,8 +32,8 @@ export default function EntryScreen() {
   const [amountText, setAmountText] = useState('');
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [accountId, setAccountId] = useState<number | null>(null);
-  const [memberId, setMemberId] = useState<number | null>(null);
-  const [showMember, setShowMember] = useState(false); // 成員欄位預設隱藏
+  const [memberId, setMemberId] = useState<number | null>(null); // 每筆交易一定有成員；新增時預設「自己」
+  const [sheet, setSheet] = useState<CatalogKind | null>(null); // 新增／修改成員與分類的視窗
   const [note, setNote] = useState('');
   const [locked, setLocked] = useState(false);
   const [loaded, setLoaded] = useState(editingId === null);
@@ -42,13 +43,14 @@ export default function EntryScreen() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [cats, accs, mems] = await Promise.all([ledger.listCategories(monthOf(date)), ledger.listAccounts(), ledger.listMembers()]);
+      const [cats, accs, mems] = await Promise.all([ledger.listCategories(monthOf(date)), ledger.listAccounts(), ledger.listMembers({ includeInactive: true })]);
       if (cancelled) return;
       setCategories(cats);
       setAccounts(accs);
       setMembers(mems);
       if (editingId === null) {
         setAccountId((current) => current ?? accs.find((a) => a.active)?.id ?? null); // 預設排在最前面的使用中帳戶
+        setMemberId((current) => current ?? mems.find((m) => m.isSelf)?.id ?? null);
         return;
       }
       const t = await ledger.getTransaction(editingId);
@@ -63,7 +65,6 @@ export default function EntryScreen() {
       setAccountId(t.accountId);
       setOriginalAccountId(t.accountId);
       setMemberId(t.memberId);
-      setShowMember(t.memberId !== null);
       setNote(t.note);
       setLocked(closed);
       setLoaded(true);
@@ -74,6 +75,18 @@ export default function EntryScreen() {
       cancelled = true;
     };
   }, [ledger, editingId]);
+
+  /** 視窗裡新增或改了東西：重讀清單，並直接選到新增（或改名後）的那一項。 */
+  async function catalogChanged(change: { kind: CatalogKind; previousId?: number; selectedId: number }) {
+    const [cats, mems] = await Promise.all([ledger.listCategories(monthOf(date)), ledger.listMembers({ includeInactive: true })]);
+    setCategories(cats);
+    setMembers(mems);
+    if (change.kind === 'member') {
+      if (change.previousId === undefined || change.previousId === memberId) setMemberId(change.selectedId);
+    } else if (change.previousId === undefined || change.previousId === categoryId) {
+      setCategoryId(change.selectedId);
+    }
+  }
 
   function chooseFlow(next: Flow) {
     if (next === flow) return;
@@ -170,7 +183,7 @@ export default function EntryScreen() {
 
         {locked ? (
           <Banner tone="locked">
-            🔒 {monthTitle(monthOf(date))}已月結，這筆交易已鎖定，不能修改或刪除。要更改請先撤銷該月的月結，或做前期更正。
+            {monthTitle(monthOf(date))}已月結，這筆交易已鎖定，不能修改或刪除。要更改請先撤銷該月的月結，或做前期更正。
           </Banner>
         ) : null}
 
@@ -195,7 +208,7 @@ export default function EntryScreen() {
               onChangeText={setAmountText}
               keyboardType="number-pad"
               placeholder="金額"
-              placeholderTextColor={colors.chevron}
+              placeholderTextColor={colors.muted}
               autoFocus={editingId === null}
               editable={!readOnly}
               style={styles.amountInput}
@@ -204,14 +217,21 @@ export default function EntryScreen() {
         </Card>
 
         <Card>
-          <Text style={text.footnote}>分類</Text>
+          <View style={styles.headRow}>
+            <Text style={text.footnote}>分類</Text>
+            {readOnly ? null : (
+              <Pressable onPress={() => setSheet(flow)} hitSlop={8} accessibilityRole="button">
+                <Text style={text.link}>＋ 新增／修改</Text>
+              </Pressable>
+            )}
+          </View>
           <View style={styles.chips}>
             {shownCategories.map((c) => (
-              <Chip key={c.id} label={c.name} active={c.id === categoryId} disabled={readOnly} onPress={() => setCategoryId(c.id)} />
+              <Chip key={c.id} label={withIcon(c.icon, c.name)} active={c.id === categoryId} disabled={readOnly} onPress={() => setCategoryId(c.id)} />
             ))}
           </View>
           {loaded && shownCategories.length === 0 ? (
-            <Text style={text.footnote}>還沒有{flow === 'expense' ? '支出' : '收入'}分類，請先到設定新增分類。</Text>
+            <Text style={text.footnote}>還沒有{flow === 'expense' ? '支出' : '收入'}分類，請按上面的「新增／修改」建立。</Text>
           ) : null}
         </Card>
 
@@ -235,22 +255,21 @@ export default function EntryScreen() {
           />
         </Card>
 
-        {members.length > 0 && !showMember && !readOnly ? (
-          <Pressable onPress={() => setShowMember(true)} hitSlop={8} accessibilityRole="button">
-            <Text style={text.link}>＋ 成員（選填）</Text>
-          </Pressable>
-        ) : null}
-        {members.length > 0 && showMember ? (
-          <Card>
-            <Text style={text.footnote}>成員（選填）</Text>
-            <View style={styles.chips}>
-              <Chip label="不指定" active={memberId === null} disabled={readOnly} onPress={() => setMemberId(null)} />
-              {members.map((m) => (
-                <Chip key={m.id} label={m.name} active={m.id === memberId} disabled={readOnly} onPress={() => setMemberId(m.id)} />
-              ))}
-            </View>
-          </Card>
-        ) : null}
+        <Card>
+          <View style={styles.headRow}>
+            <Text style={text.footnote}>成員</Text>
+            {readOnly ? null : (
+              <Pressable onPress={() => setSheet('member')} hitSlop={8} accessibilityRole="button">
+                <Text style={text.link}>＋ 新增／修改</Text>
+              </Pressable>
+            )}
+          </View>
+          <View style={styles.chips}>
+            {members.filter((m) => m.active || m.id === memberId).map((m) => (
+              <Chip key={m.id} label={`${withIcon(m.icon, m.name)}${m.active ? '' : '（已停用）'}`} active={m.id === memberId} disabled={readOnly} onPress={() => setMemberId(m.id)} />
+            ))}
+          </View>
+        </Card>
 
         {error ? <Text style={text.error}>{error}</Text> : null}
 
@@ -258,6 +277,8 @@ export default function EntryScreen() {
           <PrimaryButton tone="destructive" title="刪除這筆交易" onPress={confirmDelete} disabled={saving} />
         ) : null}
       </ScrollView>
+
+      {sheet !== null ? <CatalogSheet kind={sheet} visible onClose={() => setSheet(null)} onChanged={(change) => void catalogChanged(change)} /> : null}
 
       {readOnly ? null : (
         <View style={styles.saveBar}>
@@ -268,7 +289,10 @@ export default function EntryScreen() {
   );
 }
 
+const withIcon = (icon: string | null, name: string) => (icon ? `${icon} ${name}` : name);
+
 const styles = StyleSheet.create({
+  headRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   content: { padding: 16, gap: 16 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   amountRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },

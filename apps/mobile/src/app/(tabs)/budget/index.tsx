@@ -197,8 +197,7 @@ function AdjustmentLinks() {
   const tap = usePagerTap();
   return (
     <Group>
-      <NavRow tone="accent" title="挪用儲備" onPress={tap(() => router.push({ pathname: '/adjustments', params: { action: 'transfer' } }))} />
-      <NavRow tone="accent" title="可用餘額補入儲備" onPress={tap(() => router.push({ pathname: '/adjustments', params: { action: 'fund' } }))} />
+      <NavRow tone="accent" title="搬錢（存錢罐）" subtitle="罐子之間挪用、從錢包存進罐子" onPress={tap(() => router.push('/adjustments'))} />
     </Group>
   );
 }

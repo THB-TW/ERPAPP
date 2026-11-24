@@ -66,7 +66,7 @@ test('端到端：交易（含重複列）、分類、帳戶、成員、財務�
     assert.equal(await ledger.getOpeningDate(), '2026-11-01');
     const sept = await ledger.getDayTransactions('2026-09-02');
     assert.deepEqual(sept.map((d) => [d.amount, d.accountName, d.memberName]), [[150, '現金', '小明'], [150, '現金', '小明']]);
-    assert.equal((await ledger.getDayTransactions('2026-10-15'))[0].memberName, null);
+    assert.equal((await ledger.getDayTransactions('2026-10-15'))[0].memberName, '自己');
     assert.equal((await ledger.getDayTransactions('2026-11-03')).length, 1);
     // 58 個月的對應：這裡是 2 個月，原樣、不重算，歷史差異保留
     assert.deepEqual((await ledger.listBudgetMonths()).map((m) => [m.month, m.total]), [['2026-09', 5800], ['2026-10', 6912]]);

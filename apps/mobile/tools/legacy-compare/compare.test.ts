@@ -42,7 +42,7 @@ test('原始文件格式不對：停下', () => {
 });
 
 const tx = (date: string, flow: 'income' | 'expense', category: string, amount: number): DayTransaction =>
-  ({ id: 1, date, flow, amount, note: '', categoryId: 1, categoryName: category, accountId: 1, accountName: '現金', memberName: null });
+  ({ id: 1, date, flow, amount, note: '', categoryId: 1, categoryName: category, accountId: 1, accountName: '現金', memberName: '自己', categoryIcon: null, memberIcon: null });
 const rawTx = (date: string, type: '收' | '支', category: string, amount: number): RawTransaction =>
   ({ row: 1, id: 1, date: date + 'T00:00:00', category, amount, member: null, account: '現金', type });
 

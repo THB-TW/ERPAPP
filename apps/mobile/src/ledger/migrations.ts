@@ -197,4 +197,30 @@ export const ledgerMigrations: readonly Migration[] = [
       `);
     },
   },
+  {
+    // 成員必填、圖示（2026-11-24 翰陞定案）：成員與分類各加選填的「圖示」欄位（一個表情符號，名稱不變，
+    // 所以 CSV 匯入與舊帳比對仍用名字對應）；成員加「使用中」與「自己」標記。
+    // 既有沒有成員的交易補成「自己」：沒有叫「自己」的成員才新建。空帳本不建成員（舊帳匯入要求成員表是空的），
+    // 第一次需要時才由帳本服務建立。金額完全不動。
+    version: 14,
+    async up(tx) {
+      await tx.exec(`
+        ALTER TABLE members ADD COLUMN icon TEXT;
+        ALTER TABLE members ADD COLUMN active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0,1));
+        ALTER TABLE members ADD COLUMN is_self INTEGER NOT NULL DEFAULT 0 CHECK (is_self IN (0,1));
+        ALTER TABLE categories ADD COLUMN icon TEXT;
+      `);
+      const existing = await tx.get<{ id: number }>("SELECT id FROM members WHERE name = '自己' COLLATE NOCASE");
+      const orphan = await tx.get<{ n: number }>('SELECT COUNT(*) AS n FROM transactions WHERE member_id IS NULL');
+      let selfId = existing?.id ?? null;
+      if (selfId === null && (orphan?.n ?? 0) > 0) {
+        const first = await tx.get<{ low: number | null }>('SELECT MIN(sort_order) AS low FROM members');
+        selfId = (await tx.run("INSERT INTO members (name, sort_order) VALUES ('自己', ?)", [(first?.low ?? 1) - 1])).lastInsertRowId;
+      }
+      if (selfId !== null) {
+        await tx.run('UPDATE members SET is_self = 1 WHERE id = ?', [selfId]);
+        await tx.run('UPDATE transactions SET member_id = ? WHERE member_id IS NULL', [selfId]);
+      }
+    },
+  },
 ];

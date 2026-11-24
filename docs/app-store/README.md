@@ -54,3 +54,7 @@
 | 12 | 關鍵字、截圖、宣傳文字 | **已定（2026-11-12，照建議）**：關鍵字不放台股／虛擬貨幣；截圖 6 張（含搬家一張）；宣傳文字不提試用 |
 
 不需決定但要知道：審查指南 3.2.1(viii) 提到「money management」，記帳 App 仍可能被要求以法人身分送審；照票 17 路線先以個人送審，被退再設公司。
+
+## 上架前必做：打開訂閱開關
+
+`apps/mobile/src/subscription/featureFlag.ts` 的 `SUBSCRIPTION_ENABLED` 目前為 `false`（訂閱暫時關閉、全功能開放，方便試用）。上架前改成 `true`，並確認 StoreKit 轉接層與 App Store Connect 商品已就緒。

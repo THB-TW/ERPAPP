@@ -30,7 +30,7 @@ test('CSV 只需類別與金額，缺漏選填欄位預設今天、現金、支�
   assert.deepEqual([result.totalRows, result.addedRows, result.skippedRows, result.rejectedRows, result.defaultedRows], [2, 2, 0, 0, 2]);
   const rows = await all(ledger);
   assert.deepEqual(rows.map((r) => [r.date, r.accountName, r.flow, r.note, r.memberName]),
-    [['2026-11-11', '現金', 'expense', '', null], ['2026-11-11', '現金', 'expense', '', null]]);
+    [['2026-11-11', '現金', 'expense', '', '自己'], ['2026-11-11', '現金', 'expense', '', '自己']]);
   assert.deepEqual(result.defaults[0].fields, ['日期', '帳戶', '收支別', '備註', '成員']);
 });
 
@@ -41,8 +41,8 @@ test('CSV 選填欄位錯誤套預設；欄位可重排，分類可用別名，�
   assert.equal(result.defaultedRows, 1);
   const rows = await all(ledger);
   assert.deepEqual(rows.map((r) => [r.date, r.accountName, r.flow, r.note, r.memberName]),
-    [['2026-11-02', '銀行', 'income', '薪水', null], ['2026-11-11', '現金', 'expense', '', null]]);
-  assert.deepEqual(await ledger.listMembers(), []);
+    [['2026-11-02', '銀行', 'income', '薪水', '自己'], ['2026-11-11', '現金', 'expense', '', '自己']]);
+  assert.deepEqual((await ledger.listMembers()).map((m) => m.name), ['自己']); // 不自動建立成員；空白或找不到都記在「自己」
 });
 
 test('CSV 未知分類逐列拒收並列名稱，金額無效及收支分類衝突分開回報，不建立分類', async (t) => {

@@ -1,5 +1,8 @@
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { Stack } from 'expo-router';
+import { Stack, type ErrorBoundaryProps } from 'expo-router';
+import { ScrollView, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { PrimaryButton, text } from '../ui/kit.tsx';
 import { StatusBar } from 'expo-status-bar';
 import { LedgerProvider } from '../ui/LedgerProvider.tsx';
 import { colors } from '../ui/theme.ts';
@@ -32,5 +35,22 @@ export default function RootLayout() {
       </Stack>
     </LedgerProvider>
     </GestureHandlerRootView>
+  );
+}
+
+/**
+ * 任何畫面渲染出錯時的保護畫面（取代整片空白或紅畫面）。帳本資料存在手機的資料庫，畫面出錯不會改動資料。
+ * 「重試」重新顯示畫面；錯誤內容放在下面小字，方便截圖回報。
+ */
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      <ScrollView contentContainerStyle={{ padding: 24, gap: 16, flexGrow: 1, justifyContent: 'center' }}>
+        <Text style={text.title} accessibilityRole="header">畫面出了點問題</Text>
+        <Text style={text.body}>你的帳本資料沒有受影響。請按「重試」；如果一直出現，請關掉 App 重新開啟，並把下面的訊息截圖回報。</Text>
+        <PrimaryButton title="重試" onPress={() => void retry()} />
+        <View><Text style={text.footnote} selectable>{error.message}</Text></View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
