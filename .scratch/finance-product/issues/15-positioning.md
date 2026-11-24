@@ -17,6 +17,8 @@ Blocked by: 05-competitors-pricing
 - Q3 同意：直接支援天天記帳 12 欄 CSV（沿用舊網站解析規則），分類須先存在；其他 App 用通用 CSV（類別、金額必填）。
 - Q4 首發功能清單：同意建議（見 Answer）。
 
+2026-11-24 marketing-pricing 重新查競品（天天記帳、Moze 等）：「會累積的預算」Moze 已有，真正空缺是月結核對＋儲備罐子；天天記帳也是本機優先、CSV 匯出免費、股票功能更完整；建議副標改以月結為主、載具列 1.1 第一順位、AI 首版不做；待翰陞回 Q1–Q4，詳見 [research/24-competitive-edge.md](../research/24-competitive-edge.md)。
+
 ## Answer
 
 一句話定位（翰陞）：**主動規劃預算，不要當月光族。** 記帳像天天記帳一樣快，差異化是會累積的預算儲備與月結核對。
