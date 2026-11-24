@@ -183,7 +183,7 @@ export default function EntryScreen() {
 
         {locked ? (
           <Banner tone="locked">
-            🔒 {monthTitle(monthOf(date))}已月結，這筆交易已鎖定，不能修改或刪除。要更改請先撤銷該月的月結，或做前期更正。
+            {monthTitle(monthOf(date))}已月結，這筆交易已鎖定，不能修改或刪除。要更改請先撤銷該月的月結，或做前期更正。
           </Banner>
         ) : null}
 
@@ -208,7 +208,7 @@ export default function EntryScreen() {
               onChangeText={setAmountText}
               keyboardType="number-pad"
               placeholder="金額"
-              placeholderTextColor={colors.chevron}
+              placeholderTextColor={colors.muted}
               autoFocus={editingId === null}
               editable={!readOnly}
               style={styles.amountInput}

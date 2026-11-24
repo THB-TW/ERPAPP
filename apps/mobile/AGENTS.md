@@ -51,3 +51,6 @@ Docs: https://docs.expo.dev/eas/index.md
 - `stickyHeaderIndices` 指到的子節點外面要多包一層沒樣式的 `View`：React Native 會把吸頂子節點的樣式搬到它自己的外框，橫排會變直排。
 - 頁內不要再放和導覽列同名的標題。
 - 記帳、轉帳表單以 iOS 面板（modal）呈現；面板裡不要用 `KeyboardAvoidingView`，用 `src/ui/useKeyboardHeight.ts`。
+- 文字（含輸入框提示字 `placeholderTextColor={colors.muted}`）對比至少 4.5:1；不要用 `colors.chevron` 當文字色。強調藍 `#0066d6`、支出紅 `#c8323a` 是為了過 4.5 刻意比 iOS 系統色深一階。
+- 系統狀態圖示不用表情符號（字型不同大小會變）：已月結用 `kit.tsx` 的 `LockIcon`（`Banner tone="locked"` 會自動帶）。使用者自己選的分類／成員圖示是內容，不受此限。
+- 畫面出錯由 `src/app/_layout.tsx` 的 `ErrorBoundary` 接住，顯示「重試」頁。

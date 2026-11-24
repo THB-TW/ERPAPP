@@ -112,7 +112,7 @@ export function CatalogSheet({ kind, visible, onClose, onChanged }: {
                   <TextInput
                     value={drafts[item.id]?.icon ?? ''}
                     onChangeText={(icon) => setDrafts((d) => ({ ...d, [item.id]: { ...d[item.id], icon } }))}
-                    placeholder="🙂" placeholderTextColor={colors.chevron} maxLength={8} editable={!busy}
+                    placeholder="🙂" placeholderTextColor={colors.muted} maxLength={8} editable={!busy}
                     style={[styles.iconInput]} accessibilityLabel={`${item.name}的圖示`}
                   />
                   <TextInput
@@ -140,9 +140,9 @@ export function CatalogSheet({ kind, visible, onClose, onChanged }: {
           <Text style={text.footnote}>新增{TITLES[kind]}</Text>
           <Card padded={false}>
             <View style={styles.row}>
-              <TextInput value={newIcon} onChangeText={setNewIcon} placeholder="🙂" placeholderTextColor={colors.chevron}
+              <TextInput value={newIcon} onChangeText={setNewIcon} placeholder="🙂" placeholderTextColor={colors.muted}
                 maxLength={8} editable={!busy} style={styles.iconInput} accessibilityLabel="新增項目的圖示" />
-              <TextInput value={newName} onChangeText={setNewName} placeholder="名稱" placeholderTextColor={colors.chevron}
+              <TextInput value={newName} onChangeText={setNewName} placeholder="名稱" placeholderTextColor={colors.muted}
                 maxLength={30} editable={!busy} style={styles.nameInput} accessibilityLabel="新增項目的名稱" returnKeyType="done" onSubmitEditing={() => { if (newName.trim()) void add(); }} />
             </View>
           </Card>

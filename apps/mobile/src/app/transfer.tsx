@@ -108,7 +108,7 @@ export default function TransferScreen() {
         contentContainerStyle={styles.content}
       >
         <Text style={text.subheadMuted}>{dayTitle(date)}</Text>
-        {locked ? <Banner tone="locked">🔒 這個月份已月結，轉帳不能新增、修改或刪除，請先撤銷月結。</Banner> : null}
+        {locked ? <Banner tone="locked">這個月份已月結，轉帳不能新增、修改或刪除，請先撤銷月結。</Banner> : null}
         {editingId === null ? (
           <Segmented
             options={typeOptions}
@@ -130,7 +130,7 @@ export default function TransferScreen() {
               onChangeText={setAmount}
               keyboardType="number-pad"
               placeholder="金額"
-              placeholderTextColor={colors.chevron}
+              placeholderTextColor={colors.muted}
               accessibilityLabel="轉帳金額"
               editable={!disabled}
               autoFocus={editingId === null}

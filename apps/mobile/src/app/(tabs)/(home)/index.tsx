@@ -161,7 +161,7 @@ export default function HomeScreen() {
         </SectionTitle>
         {locked ? (
           <Banner tone="locked">
-            🔒 {monthTitle(monthOf(selected))}已月結，交易已鎖定，不能新增、修改或刪除。要更改請先撤銷月結，或做前期更正。
+            {monthTitle(monthOf(selected))}已月結，交易已鎖定，不能新增、修改或刪除。要更改請先撤銷月結，或做前期更正。
           </Banner>
         ) : null}
         {error ? <Text style={[text.error, kit.outsideText]}>{error}</Text> : null}
@@ -183,7 +183,6 @@ export default function HomeScreen() {
                 <View style={styles.main}>
                   <Text style={text.body}>{t.categoryIcon ? `${t.categoryIcon} ` : ''}{t.categoryName}</Text>
                   <Text style={text.footnote}>
-                    {locked ? '🔒 ' : ''}
                     {t.accountName}
                     {t.memberName ? `・${t.memberIcon ? `${t.memberIcon} ` : ''}${t.memberName}` : ''}
                     {t.note ? `・${t.note}` : ''}
@@ -204,7 +203,7 @@ export default function HomeScreen() {
                 style={({ pressed }) => [kit.row, pressed && kit.pressed]}
               >
                 <View style={styles.main}>
-                  <Text style={text.body}>{locked ? '🔒 ' : ''}轉帳</Text>
+                  <Text style={text.body}>轉帳</Text>
                   <Text style={text.footnote}>{t.fromAccountName} → {t.toAccountName}{t.note ? `・${t.note}` : ''}</Text>
                 </View>
                 <Text style={text.value}>{formatAmount(t.amount)}</Text>
