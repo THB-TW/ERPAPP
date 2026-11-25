@@ -7,13 +7,14 @@ import { TabScrollView } from '../../../ui/LargeTitle.tsx';
 
 // 區段順序（由上到下）只由這個陣列決定；SettingsGroup 型別由它推得，名稱只寫這一次。
 // 新增列時 group 要用這裡出現過的名稱；要新開區段就加進這個陣列。
-const GROUPS = ['訂閱', '預算', '帳戶與投資', '資料', '提醒'] as const;
+const GROUPS = ['訂閱', '帳本', '預算', '帳戶與投資', '資料', '提醒'] as const;
 type SettingsGroup = (typeof GROUPS)[number];
 
 // 設定分頁：各票在 ROWS 加一列（並指定 group），指到自己放在 src/app/ 底下的子頁面（由根堆疊推入）。
 // 畫面依 group 分區，同一區的列放在同一張 Group 卡片裡，區內順序照 ROWS 內的順序。
 const ROWS: { group: SettingsGroup; title: string; hint: string; href: Href }[] = [
   { group: '訂閱', title: '訂閱', hint: '訂閱狀態、管理訂閱、還原購買', href: '/subscription' }, // 票 22
+  { group: '帳本', title: '帳本', hint: '切換、新增、改名、排序、刪除帳本', href: '/ledgers' }, // 2026-11-25 多帳本
   { group: '預算', title: '預算與分類', hint: '修改預算上限、預算組與交易分類歸屬', href: '/budget-settings' }, // 票 10
   { group: '預算', title: '預算挪用與調整', hint: '儲備挪用、補入儲備與調整紀錄', href: '/adjustments' }, // 票 14
   { group: '預算', title: '月結管理', hint: '撤銷最近一次月結、前期更正', href: '/close-management' },

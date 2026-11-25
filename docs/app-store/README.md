@@ -58,3 +58,7 @@
 ## 上架前必做：打開訂閱開關
 
 `apps/mobile/src/subscription/featureFlag.ts` 的 `SUBSCRIPTION_ENABLED` 目前為 `false`（訂閱暫時關閉、全功能開放，方便試用）。上架前改成 `true`，並確認 StoreKit 轉接層與 App Store Connect 商品已就緒。
+
+## 上架前必做：多帳本的付費切分交 marketing-pricing 審
+
+2026-11-25 翰陞定案：第一個帳本免費，第二個起屬進階（`apps/mobile/src/app/ledgers.tsx`，開關關著時不鎖）。免費／付費切分原本由 2026-11-11 的訂閱方案 Q1 決定，沒有包含多帳本；上架前請 `marketing-pricing` 確認這條切分與付費牆、App Store 文案一致，文字再交 `tw-legal-tax-counsel`。

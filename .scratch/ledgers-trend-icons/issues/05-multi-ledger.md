@@ -2,7 +2,7 @@
 
 **What to build:** 每本獨立 DB 的多帳本、切換、管理頁、整包備份、通知分屬。
 
-**Blocked by:** 01（新帳本預設）　**Status:** ready-for-agent　**Owner:** `chief-of-staff`（帳本服務 `ledger-entry`、備份 `import-export-backup`、通知 `local-notifications`、權益 `subscription-iap`）　**Spec:** 第 11–17 點　**ADR:** 0008
+**Blocked by:** 01（新帳本預設）　**Status:** done（PR #52，待 iPhone 實機驗收）　**Owner:** `chief-of-staff`（帳本服務 `ledger-entry`、備份 `import-export-backup`、通知 `local-notifications`、權益 `subscription-iap`）　**Spec:** 第 11–17 點　**ADR:** 0008
 
 - [ ] 帳本清單（App 層設定檔／目錄 DB）：id、名稱、排序、檔名；現有 DB 成為第一本，不搬動檔案
 - [ ] 切換：記帳大標旁帳本名；各分頁顯示目前帳本；切換重排通知
