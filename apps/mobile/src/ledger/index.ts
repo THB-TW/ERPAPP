@@ -39,6 +39,7 @@ import {
   type BudgetMonthView,
   type BudgetStatus,
 } from './budgetViews.ts';
+import { assetTrend, type AssetTrendPoint } from './assetTrend.ts';
 import { categoryMonthTransactions, groupMonthTransactions, monthBreakdown, monthGroupBreakdown, type MonthBreakdown, type MonthGroupBreakdown, type ReportGrouping } from './report.ts';
 import type { Flow } from './defaults.ts';
 import { accountCommands, type AccountsLedger } from './accounts.ts';
@@ -85,6 +86,7 @@ export type {
   BudgetAdjustmentView, BudgetMonthSummary, BudgetMonthView, BudgetReserveView, BudgetStatus,
 } from './budgetViews.ts';
 
+export type { AssetTrendPoint } from './assetTrend.ts';
 export type { CategoryShare, GroupShare, MonthBreakdown, MonthGroupBreakdown, ReportGrouping } from './report.ts';
 export type { CompleteMonthlyCloseRequest, MonthlyCloseDraft, MonthlyClosePreview, MonthlyCloseRequest, MonthlyCloseRow, MonthlyCloseSnapshot } from './monthlyClose.ts';
 
@@ -190,6 +192,8 @@ export interface Ledger extends AccountsLedger, TransfersLedger, InvestmentsLedg
   getMonthGroupBreakdown(month: string, flow: Flow, by: ReportGrouping): Promise<MonthGroupBreakdown>;
   /** 某成員或帳戶在該月該收支別的交易，日期新的在前。 */
   getGroupMonthTransactions(month: string, flow: Flow, by: ReportGrouping, id: number): Promise<DayTransaction[]>;
+  /** 財產趨勢：每個已月結月份的帳面總資產、投資市值與財產合計（同財產分配），由舊到新。 */
+  getAssetTrend(): Promise<AssetTrendPoint[]>;
 
   // ---- 預算與月結（票 03）----
   /**
@@ -341,6 +345,7 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
     getCategoryMonthTransactions: (month, categoryId) => serial(() => categoryMonthTransactions(db, month, categoryId)),
     getMonthGroupBreakdown: (month, flow, by) => serial(() => monthGroupBreakdown(db, month, flow, by)),
     getGroupMonthTransactions: (month, flow, by, id) => serial(() => groupMonthTransactions(db, month, flow, by, id)),
+    getAssetTrend: () => serial(() => assetTrend(db)),
 
     getOpeningDate: () =>
       serial(async () => (await db.get<{ value: string }>("SELECT value FROM settings WHERE key = 'opening_date'"))?.value ?? null),

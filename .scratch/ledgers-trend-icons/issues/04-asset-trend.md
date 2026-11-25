@@ -2,7 +2,7 @@
 
 **What to build:** 明細第三頁「財產」：已月結月份的帳面總資產＋投資市值折線。
 
-**Blocked by:** 無　**Status:** ready-for-agent　**Owner:** `investment`（月結數字讀取由 `monthly-close` 確認）　**Spec:** 第 7–10 點
+**Blocked by:** 無　**Status:** done（PR #52）　**Owner:** `investment`（月結數字讀取由 `monthly-close` 確認）　**Spec:** 第 7–10 點
 
 - [ ] 帳本服務 `getAssetTrend()`：每個已月結月份 {month, book, investment, total, investmentAtCost}
 - [ ] 投資市值與 `getInvestmentPortfolio(月底)` 相同；第一次估值前用成本並標記

@@ -9,13 +9,16 @@ import { formatAmount, formatPermille, monthTitle, userMessage } from '../../../
 import { useLedger } from '../../../ui/LedgerProvider.tsx';
 import { Footnote, Group, MonthBar, SectionTitle, Segmented, kit, text } from '../../../ui/kit.tsx';
 import { TabScrollView } from '../../../ui/LargeTitle.tsx';
+import { AssetTrendPage } from '../../../ui/AssetTrend.tsx';
 import { reportCategoryColor, reportOtherColor, colors, typeScale } from '../../../ui/theme.ts';
 
 // 明細（票 09）：選定月份的圓餅圖＋類別列表。支出／收入用上方切換或在圓餅圖上左右滑；
 // 點類別展開該類別當月的交易，點交易進記帳表單（可改可刪，已結月份為唯讀）。
 const FLOW_NAME: Record<Flow, string> = { expense: '支出', income: '收入' };
 const otherFlow = (flow: Flow): Flow => (flow === 'expense' ? 'income' : 'expense');
-const FLOW_OPTIONS = (['expense', 'income'] as const).map((f) => ({ key: f, label: FLOW_NAME[f] }));
+// 第三頁「財產」（2026-11-25）：從收入再左滑，沒有月份列。
+const PAGE_OPTIONS = [...(['expense', 'income'] as const).map((f) => ({ key: f, label: FLOW_NAME[f] })), { key: 'assets', label: '財產' }];
+const TREND_PAGE = 2;
 // 圓餅下方的標籤（2026-11-25）：依分類、成員或帳戶看；圓餅與列表一起換。灰色「其他」合併只在分類。
 type Grouping = 'category' | ReportGrouping;
 const GROUP_OPTIONS: readonly { key: Grouping; label: string }[] = [
@@ -48,15 +51,16 @@ export default function ReportScreen() {
   }
   return (
     <TabScrollView title="明細">
-      <MonthBar title={monthTitle(month)} onPrev={() => chooseMonth(shiftMonth(month, -1))}
+      {selected === TREND_PAGE ? null : <MonthBar title={monthTitle(month)} onPrev={() => chooseMonth(shiftMonth(month, -1))}
         onNext={() => chooseMonth(shiftMonth(month, 1))} nextDisabled={month >= thisMonth}
         hint={month === thisMonth ? '本月' : '回到本月'}
-        onHintPress={month === thisMonth ? undefined : () => chooseMonth(thisMonth)} />
-      <HorizontalPager options={FLOW_OPTIONS} onChange={choosePage}>
+        onHintPress={month === thisMonth ? undefined : () => chooseMonth(thisMonth)} />}
+      <HorizontalPager options={PAGE_OPTIONS} onChange={choosePage}>
         {(['expense', 'income'] as const).map((flow, index) => (
           <ReportPage key={`${month}-${flow}`} month={month} flow={flow} groupBy={groupBy} onGroupBy={chooseGroup}
             openKey={selected === index ? openKey : null} onOpen={setOpenKey} />
         ))}
+        <AssetTrendPage dots={<PageDots index={TREND_PAGE} />} />
       </HorizontalPager>
     </TabScrollView>
   );
@@ -143,7 +147,7 @@ function ReportPage({ month, flow, groupBy, onGroupBy, openKey, onOpen }: {
           style={[kit.card, styles.donutCard]}
           accessible
           accessibilityRole="image"
-          accessibilityLabel={`${monthTitle(month)}${kind}依${GROUP_NAME[groupBy]}的圓餅圖，合計 ${formatAmount(current?.total ?? 0)} 元。左右滑可切換支出與收入。`}
+          accessibilityLabel={`${monthTitle(month)}${kind}依${GROUP_NAME[groupBy]}的圓餅圖，合計 ${formatAmount(current?.total ?? 0)} 元。左右滑可切換支出、收入與財產。`}
         >
           <Donut slices={slices}>
             <Text style={text.footnote}>本月{kind}</Text>
@@ -153,11 +157,7 @@ function ReportPage({ month, flow, groupBy, onGroupBy, openKey, onOpen }: {
           </Donut>
         </View>
 
-        <View style={styles.dots} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-          {(['expense', 'income'] as const).map((f) => (
-            <View key={f} style={[styles.pageDot, { backgroundColor: flow === f ? colors.accent : colors.chevron }]} />
-          ))}
-        </View>
+        <PageDots index={flow === 'expense' ? 0 : 1} />
       </View>
 
       <Segmented options={GROUP_OPTIONS} value={groupBy} onChange={onGroupBy} />
@@ -210,6 +210,16 @@ function ReportPage({ month, flow, groupBy, onGroupBy, openKey, onOpen }: {
           })}
         </Group>
       </View>
+    </View>
+  );
+}
+
+function PageDots({ index }: { index: number }) {
+  return (
+    <View style={styles.dots} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      {PAGE_OPTIONS.map((option, i) => (
+        <View key={option.key} style={[styles.pageDot, { backgroundColor: i === index ? colors.accent : colors.chevron }]} />
+      ))}
     </View>
   );
 }
