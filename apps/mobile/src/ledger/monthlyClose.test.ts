@@ -58,6 +58,7 @@ async function readyToClose(ledger: Ledger) {
 test('精靈自動選開放月份，只帶入該月收入；尚未結束的月份不可月結', async (t) => {
   const ledger = await setup(t);
   await transaction(ledger, '薪資', 40000);
+  await ledger.addEntryCategory({ flow: 'income', name: '其他收入' });
   await transaction(ledger, '其他收入', 500);
   await transaction(ledger, '飲食', 100);
   await transaction(ledger, '薪資', 888, '2026-11-01');

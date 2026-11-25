@@ -52,7 +52,7 @@ test('月曆每天分開合計收入與支出並計筆數，只含當月有帳�
   await add('2026-11-03', 'income', '薪資', 40000);
   await add('2026-11-30', 'expense', '娛樂', 300);
   await add('2026-10-31', 'expense', '飲食', 999); // 上個月，不應出現
-  await add('2026-12-01', 'income', '其他收入', 888); // 下個月，不應出現
+  await add('2026-12-01', 'income', '薪資', 888); // 下個月，不應出現
 
   const calendar = await ledger.getMonthCalendar('2026-11');
   assert.equal(calendar.month, '2026-11');
@@ -141,7 +141,7 @@ test('關閉再重開同一個資料庫檔，資料仍在，預設分類與帳�
   }
 });
 
-test('新資料庫內建預設的四種帳戶與通用分類（含收入類）', async () => {
+test('新資料庫內建預設的四種帳戶與通用分類（收入只有薪資）', async () => {
   const ledger = await newLedger();
   assert.deepEqual(
     (await ledger.listAccounts()).map((a) => [a.name, a.kind]),
@@ -150,7 +150,7 @@ test('新資料庫內建預設的四種帳戶與通用分類（含收入類）',
   const categories = await ledger.listCategories();
   assert.deepEqual(
     categories.filter((c) => c.flow === 'income').map((c) => c.name),
-    ['薪資', '其他收入'],
+    ['薪資'],
   );
   assert.ok(categories.some((c) => c.flow === 'expense' && c.name === '飲食'));
 });

@@ -3,6 +3,7 @@
 import type { Queryable } from '../db/driver.ts';
 import { LedgerError } from './errors.ts';
 import { validIcon } from './icons.ts';
+import { SELF_MEMBER_ICON } from './defaults.ts';
 
 export interface Member { id: number; name: string; icon: string | null; active: boolean; isSelf: boolean }
 
@@ -19,11 +20,11 @@ export async function ensureSelfMember(q: Queryable): Promise<number> {
   if (flagged) return flagged.id;
   const named = await q.get<{ id: number }>('SELECT id FROM members WHERE name = ? COLLATE NOCASE', [DEFAULT_MEMBER_NAME]);
   if (named) {
-    await q.run('UPDATE members SET is_self = 1, active = 1 WHERE id = ?', [named.id]);
+    await q.run("UPDATE members SET is_self = 1, active = 1, icon = COALESCE(NULLIF(TRIM(icon), ''), ?) WHERE id = ?", [SELF_MEMBER_ICON, named.id]);
     return named.id;
   }
   const first = await q.get<{ low: number | null }>('SELECT MIN(sort_order) AS low FROM members');
-  return (await q.run('INSERT INTO members (name, sort_order, is_self) VALUES (?, ?, 1)', [DEFAULT_MEMBER_NAME, (first?.low ?? 1) - 1])).lastInsertRowId;
+  return (await q.run('INSERT INTO members (name, sort_order, is_self, icon) VALUES (?, ?, 1, ?)', [DEFAULT_MEMBER_NAME, (first?.low ?? 1) - 1, SELF_MEMBER_ICON])).lastInsertRowId;
 }
 
 export async function listMembers(q: Queryable, includeInactive = false): Promise<Member[]> {

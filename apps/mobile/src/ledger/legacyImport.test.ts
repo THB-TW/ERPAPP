@@ -115,7 +115,7 @@ test('任何一列不合規定就整批不帶入（一次交易）', async () =>
     await rejects(code, ledger.importLegacyLedger(data(over)));
     // 整批還原：預設資料還在、沒有財務文件
     assert.equal((await ledger.listAccounts()).length, 4, code);
-    assert.equal((await ledger.listCategories()).length, 12, code);
+    assert.equal((await ledger.listCategories()).length, 11, code);
     assert.equal((await ledger.listBudgetMonths()).length, 0, code);
     assert.equal((await ledger.getMonthCalendar('2026-08')).days.length, 0, code);
   }

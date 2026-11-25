@@ -6,6 +6,7 @@ import { LedgerError, openLedger, type Flow, type Ledger } from './index.ts';
 
 async function newLedger() {
   const ledger = await openLedger(openNodeDatabase(':memory:'));
+  await ledger.addEntryCategory({ flow: 'income', name: '其他收入' }); // 新帳本收入只有薪資；測試需要第二個收入分類
   const categories = await ledger.listCategories();
   const accounts = await ledger.listAccounts();
   const cat = (name: string) => categories.find((c) => c.name === name)!.id;
@@ -37,9 +38,9 @@ test('月份支出彙總：各分類金額、筆數與占比，依金額由大�
   assert.equal(b.total, 1000);
   assert.equal(b.otherFlowTotal, 40000);
   assert.deepEqual(b.categories, [
-    { categoryId: cat('飲食'), categoryName: '飲食', categoryIcon: null, amount: 500, count: 2, permille: 500, budgetCategory: null },
-    { categoryId: cat('交通'), categoryName: '交通', categoryIcon: null, amount: 300, count: 1, permille: 300, budgetCategory: null },
-    { categoryId: cat('娛樂'), categoryName: '娛樂', categoryIcon: null, amount: 200, count: 1, permille: 200, budgetCategory: null },
+    { categoryId: cat('飲食'), categoryName: '飲食', categoryIcon: '🍜', amount: 500, count: 2, permille: 500, budgetCategory: null },
+    { categoryId: cat('交通'), categoryName: '交通', categoryIcon: '🚇', amount: 300, count: 1, permille: 300, budgetCategory: null },
+    { categoryId: cat('娛樂'), categoryName: '娛樂', categoryIcon: '🎬', amount: 200, count: 1, permille: 200, budgetCategory: null },
   ]);
 });
 

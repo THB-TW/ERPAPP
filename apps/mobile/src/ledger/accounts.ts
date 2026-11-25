@@ -1,6 +1,6 @@
 import type { Database, Queryable } from '../db/driver.ts';
 import { isValidDate } from '../calc/dates.ts';
-import { ACCOUNT_KINDS, type AccountKind } from './defaults.ts';
+import { ACCOUNT_ICONS, ACCOUNT_KIND_ICONS, ACCOUNT_KINDS, type AccountKind } from './defaults.ts';
 import { LedgerError } from './errors.ts';
 import { INVALID_DATE_MESSAGE } from './transactionRules.ts';
 import { investmentCashFlows } from './investmentCashFlows.ts';
@@ -9,6 +9,8 @@ export interface Account {
   id: number;
   name: string;
   kind: AccountKind;
+  /** 內建或使用者設定的表情符號，沒有則為 null。 */
+  icon: string | null;
   /** 開帳日當天餘額；信用卡未繳金額為負。 */
   openingBalance: number;
   active: boolean;
@@ -28,15 +30,18 @@ type Serial = <T>(task: () => Promise<T>) => Promise<T>;
 
 async function listAccounts(q: Queryable): Promise<Account[]> {
   const rows = await q.all<Omit<Account, 'active'> & { active: number }>(
-    'SELECT id, name, kind, opening_balance AS openingBalance, active FROM accounts ORDER BY sort_order, id',
+    'SELECT id, name, kind, icon, opening_balance AS openingBalance, active FROM accounts ORDER BY sort_order, id',
   );
   return rows.map((a) => ({ ...a, active: a.active === 1 }));
 }
 
-async function knownAccount(q: Queryable, id: number): Promise<Account> {
-  const row = (await listAccounts(q)).find((a) => a.id === id);
+/** 修改前讀原值；不讀圖示，讓還原舊備份時（圖示欄位尚未補上的遷移途中）也能用。 */
+async function knownAccount(q: Queryable, id: number): Promise<Omit<Account, 'icon'>> {
+  const row = await q.get<Omit<Account, 'icon' | 'active'> & { active: number }>(
+    'SELECT id, name, kind, opening_balance AS openingBalance, active FROM accounts WHERE id = ?', [id],
+  );
   if (!row) throw new LedgerError('unknown_account', '找不到這個帳戶。');
-  return row;
+  return { ...row, active: row.active === 1 };
 }
 
 /** 停用帳戶不能承接新交易；修改歷史時可保留該筆原本的帳戶。 */
@@ -63,7 +68,8 @@ async function addAccount(tx: Queryable, input: NewAccount): Promise<{ id: numbe
   const openingBalance = input.openingBalance ?? 0;
   validBalance(openingBalance);
   const last = await tx.get<{ top: number | null }>('SELECT MAX(sort_order) AS top FROM accounts');
-  const result = await tx.run('INSERT INTO accounts (name, kind, sort_order, opening_balance) VALUES (?, ?, ?, ?)', [name, input.kind, (last?.top ?? -1) + 1, openingBalance]);
+  const icon = ACCOUNT_ICONS[name] ?? ACCOUNT_KIND_ICONS[input.kind];
+  const result = await tx.run('INSERT INTO accounts (name, kind, sort_order, opening_balance, icon) VALUES (?, ?, ?, ?, ?)', [name, input.kind, (last?.top ?? -1) + 1, openingBalance, icon]);
   return { id: result.lastInsertRowId };
 }
 

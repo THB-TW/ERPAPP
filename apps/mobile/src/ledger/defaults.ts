@@ -12,7 +12,8 @@ export const DEFAULT_ACCOUNTS: readonly { name: string; kind: AccountKind }[] = 
   { name: '電子支付', kind: 'e_wallet' },
 ];
 
-export const DEFAULT_CATEGORIES: readonly { name: string; flow: Flow }[] = [
+/** 版本 1 遷移寫入的種子，發佈後不可改；新帳本目前的預設見 DEFAULT_CATEGORIES（v15 起拿掉「其他收入」）。 */
+export const V1_SEED_CATEGORIES: readonly { name: string; flow: Flow }[] = [
   { name: '飲食', flow: 'expense' },
   { name: '交通', flow: 'expense' },
   { name: '娛樂', flow: 'expense' },
@@ -26,6 +27,25 @@ export const DEFAULT_CATEGORIES: readonly { name: string; flow: Flow }[] = [
   { name: '薪資', flow: 'income' },
   { name: '其他收入', flow: 'income' },
 ];
+
+/** 新帳本目前的預設分類（2026-11-25 翰陞定案：收入只留「薪資」）。 */
+export const DEFAULT_CATEGORIES: readonly { name: string; flow: Flow }[] = V1_SEED_CATEGORIES.filter((c) => c.name !== '其他收入');
+
+/**
+ * 內建圖示：只有「名稱 → 表情符號」，不含任何金額。新帳本預設與舊帳常見名稱都在這裡；
+ * 遷移 v15 與舊帳匯入只把空白圖示依名稱（完全相同）補上，使用者自訂過的不覆蓋。
+ */
+export const CATEGORY_ICONS: Readonly<Record<string, string>> = {
+  飲食: '🍜', 交通: '🚇', 娛樂: '🎬', 日常用品: '🧴', 醫療保健: '💊', 服飾: '👕', 學習: '📚',
+  電話網路: '📶', 水電瓦斯: '💡', 其他: '🧩', 薪資: '💼',
+  gogoro電費: '🛵', 汽車: '🚗', 學習深造: '🎓', 大型器具: '🧰', 美容美髮: '💇', 獎金: '🎁', 教育: '🏫',
+  交際應酬: '🥂', 稅金: '🧾', 撿到: '🍀', 領錢: '🏧', 工資: '🛠️', 一卡通: '🎫', 機車加油: '⛽',
+  轉帳手續費: '💸', 點點卡: '🎟️', 'Uber eats': '🛵', 副業: '💼', 健身: '🏋️', 保險: '🛡️', 賭博: '🎰',
+  信用卡: '💳', 'line bank': '🏦', 贏錢: '🏆', 水費: '🚰', 電費: '💡', 瓦斯: '🔥', AI: '🤖',
+};
+export const ACCOUNT_ICONS: Readonly<Record<string, string>> = { 現金: '💵', 銀行: '🏦', 信用卡: '💳', 電子支付: '📱' };
+export const ACCOUNT_KIND_ICONS: Readonly<Record<AccountKind, string>> = { cash: '💵', bank: '🏦', credit_card: '💳', e_wallet: '📱' };
+export const SELF_MEMBER_ICON = '🙂';
 
 // 新使用者可逐項修改的公開建議表，只有名稱、組別與收入比例；不改 v1 種子、不含交易或金額。
 export const DEFAULT_OPENING_BUDGETS = [

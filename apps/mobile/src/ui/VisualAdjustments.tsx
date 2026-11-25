@@ -19,7 +19,6 @@ import { useKeyboardHeight } from './useKeyboardHeight.ts';
 type Source = { id: string; name: string; balance: number };
 type Move = { from: Source; to: Source };
 const WALLET = 'available-wallet';
-const REASONS = ['補透支', '這個月花比較多', '預算調整', '買大東西'];
 
 function defaultAmount({ from, to }: Move): string {
   return String(to.balance < 0 ? Math.min(-to.balance, from.balance) : from.balance);
@@ -255,11 +254,8 @@ export function VisualAdjustments() {
                 </View>
                 {over ? <Text style={text.error} accessibilityRole="alert">最多可搬 {formatAmount(move.from.balance)} 元</Text> : null}
                 <Text style={text.subhead}>原因（必填）</Text>
-                <View style={styles.chips}>
-                  {REASONS.map(value => <Chip key={value} active={reason === value} label={value} disabled={busy} onPress={() => changeReason(value)} />)}
-                </View>
                 <TextInput style={kit.input} value={reason} maxLength={300} accessibilityLabel="搬錢原因" editable={!busy}
-                  placeholder="或自己寫" onChangeText={changeReason} />
+                  placeholder="例如：這個月聚餐比較多" onChangeText={changeReason} />
                 <Card style={styles.preview}>
                   <Text style={text.headline}>搬完以後</Text>
                   <Text style={text.caption}>{move.from.id === WALLET ? '補入儲備' : '儲備挪用'}</Text>

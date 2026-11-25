@@ -2,7 +2,7 @@
 
 **What to build:** 搬錢面板與預算設定拿掉預設原因標籤，原因仍必填 1–300 字。
 
-**Blocked by:** 無　**Status:** ready-for-agent　**Owner:** `budget-reserve`　**Spec:** 第 4 點
+**Blocked by:** 無　**Status:** done（PR #52）　**Owner:** `budget-reserve`　**Spec:** 第 4 點
 
 - [ ] `src/ui/VisualAdjustments.tsx`、`src/app/budget-settings.tsx` 刪 REASONS 標籤
 - [ ] 空白原因不能確認（按鈕停用＋提示）

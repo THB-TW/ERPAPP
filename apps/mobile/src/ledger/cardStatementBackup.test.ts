@@ -35,7 +35,7 @@ test('目前版本帳本可檢查；帳單、所屬卡與重複列隨整本備�
   await source.importCardStatement({ accountId: card.id, csv: '2026-10-02,合成商店,100\n2026-10-02,合成商店,100' });
   assert.deepEqual(await inspectLedgerFile(db), { ok: true });
   const exported = await source.exportBackup(join(w.directory, 'export.db'));
-  assert.equal((await source.inspectBackup(exported.path)).schemaVersion, 14);
+  assert.equal((await source.inspectBackup(exported.path)).schemaVersion, 15);
   const { ledger: target } = await w.open('target.db');
   const second = await target.addAccount({ name: '合成其他卡', kind: 'credit_card' });
   await target.importCardStatement({ accountId: second.id, csv: '2026-10-03,合成他店,90' });

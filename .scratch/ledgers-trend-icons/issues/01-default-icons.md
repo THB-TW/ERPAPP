@@ -2,7 +2,7 @@
 
 **What to build:** 新帳本預設分類／帳戶／成員帶圖示、拿掉「其他收入」；遷移 v15 依名稱補空白圖示（分類、帳戶、自己）。
 
-**Blocked by:** 無　**Status:** ready-for-agent　**Owner:** `ledger-entry`　**Spec:** [規格](../spec.md) 第 1–3 點
+**Blocked by:** 無　**Status:** done（PR #52）　**Owner:** `ledger-entry`　**Spec:** [規格](../spec.md) 第 1–3 點
 
 - [ ] accounts.icon 欄位；遷移 v15 只補空白、名稱完全相同，不動金額
 - [ ] 新帳本預設分類改為規格清單（v1 seed 常數保留不動，舊帳匯入判斷照舊）

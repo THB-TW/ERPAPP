@@ -217,6 +217,7 @@ test('新增與歸屬預算類別時，同名交易分類不存在就建立；�
   await spend(ledger, '2026-10-02', '旅遊', 80); // 立刻可以記帳
 
   await rejects('category_name_conflict', ledger.runBudgetCommand(cmd({ action: 'add', month: '2026-10', name: '薪資', kind: 'fixed', amount: 0, version: 5 })), /收入分類/);
+  await ledger.addEntryCategory({ flow: 'income', name: '其他收入' });
   await rejects('category_name_conflict', ledger.runBudgetCommand(cmd({ action: 'map', month: '2026-10', sourceCategory: '其他收入', to: 'f-other', version: 5 })), /收入分類/);
   assert.equal((await ledger.getBudgetStatus()).version, 5);
 });

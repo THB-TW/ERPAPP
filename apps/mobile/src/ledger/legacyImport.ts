@@ -2,6 +2,7 @@
 // 整個過程在呼叫端給的同一個資料庫交易內，任何一處丟錯就整批還原。
 import type { Queryable } from '../db/driver.ts';
 import { ensureSelfMember } from './members.ts';
+import { fillDefaultIcons } from './icons.ts';
 import { isValidDate } from '../calc/dates.ts';
 import { assertAccountKnown, assertCategoryFlow, assertTransactionShape } from './transactionRules.ts';
 import { parseImportedDocument, replaceDocument } from './financeDocument.ts';
@@ -146,6 +147,7 @@ export async function importLegacy(tx: Queryable, data: LegacyImportData): Promi
   }
 
   await ensureSelfMember(tx); // 一定要有「自己」（舊帳沒有就建立）
+  await fillDefaultIcons(tx); // 依名稱補內建圖示，不動名稱與金額
   await importLegacyCardStatements(tx, data.cardStatements ?? []);
   await importLegacyInvestments(tx, data.investments, data.openingDate);
   await replaceDocument(tx, state);

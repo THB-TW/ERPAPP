@@ -28,7 +28,6 @@ const GROUPS = [
   { key: 'fixed', label: '固定支出', description: '沒花完的回到當月盈餘' },
   { key: 'actual', label: '照實支', description: '花多少算多少' },
 ] as const;
-const REASONS = ['薪水調整', '這類開銷變多', '這類開銷變少', '新的生活習慣'];
 const MAX_LIMIT = 1_000_000;
 const SLIDER_MAX = 20_000;
 const SLIDER_STEP = 100;
@@ -443,11 +442,8 @@ export default function BudgetSettingsScreen() {
 function Reasons({ value, disabled, onChange }: { value: string; disabled: boolean; onChange: (value: string) => void }) {
   return <Card>
     <Text style={text.headline}>原因（必填）</Text>
-    <View style={styles.chips}>{REASONS.map(reason => (
-      <Chip key={reason} label={reason} active={value === reason} disabled={disabled} onPress={() => onChange(reason)} />
-    ))}</View>
     <TextInput style={kit.input} value={value} editable={!disabled} maxLength={300} multiline
-      accessibilityLabel="修改原因" placeholder="或自己寫" onChangeText={onChange} />
+      accessibilityLabel="修改原因" placeholder="例如：房租調漲" onChangeText={onChange} />
   </Card>;
 }
 
