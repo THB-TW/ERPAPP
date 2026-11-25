@@ -1,8 +1,9 @@
 import { useNavigation } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { Animated, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { NativeScrollEvent, NativeSyntheticEvent, ScrollViewProps, StyleProp, ViewStyle } from 'react-native';
 import { kit } from './kit.tsx';
+import { useCurrentLedgerName } from './LedgerProvider.tsx';
 import { colors, typeScale } from './theme.ts';
 
 // 分頁的大標題（像 iOS「設定」）：標題是捲動內容的第一項，往下捲超過它之後，導覽列中央淡入同名小標題並出現底線。
@@ -20,7 +21,7 @@ const COLLAPSE_AT = 36;
  *（記得設 scrollEventThrottle={16}）。一般分頁直接用下面的 <TabScrollView> 就好；
  * 只有需要自己拿 ScrollView ref 或 stickyHeaderIndices 的畫面（預算頁）才直接用這個。
  */
-export function useLargeTitle(title: string): {
+export function useLargeTitle(title: string, options: { onLedgerPress?: () => void } = {}): {
   element: ReactNode;
   onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
 } {
@@ -38,8 +39,24 @@ export function useLargeTitle(title: string): {
     setCollapsed(event.nativeEvent.contentOffset.y > COLLAPSE_AT);
   }, []);
 
+  // 多帳本（ADR 0008）：大標題右邊顯示目前帳本名稱；記帳頁可以點它切換帳本。
+  const ledgerName = useCurrentLedgerName();
+  const { onLedgerPress } = options;
+  const badge = !ledgerName ? null : onLedgerPress ? (
+    <Pressable onPress={onLedgerPress} hitSlop={8} accessibilityRole="button" accessibilityLabel={`目前帳本：${ledgerName}`}
+      accessibilityHint="切換或管理帳本" style={({ pressed }) => [styles.ledgerButton, pressed && kit.pressed]}>
+      <Text style={styles.ledgerActive} numberOfLines={1}>{ledgerName} ▾</Text>
+    </Pressable>
+  ) : (
+    <Text style={styles.ledgerName} numberOfLines={1} accessibilityLabel={`目前帳本：${ledgerName}`}>{ledgerName}</Text>
+  );
   return {
-    element: <Text style={styles.large} accessibilityRole="header">{title}</Text>,
+    element: (
+      <View style={styles.titleRow}>
+        <Text style={styles.large} accessibilityRole="header">{title}</Text>
+        {badge}
+      </View>
+    ),
     onScroll,
   };
 }
@@ -70,9 +87,10 @@ export function TabScrollView({
   title,
   children,
   contentContainerStyle,
+  onLedgerPress,
   ...rest
-}: { title: string; children: ReactNode; contentContainerStyle?: StyleProp<ViewStyle> } & Omit<ScrollViewProps, 'onScroll' | 'style' | 'contentContainerStyle'>) {
-  const largeTitle = useLargeTitle(title);
+}: { title: string; children: ReactNode; contentContainerStyle?: StyleProp<ViewStyle>; onLedgerPress?: () => void } & Omit<ScrollViewProps, 'onScroll' | 'style' | 'contentContainerStyle'>) {
+  const largeTitle = useLargeTitle(title, { onLedgerPress });
   return (
     <ScrollView
       style={kit.screen}
@@ -90,6 +108,10 @@ export function TabScrollView({
 }
 
 const styles = StyleSheet.create({
+  titleRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 },
+  ledgerName: { ...typeScale.subhead, color: colors.muted, flexShrink: 1 },
+  ledgerButton: { flexShrink: 1, minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 },
+  ledgerActive: { ...typeScale.subhead, fontWeight: '600', color: colors.accent },
   large: { fontSize: 34, lineHeight: 41, fontWeight: '700', letterSpacing: 0.4, color: colors.text },
   small: { ...typeScale.headline, color: colors.text },
   titleWrap: { marginBottom: -12 },

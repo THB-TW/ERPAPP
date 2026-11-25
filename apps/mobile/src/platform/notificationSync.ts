@@ -1,12 +1,18 @@
 // 所有自動重排共用這條序列；畫面只需在帳務成功後呼叫，不自行判斷通知規則。
 import { AppState } from 'react-native';
 import type { Ledger } from '../ledger/index.ts';
+import type { NotificationGlobals } from '../ledger/library.ts';
 import { hasMonthlyCloseEntitlement } from '../ui/closeEntitlement.ts';
 import { appSubscription } from './appSubscription.ts';
 import { applyNotificationPlan, type NotificationScheduleResult } from './notificationPort.ts';
 import { managedNotificationId, notificationPlanThrough, notificationRequests } from './notificationSchedule.ts';
 
 let tail: Promise<unknown> = Promise.resolve();
+// 多帳本：記帳與備份提醒、上次備份時間是全 App 共用，由帳本清單提供（LedgerProvider 接上）。
+let globalsSource: (() => Promise<NotificationGlobals>) | null = null;
+export function setNotificationGlobals(source: (() => Promise<NotificationGlobals>) | null): void {
+  globalsSource = source;
+}
 
 /** 只有明確儲存提醒設定才傳 requestPermission；其他路徑預設不跳權限對話框。 */
 export function syncNotifications(
@@ -16,6 +22,7 @@ export function syncNotifications(
     const now = new Date();
     const plan = await ledger.getNotificationPlan({
       now, through: notificationPlanThrough(now), hasEntitlement: hasMonthlyCloseEntitlement(),
+      globals: globalsSource ? await globalsSource() : undefined,
     });
     const result = await applyNotificationPlan(plan, { requestPermission: options.requestPermission === true });
     // Port 以時間／id 排序、容量不足時保留最近項目；只記原生層已接受的部分。

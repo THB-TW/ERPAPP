@@ -137,7 +137,7 @@ async function addValuation(q: Queryable, input: NewInvestmentValuation) {
   await investmentPositions(q);
   return { id: result.lastInsertRowId };
 }
-async function investmentPortfolio(q: Queryable, date: string): Promise<InvestmentPortfolio> {
+export async function investmentPortfolio(q: Queryable, date: string): Promise<InvestmentPortfolio> {
   day(date);
   const positions = await investmentPositions(q, date);
   const net = await netDeployed(q, date);

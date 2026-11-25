@@ -10,7 +10,8 @@ import { syncNotifications } from '../platform/notificationSync.ts';
 import { taipeiDateTime } from '../ui/backupText.ts';
 import { hasMonthlyCloseEntitlement, useHasPaidAccess } from '../ui/closeEntitlement.ts';
 import { userMessage } from '../ui/format.ts';
-import { useLedger } from '../ui/LedgerProvider.tsx';
+import { useLedger, useLedgerLibrary } from '../ui/LedgerProvider.tsx';
+import type { GlobalReminders } from '../ledger/library.ts';
 import { colors } from '../ui/theme.ts';
 
 type ReminderKind = keyof NotificationSettings['enabled'];
@@ -23,14 +24,19 @@ interface Form {
   loanDays: Record<number, string>;
 }
 const REMINDERS: { kind: ReminderKind; title: string; hint: string; paid?: boolean }[] = [
-  { kind: 'entry', title: '每日記帳', hint: '每天在指定時間提醒記錄交易。' },
+  { kind: 'entry', title: '每日記帳', hint: '每天在指定時間提醒記錄交易。全部帳本共用。' },
   { kind: 'budgetOverrun', title: '預算超支', hint: '分類實支超過預算上限時提醒。' },
-  { kind: 'backupAfterClose', title: '月結後備份', hint: '月結完成且尚未備份時提醒。' },
-  { kind: 'backupOverdue', title: '超過 35 天未備份', hint: '提醒匯出整本帳的備份檔。' },
+  { kind: 'backupAfterClose', title: '月結後備份', hint: '月結完成且尚未備份時提醒。全部帳本共用。' },
+  { kind: 'backupOverdue', title: '超過 35 天未備份', hint: '提醒匯出備份檔（含全部帳本）。全部帳本共用。' },
   { kind: 'monthlyClose', title: '月結提醒', hint: '到了月結日，提醒尚未完成的月結。', paid: true },
   { kind: 'creditCardStatement', title: '信用卡帳單未匯入', hint: '結帳日後，已確認尚未匯入的帳單才提醒。', paid: true },
   { kind: 'loanPayment', title: '貸款繳款', hint: '每筆貸款繳款日前一天提醒。', paid: true },
 ];
+
+/** 記帳與備份提醒以全 App 共用的設定為準。 */
+function withGlobals(settings: NotificationSettings, g: GlobalReminders): NotificationSettings {
+  return { ...settings, entryTime: g.entryTime, enabled: { ...settings.enabled, entry: g.entry, backupAfterClose: g.backupAfterClose, backupOverdue: g.backupOverdue } };
+}
 
 function editForm(settings: NotificationSettings): Form {
   return {
@@ -60,6 +66,7 @@ function formSettings(form: Form): NotificationSettings {
 
 export default function NotificationsScreen() {
   const ledger = useLedger();
+  const { library, currentName } = useLedgerLibrary();
   const headerHeight = useHeaderHeight();
   const [form, setForm] = useState<Form | null>(null);
   const [cards, setCards] = useState<Account[]>([]);
@@ -78,10 +85,10 @@ export default function NotificationsScreen() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    Promise.all([ledger.getNotificationSettings(), ledger.listAccounts(), ledger.listLoans()]).then(
-      ([settings, accounts, currentLoans]) => {
+    Promise.all([ledger.getNotificationSettings(), ledger.listAccounts(), ledger.listLoans(), library.getReminders()]).then(
+      ([stored, accounts, currentLoans, reminders]) => {
         if (cancelled) return;
-        setForm(editForm(settings));
+        setForm(editForm(withGlobals(stored, reminders)));
         setCards(accounts.filter((account) => account.kind === 'credit_card' && account.active));
         setLoans(currentLoans);
         setPlan(null);
@@ -95,7 +102,7 @@ export default function NotificationsScreen() {
       },
     );
     return () => { cancelled = true; };
-  }, [ledger, retry]);
+  }, [ledger, library, retry]);
 
   const change = useCallback((edit: (current: Form) => Form) => {
     setForm((current) => current ? edit(current) : current);
@@ -115,6 +122,9 @@ export default function NotificationsScreen() {
     try {
       const settings = formSettings(form);
       if (action === 'save') {
+        // 記帳與備份提醒全 App 共用（存在帳本清單）；其餘屬於這本帳。
+        await library.saveReminders({ entry: settings.enabled.entry, entryTime: settings.entryTime,
+          backupAfterClose: settings.enabled.backupAfterClose, backupOverdue: settings.enabled.backupOverdue });
         await ledger.saveNotificationSettings(settings);
         saved = true;
         setForm(editForm(settings));
@@ -122,6 +132,8 @@ export default function NotificationsScreen() {
       // 帳單資料尚未接入，省略 statementImports，未知的卡片期別不會提醒。
       const notifications = await ledger.getNotificationPlan({
         now: new Date(), settings, hasEntitlement: hasMonthlyCloseEntitlement(),
+        globals: { ...await library.getNotificationGlobals(), entry: settings.enabled.entry, entryTime: settings.entryTime,
+          backupAfterClose: settings.enabled.backupAfterClose, backupOverdue: settings.enabled.backupOverdue },
       });
       setPlan(notifications);
       if (action === 'save') {
@@ -148,6 +160,7 @@ export default function NotificationsScreen() {
           <Text style={styles.heading}>本機通知</Text>
           <Text style={styles.note}>儲存並套用時，若有待排提醒才會要求通知權限；拒絕後仍可正常記帳。回到 App 時會更新接下來的排程。</Text>
           <Text style={styles.note}>通知內容不顯示金額、帳戶名稱或貸款名稱。</Text>
+          <Text style={styles.note}>預算、月結、信用卡與貸款提醒只看目前帳本「{currentName}」；切換帳本後改排那一本的提醒。</Text>
         </View>
         {loading ? <ActivityIndicator accessibilityLabel="讀取提醒設定中" /> : null}
         {form ? <>

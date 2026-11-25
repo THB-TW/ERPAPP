@@ -1,5 +1,6 @@
 import type { Migration } from '../db/migrate.ts';
-import { DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES } from './defaults.ts';
+import { DEFAULT_ACCOUNTS, V1_SEED_CATEGORIES } from './defaults.ts';
+import { fillDefaultIcons } from './icons.ts';
 import { BACKUP_APPLICATION_ID } from './backup.ts';
 import { parseBudgetDocument } from '../calc/budgetDocument.ts';
 import { initializeLegacyTuition } from './loanMigration.ts';
@@ -36,7 +37,7 @@ export const ledgerMigrations: readonly Migration[] = [
       for (const [i, a] of DEFAULT_ACCOUNTS.entries()) {
         await tx.run('INSERT INTO accounts (name, kind, sort_order) VALUES (?, ?, ?)', [a.name, a.kind, i]);
       }
-      for (const [i, c] of DEFAULT_CATEGORIES.entries()) {
+      for (const [i, c] of V1_SEED_CATEGORIES.entries()) {
         await tx.run('INSERT INTO categories (name, flow, sort_order) VALUES (?, ?, ?)', [c.name, c.flow, i]);
       }
     },
@@ -221,6 +222,23 @@ export const ledgerMigrations: readonly Migration[] = [
         await tx.run('UPDATE members SET is_self = 1 WHERE id = ?', [selfId]);
         await tx.run('UPDATE transactions SET member_id = ? WHERE member_id IS NULL', [selfId]);
       }
+    },
+  },
+  {
+    // 內建圖示與新帳本預設（2026-11-25 翰陞定案）：帳戶加圖示欄位；分類、帳戶與「自己」只把空白圖示依名稱補上，
+    // 不動名稱與金額。還沒開始用的新帳本（沒有交易也沒有財務文件）拿掉 v1 種子的「其他收入」；已在用的帳本不動。
+    version: 15,
+    async up(tx) {
+      await tx.exec('ALTER TABLE accounts ADD COLUMN icon TEXT;');
+      const has = async (table: string) => !!(await tx.get("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", [table]));
+      const used = await tx.get<{ n: number }>(
+        'SELECT (SELECT COUNT(*) FROM transactions) + (SELECT COUNT(*) FROM finance_document) AS n',
+      );
+      if ((used?.n ?? 0) === 0 && !(await has('loans') && await tx.get("SELECT 1 FROM loans l JOIN categories c ON c.id = l.category_id WHERE c.name = '其他收入'"))) {
+        await tx.run("DELETE FROM categories WHERE name = '其他收入' AND flow = 'income'");
+      }
+      // 測試可能跳過個別版本；圖示欄位（v14）不在就不補。
+      if (await tx.get("SELECT 1 FROM pragma_table_info('categories') WHERE name = 'icon'")) await fillDefaultIcons(tx);
     },
   },
 ];

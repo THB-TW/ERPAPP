@@ -108,7 +108,7 @@ export default function HomeScreen() {
 
   return (
     // 整頁就是一個捲動區：大標題「記帳」、月曆與當日清單一起捲動。
-    <TabScrollView title="記帳">
+    <TabScrollView title="記帳" onLedgerPress={() => router.push('/ledgers')}>
       <View style={kit.section}>
         <MonthBar
           title={monthTitle(month)}

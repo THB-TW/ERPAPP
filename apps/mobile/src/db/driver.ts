@@ -2,8 +2,8 @@
 // 手機接 expo-sqlite（expoDriver.ts），測試與 Mac 工具接 Node 內建 node:sqlite（nodeDriver.ts）。
 // 兩者都是真的 SQLite。這裡只放介面，不放任何實作細節。
 
-/** SQLite 參數與結果只用字串、整數與 null；金額為新台幣整數，不用浮點。 */
-export type SqlValue = string | number | null;
+/** SQLite 參數與結果只用字串、整數與 null；金額為新台幣整數，不用浮點。Uint8Array 只用在備份包裡的整本帳檔（BLOB）。 */
+export type SqlValue = string | number | null | Uint8Array;
 
 export interface Queryable {
   /** 執行一段不帶參數的 SQL（可含多個語句），例如建表。 */

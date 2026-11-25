@@ -45,6 +45,14 @@ export interface NotificationPlanInput {
   statementImports?: readonly { accountId: number; period: string; imported: boolean | null }[];
   /** 原生層日後保存已送達的識別碼，可避免已送達的一次性提醒再次出現。 */
   deliveredIds?: readonly string[];
+  /**
+   * 多帳本（ADR 0008）：記帳提醒、兩種備份提醒與上次備份時間是全 App 共用，由帳本清單傳入並取代
+   * 這本帳自己的設定；省略時沿用帳本設定（測試與單本情境）。
+   */
+  globals?: {
+    entry: boolean; entryTime: string; backupAfterClose: boolean; backupOverdue: boolean;
+    lastBackupAt: string | null; backupStartedAt: string | null;
+  };
 }
 
 export interface NotificationsLedger {
@@ -178,7 +186,11 @@ async function notificationPlan(q: Queryable, input: NotificationPlanInput): Pro
   const month = today.slice(0, 7);
   const endMonth = lastDate.slice(0, 7);
   if (!isValidMonth(month) || !isValidMonth(endMonth)) throw new NotificationSettingsError('通知查詢時間超出可用年份。');
-  const config = input.settings ? validateSettings(input.settings) : await readSettings(q);
+  const stored = input.settings ? validateSettings(input.settings) : await readSettings(q);
+  const g = input.globals;
+  const config: NotificationSettings = g
+    ? { ...stored, entryTime: g.entryTime, enabled: { ...stored.enabled, entry: g.entry, backupAfterClose: g.backupAfterClose, backupOverdue: g.backupOverdue } }
+    : stored;
   const delivered = new Set([
     ...(await dispatches(q)).filter((row) => new Date(row.fireAt) <= now).map((row) => row.id),
     ...(input.deliveredIds ?? []),
@@ -213,7 +225,7 @@ async function notificationPlan(q: Queryable, input: NotificationPlanInput): Pro
     }
   }
 
-  const backupAt = (await q.get<{ value: string }>("SELECT value FROM ledger_meta WHERE key = 'last_backup_at'"))?.value ?? null;
+  const backupAt = g ? g.lastBackupAt : (await q.get<{ value: string }>("SELECT value FROM ledger_meta WHERE key = 'last_backup_at'"))?.value ?? null;
   if (config.enabled.backupAfterClose) {
     const latest = state.months.filter((m) => !m.migrated && new Date(m.time) <= now)
       .sort((a, b) => a.month.localeCompare(b.month)).at(-1);
@@ -222,7 +234,7 @@ async function notificationPlan(q: Queryable, input: NotificationPlanInput): Pro
     }
   }
   if (config.enabled.backupOverdue) {
-    const anchor = backupAt ?? await setting(q, BACKUP_START_KEY);
+    const anchor = backupAt ?? (g ? g.backupStartedAt : await setting(q, BACKUP_START_KEY));
     if (anchor !== null) {
       // 「超過」35 天：恰滿 35 天不發；未逾期也能先排好一次性提醒。
       const due = new Date(new Date(anchor).getTime() + 35 * DAY + 1);

@@ -239,7 +239,7 @@ export default function EntryScreen() {
           <Text style={text.footnote}>帳戶</Text>
           <View style={styles.chips}>
             {accounts.filter((a) => a.active || a.id === originalAccountId).map((a) => (
-              <Chip key={a.id} label={`${a.name}${a.active ? '' : '（已停用）'}`} active={a.id === accountId} disabled={readOnly} onPress={() => setAccountId(a.id)} />
+              <Chip key={a.id} label={`${withIcon(a.icon, a.name)}${a.active ? '' : '（已停用）'}`} active={a.id === accountId} disabled={readOnly} onPress={() => setAccountId(a.id)} />
             ))}
           </View>
         </Card>

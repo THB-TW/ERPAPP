@@ -8,6 +8,7 @@ export type LedgerErrorCode =
   | 'invalid_investment'
   | 'invalid_date'
   | 'invalid_month'
+  | 'invalid_grouping'
   | 'invalid_amount'
   | 'invalid_flow'
   | 'flow_mismatch'
@@ -33,6 +34,11 @@ export type LedgerErrorCode =
   | 'backup_older'
   | 'backup_failed'
   | 'backup_unavailable'
+  | 'invalid_ledger_name'
+  | 'ledger_name_conflict'
+  | 'ledger_limit'
+  | 'last_ledger'
+  | 'unknown_ledger'
   | 'entitlement_required';
 
 /** 帳本服務拒絕指令或查詢時丟出；message 是可直接顯示給使用者的繁體中文。 */

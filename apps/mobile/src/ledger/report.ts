@@ -75,3 +75,69 @@ export async function categoryMonthTransactions(q: Queryable, month: string, cat
   if (!isValidMonth(month)) throw new LedgerError('invalid_month', MONTH_MESSAGE);
   return selectTransactions(q, 'substr(t.date, 1, 7) = ? AND t.category_id = ?', [month, categoryId], 't.date DESC, t.id');
 }
+
+/** 明細的另一個看法：依成員或依帳戶彙總（2026-11-25）。分類視角仍用 monthBreakdown。 */
+export type ReportGrouping = 'member' | 'account';
+
+export interface GroupShare {
+  id: number;
+  name: string;
+  icon: string | null;
+  /** 已停用的成員或帳戶照樣列出，畫面可標註。 */
+  active: boolean;
+  amount: number;
+  count: number;
+  /** 同 CategoryShare.permille：全部加起來一定是 1000。 */
+  permille: number;
+}
+
+export interface MonthGroupBreakdown {
+  month: string;
+  flow: Flow;
+  by: ReportGrouping;
+  total: number;
+  otherFlowTotal: number;
+  /** 只含當月有帳的成員或帳戶，依金額由大到小；金額相同依排列順序。 */
+  groups: GroupShare[];
+}
+
+const GROUP_TABLE: Record<ReportGrouping, { table: string; column: string }> = {
+  member: { table: 'members', column: 'member_id' },
+  account: { table: 'accounts', column: 'account_id' },
+};
+
+function checkGrouping(month: string, flow: Flow, by: ReportGrouping) {
+  if (!isValidMonth(month)) throw new LedgerError('invalid_month', MONTH_MESSAGE);
+  if (flow !== 'expense' && flow !== 'income') throw new LedgerError('invalid_flow', '收支別只能是「支出」或「收入」。');
+  if (!(by in GROUP_TABLE)) throw new LedgerError('invalid_grouping', '明細只能依分類、成員或帳戶查看。');
+  return GROUP_TABLE[by];
+}
+
+/** 轉帳不是交易，不計入；與分類視角的合計相同。 */
+export async function monthGroupBreakdown(q: Queryable, month: string, flow: Flow, by: ReportGrouping): Promise<MonthGroupBreakdown> {
+  const { table, column } = checkGrouping(month, flow, by);
+  const rows = await q.all<{ id: number; name: string; icon: string | null; active: number; amount: number; count: number }>(
+    `SELECT g.id, g.name, g.icon, g.active, SUM(t.amount) AS amount, COUNT(*) AS count
+       FROM transactions t JOIN ${table} g ON g.id = t.${column}
+      WHERE t.flow = ? AND substr(t.date, 1, 7) = ?
+      GROUP BY g.id ORDER BY amount DESC, g.sort_order, g.id`,
+    [flow, month],
+  );
+  const other = await q.get<{ total: number }>(
+    'SELECT COALESCE(SUM(amount), 0) AS total FROM transactions WHERE flow <> ? AND substr(date, 1, 7) = ?',
+    [flow, month],
+  );
+  const permilles = allocateShares(rows.map((r) => r.amount), 1000);
+  return {
+    month, flow, by,
+    total: rows.reduce((sum, r) => sum + r.amount, 0),
+    otherFlowTotal: other?.total ?? 0,
+    groups: rows.map((r, i) => ({ id: r.id, name: r.name, icon: r.icon, active: r.active === 1, amount: r.amount, count: r.count, permille: permilles[i] })),
+  };
+}
+
+/** 某成員或帳戶在該月該收支別的交易，日期新的在前。 */
+export async function groupMonthTransactions(q: Queryable, month: string, flow: Flow, by: ReportGrouping, id: number): Promise<DayTransaction[]> {
+  const { column } = checkGrouping(month, flow, by);
+  return selectTransactions(q, `substr(t.date, 1, 7) = ? AND t.flow = ? AND t.${column} = ?`, [month, flow, id], 't.date DESC, t.id');
+}

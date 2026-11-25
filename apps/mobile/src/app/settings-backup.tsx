@@ -1,16 +1,17 @@
 // 設定 → 備份與還原（票 16）。由根堆疊推入的子頁面；設定分頁的入口等票 07 的分頁骨架合回後再接。
 // 免費版與訂閱到期後都可用：這一頁不檢查付費權益。
+// 多帳本（ADR 0008）：備份檔一次包含全部帳本，匯入整包取代；舊的單本備份檔也能匯入（匯入後只剩那一本）。
 import { Stack } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import type { BackupStatus } from '../ledger/index.ts';
+import type { LibraryBackupStatus } from '../ledger/library.ts';
 import { LedgerError } from '../ledger/index.ts';
 import { discardBackupFile, newBackupPath, pickBackupFile, shareBackupFile } from '../platform/backupTransfer.ts';
 import { BACKUP_REMINDER_DAYS, describeLastBackup, taipeiDateTime } from '../ui/backupText.ts';
 import { userMessage } from '../ui/format.ts';
 import { syncNotifications } from '../platform/notificationSync.ts';
-import { useLedger } from '../ui/LedgerProvider.tsx';
+import { useLedgerLibrary } from '../ui/LedgerProvider.tsx';
 import { colors } from '../ui/theme.ts';
 
 type Busy = 'export' | 'import' | null;
@@ -36,19 +37,19 @@ function ask(title: string, message: string, yes: string, no: string, destructiv
 const confirm = (title: string, message: string, confirmLabel: string) => ask(title, message, confirmLabel, '取消', true);
 
 export default function BackupScreen() {
-  const ledger = useLedger();
-  const [status, setStatus] = useState<BackupStatus | null>(null);
+  const { library, refresh: refreshLedgers } = useLedgerLibrary();
+  const [status, setStatus] = useState<LibraryBackupStatus | null>(null);
   const [busy, setBusy] = useState<Busy>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      setStatus(await ledger.getBackupStatus());
+      setStatus(await library.getBackupStatus());
     } catch (e) {
       setError(userMessage(e, '讀取備份狀態失敗，請返回後再試一次。'));
     }
-  }, [ledger]);
+  }, [library]);
 
   useEffect(() => {
     void refresh();
@@ -73,7 +74,7 @@ export default function BackupScreen() {
     run('export', async () => {
       const path = newBackupPath(new Date());
       try {
-        const { exportedAt } = await ledger.exportBackup(path);
+        const { exportedAt } = await library.exportBackup(path);
         if (!(await shareBackupFile(path))) {
           setError('這台裝置無法開啟分享面板，備份檔沒有送出。');
           return;
@@ -83,8 +84,8 @@ export default function BackupScreen() {
         await new Promise((resolve) => setTimeout(resolve, SHEET_DISMISS_MS));
         const saved = await ask('備份檔存好了嗎？', '已存到「檔案」、iCloud Drive 或用 AirDrop 傳到別的裝置，才算備份完成。', '已存好', '沒有存');
         if (saved) {
-          await ledger.recordBackupDelivered(exportedAt);
-          void syncNotifications(ledger).catch(() => {});
+          await library.recordBackupDelivered(exportedAt);
+          void syncNotifications(library.current()).catch(() => {});
           setMessage('已記下這次備份。');
         } else {
           setMessage('這次沒有記成備份。需要時請再按一次「匯出備份檔」。');
@@ -96,11 +97,14 @@ export default function BackupScreen() {
 
   /** 驗證後整本取代；比目前的帳舊時多問一次。 */
   async function restoreFrom(path: string) {
-    const info = await ledger.inspectBackup(path);
+    const info = await library.inspectBackup(path);
     const when = info.lastModifiedAt ? `最後修改於 ${taipeiDateTime(info.lastModifiedAt)}` : '沒有修改時間紀錄';
+    const contents = info.format === 'bundle'
+      ? `含 ${info.ledgerNames.length} 個帳本：${info.ledgerNames.join('、')}`
+      : '舊版單本備份，匯入後只剩這一本';
     const ok = await confirm(
-      '整本取代目前的帳？',
-      `這份備份（${when}）會取代手機上全部的帳，不會合併。目前手機上的帳不會保留，取代後無法復原。如需保留，請先按「匯出備份檔」。`,
+      '整包取代全部帳本？',
+      `這份備份（${contents}；${when}）會取代手機上全部的帳本，不會合併。目前手機上的帳不會保留，取代後無法復原。如需保留，請先按「匯出備份檔」。`,
       '取代',
     );
     if (!ok) return false;
@@ -113,8 +117,7 @@ export default function BackupScreen() {
       if (!sure) return false;
     }
     try {
-      await ledger.restoreBackup(path, { allowOlder: info.olderThanCurrent });
-      void syncNotifications(ledger).catch(() => {});
+      await library.restoreBackup(path, { allowOlder: info.olderThanCurrent });
     } catch (e) {
       // 兩次確認之間帳本又有變動，備份變成較舊的：請使用者重來一次，不默默蓋掉
       if (e instanceof LedgerError && e.code === 'backup_older') throw new LedgerError(e.code, '手機上的帳剛剛有變動，請再按一次匯入並重新確認。');
@@ -129,7 +132,12 @@ export default function BackupScreen() {
       if (path === null) return;
       try {
         await new Promise((resolve) => setTimeout(resolve, SHEET_DISMISS_MS));
-        if (await restoreFrom(path)) setMessage('已匯入備份，整本帳已取代。');
+        if (await restoreFrom(path)) {
+          await discardBackupFile(path);
+          // 帳本換了：整個畫面重新開始，回到記帳首頁（新帳本若還沒開帳會先進開帳）。
+          Alert.alert('已匯入備份', '全部帳本已取代，回到第一本帳。');
+          await refreshLedgers();
+        }
       } finally {
         await discardBackupFile(path); // 選檔器複製進暫存區的複本
       }
@@ -153,12 +161,12 @@ export default function BackupScreen() {
 
         <ActionButton label="匯出備份檔" working={busy === 'export'} disabled={busy !== null} onPress={exportBackup} primary />
         <Text style={{ color: colors.muted, fontSize: 13 }}>
-          把整本帳存成一個檔案，可存到「檔案」、iCloud Drive 或用 AirDrop 傳到別的裝置。備份檔沒有加密，請放在只有你拿得到的地方。
+          把全部帳本存成一個檔案，可存到「檔案」、iCloud Drive 或用 AirDrop 傳到別的裝置。備份檔沒有加密，請放在只有你拿得到的地方。
         </Text>
 
         <ActionButton label="匯入備份檔" working={busy === 'import'} disabled={busy !== null} onPress={importBackup} />
         <Text style={{ color: colors.muted, fontSize: 13 }}>
-          用備份檔整本取代手機上的帳（不合併）。目前的帳不會保留，取代後無法復原；如需保留，請先按「匯出備份檔」。
+          用備份檔整包取代手機上全部的帳本（不合併）。舊版 App 匯出的單本備份檔也能匯入，匯入後只剩那一本。目前的帳不會保留，取代後無法復原；如需保留，請先按「匯出備份檔」。
         </Text>
 
         {message ? <Text style={{ color: colors.income, fontSize: 14 }}>{message}</Text> : null}
