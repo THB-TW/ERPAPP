@@ -8,6 +8,7 @@ export type LedgerErrorCode =
   | 'invalid_investment'
   | 'invalid_date'
   | 'invalid_month'
+  | 'invalid_grouping'
   | 'invalid_amount'
   | 'invalid_flow'
   | 'flow_mismatch'

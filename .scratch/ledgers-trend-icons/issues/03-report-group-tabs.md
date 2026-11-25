@@ -2,7 +2,7 @@
 
 **What to build:** 明細圓餅下方加分類／成員／帳戶標籤，帳本服務提供依成員、帳戶彙總。
 
-**Blocked by:** 無　**Status:** ready-for-agent　**Owner:** `ledger-entry`　**Spec:** 第 5–6 點
+**Blocked by:** 無　**Status:** done（PR #52）　**Owner:** `ledger-entry`　**Spec:** 第 5–6 點
 
 - [ ] 帳本服務月報加 groupBy（category｜member｜account），轉帳排除
 - [ ] 「其他」合併只在分類；停用成員／帳戶照樣列

@@ -2,12 +2,12 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { monthOf, shiftMonth, taipeiDate } from '../../../calc/dates.ts';
-import type { DayTransaction, Flow, MonthBreakdown } from '../../../ledger/index.ts';
+import type { DayTransaction, Flow, ReportGrouping } from '../../../ledger/index.ts';
 import { HorizontalPager, usePagerTap } from '../../../ui/HorizontalPager.tsx';
 import { Donut } from '../../../ui/Donut.tsx';
 import { formatAmount, formatPermille, monthTitle, userMessage } from '../../../ui/format.ts';
 import { useLedger } from '../../../ui/LedgerProvider.tsx';
-import { Footnote, Group, MonthBar, SectionTitle, kit, text } from '../../../ui/kit.tsx';
+import { Footnote, Group, MonthBar, SectionTitle, Segmented, kit, text } from '../../../ui/kit.tsx';
 import { TabScrollView } from '../../../ui/LargeTitle.tsx';
 import { reportCategoryColor, reportOtherColor, colors, typeScale } from '../../../ui/theme.ts';
 
@@ -16,12 +16,26 @@ import { reportCategoryColor, reportOtherColor, colors, typeScale } from '../../
 const FLOW_NAME: Record<Flow, string> = { expense: '支出', income: '收入' };
 const otherFlow = (flow: Flow): Flow => (flow === 'expense' ? 'income' : 'expense');
 const FLOW_OPTIONS = (['expense', 'income'] as const).map((f) => ({ key: f, label: FLOW_NAME[f] }));
+// 圓餅下方的標籤（2026-11-25）：依分類、成員或帳戶看；圓餅與列表一起換。灰色「其他」合併只在分類。
+type Grouping = 'category' | ReportGrouping;
+const GROUP_OPTIONS: readonly { key: Grouping; label: string }[] = [
+  { key: 'category', label: '分類' }, { key: 'member', label: '成員' }, { key: 'account', label: '帳戶' },
+];
+const GROUP_NAME: Record<Grouping, string> = { category: '分類', member: '成員', account: '帳戶' };
+interface ViewRow { key: string; id: number; name: string; amount: number; permille: number; other: boolean }
+interface ReportView { month: string; flow: Flow; by: Grouping; total: number; otherFlowTotal: number; rows: ViewRow[] }
+const withIcon = (icon: string | null, name: string) => (icon ? `${icon} ${name}` : name);
 
 export default function ReportScreen() {
   const [thisMonth, setThisMonth] = useState(() => monthOf(taipeiDate(new Date())));
   const [month, setMonth] = useState(thisMonth);
   const [selected, setSelected] = useState(0);
   const [openKey, setOpenKey] = useState<string | null>(null);
+  const [groupBy, setGroupBy] = useState<Grouping>('category');
+  function chooseGroup(next: Grouping) {
+    setGroupBy(next);
+    setOpenKey(null);
+  }
   useFocusEffect(useCallback(() => { setThisMonth(monthOf(taipeiDate(new Date()))); }, []));
   function chooseMonth(next: string) {
     setMonth(next);
@@ -40,7 +54,7 @@ export default function ReportScreen() {
         onHintPress={month === thisMonth ? undefined : () => chooseMonth(thisMonth)} />
       <HorizontalPager options={FLOW_OPTIONS} onChange={choosePage}>
         {(['expense', 'income'] as const).map((flow, index) => (
-          <ReportPage key={`${month}-${flow}`} month={month} flow={flow}
+          <ReportPage key={`${month}-${flow}`} month={month} flow={flow} groupBy={groupBy} onGroupBy={chooseGroup}
             openKey={selected === index ? openKey : null} onOpen={setOpenKey} />
         ))}
       </HorizontalPager>
@@ -48,21 +62,34 @@ export default function ReportScreen() {
   );
 }
 
-function ReportPage({ month, flow, openKey, onOpen }: {
-  month: string; flow: Flow; openKey: string | null; onOpen: (key: string | null) => void;
+function ReportPage({ month, flow, groupBy, onGroupBy, openKey, onOpen }: {
+  month: string; flow: Flow; groupBy: Grouping; onGroupBy: (next: Grouping) => void;
+  openKey: string | null; onOpen: (key: string | null) => void;
 }) {
   const tap = usePagerTap();
   const ledger = useLedger();
-  const [breakdown, setBreakdown] = useState<MonthBreakdown | null>(null);
+  const [breakdown, setBreakdown] = useState<ReportView | null>(null);
   // 展開的類別的交易，連同它屬於哪個月份、哪個類別一起存；對不上目前展開的那一列就不顯示。
-  const [openList, setOpenList] = useState<{ month: string; key: string; rows: DayTransaction[] } | null>(null);
+  const [openList, setOpenList] = useState<{ month: string; by: Grouping; key: string; rows: DayTransaction[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // 每次回到這一頁（含從記帳表單返回）都重新查，剛記或剛改的帳才會反映在圖上。
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      ledger.getMonthBreakdown(month, flow).then(
+      const load: Promise<ReportView> = groupBy === 'category'
+        ? ledger.getMonthBreakdown(month, flow).then((b) => ({
+            month, flow, by: groupBy, total: b.total, otherFlowTotal: b.otherFlowTotal,
+            rows: b.categories.map((c) => ({ key: String(c.categoryId), id: c.categoryId, name: withIcon(c.categoryIcon, c.categoryName),
+              amount: c.amount, permille: c.permille,
+              other: flow === 'expense' && (!c.budgetCategory || c.budgetCategory.name === '其他') })),
+          }))
+        : ledger.getMonthGroupBreakdown(month, flow, groupBy).then((b) => ({
+            month, flow, by: groupBy, total: b.total, otherFlowTotal: b.otherFlowTotal,
+            rows: b.groups.map((g) => ({ key: String(g.id), id: g.id, name: `${withIcon(g.icon, g.name)}${g.active ? '' : '（已停用）'}`,
+              amount: g.amount, permille: g.permille, other: false })),
+          }));
+      load.then(
         (result) => {
           if (cancelled) return;
           setBreakdown(result);
@@ -75,7 +102,7 @@ function ReportPage({ month, flow, openKey, onOpen }: {
       return () => {
         cancelled = true;
       };
-    }, [ledger, month, flow]),
+    }, [ledger, month, flow, groupBy]),
   );
 
   // 展開某個類別時查它當月的交易。
@@ -83,9 +110,12 @@ function ReportPage({ month, flow, openKey, onOpen }: {
     useCallback(() => {
       if (openKey === null) return;
       let cancelled = false;
-      ledger.getCategoryMonthTransactions(month, Number(openKey)).then(
+      const by = groupBy;
+      (by === 'category'
+        ? ledger.getCategoryMonthTransactions(month, Number(openKey))
+        : ledger.getGroupMonthTransactions(month, flow, by, Number(openKey))).then(
         (rows) => {
-          if (!cancelled) setOpenList({ month, key: openKey, rows });
+          if (!cancelled) setOpenList({ month, by, key: openKey, rows });
         },
         (e: unknown) => {
           if (!cancelled) setError(userMessage(e, '讀取失敗，請再試一次。'));
@@ -94,17 +124,13 @@ function ReportPage({ month, flow, openKey, onOpen }: {
       return () => {
         cancelled = true;
       };
-    }, [ledger, month, openKey]),
+    }, [ledger, month, flow, groupBy, openKey]),
   );
 
   // 查詢結果還是上一個月份或收支別的時候不畫，避免標題和圖對不上。
-  const current = breakdown && breakdown.month === month && breakdown.flow === flow ? breakdown : null;
+  const current = breakdown && breakdown.month === month && breakdown.flow === flow && breakdown.by === groupBy ? breakdown : null;
   let colorIndex = 0;
-  const rows = (current?.categories ?? []).map(category => {
-    const other = flow === 'expense' && (!category.budgetCategory || category.budgetCategory.name === '其他');
-    return { ...category, key: String(category.categoryId), name: category.categoryIcon ? `${category.categoryIcon} ${category.categoryName}` : category.categoryName,
-      other, color: other ? reportOtherColor : reportCategoryColor(colorIndex++) };
-  });
+  const rows = (current?.rows ?? []).map(row => ({ ...row, color: row.other ? reportOtherColor : reportCategoryColor(colorIndex++) }));
   const otherAmount = rows.filter(row => row.other).reduce((sum, row) => sum + row.amount, 0);
   const slices = [ ...rows.filter(row => !row.other),
     ...(otherAmount > 0 ? [{ key: 'budget-other', amount: otherAmount, color: reportOtherColor }] : []) ];
@@ -117,7 +143,7 @@ function ReportPage({ month, flow, openKey, onOpen }: {
           style={[kit.card, styles.donutCard]}
           accessible
           accessibilityRole="image"
-          accessibilityLabel={`${monthTitle(month)}${kind}分類圓餅圖，合計 ${formatAmount(current?.total ?? 0)} 元。左右滑可切換支出與收入。`}
+          accessibilityLabel={`${monthTitle(month)}${kind}依${GROUP_NAME[groupBy]}的圓餅圖，合計 ${formatAmount(current?.total ?? 0)} 元。左右滑可切換支出與收入。`}
         >
           <Donut slices={slices}>
             <Text style={text.footnote}>本月{kind}</Text>
@@ -134,6 +160,8 @@ function ReportPage({ month, flow, openKey, onOpen }: {
         </View>
       </View>
 
+      <Segmented options={GROUP_OPTIONS} value={groupBy} onChange={onGroupBy} />
+
       <View style={kit.section}>
         <SectionTitle
           right={
@@ -142,7 +170,7 @@ function ReportPage({ month, flow, openKey, onOpen }: {
             </Text>
           }
         >
-          {kind}分類
+          {kind}依{GROUP_NAME[groupBy]}
         </SectionTitle>
 
         {error ? <Text style={[text.error, kit.outsideText]}>{error}</Text> : null}
@@ -166,11 +194,11 @@ function ReportPage({ month, flow, openKey, onOpen }: {
                   <Text style={[text.footnote, styles.tabular]}>{formatPermille(slice.permille)}</Text>
                   <Text style={[text.value, styles.amountBold]}>{formatAmount(slice.amount)}</Text>
                 </Pressable>
-                {open && openList?.key === slice.key && openList.month === month
+                {open && openList?.key === slice.key && openList.month === month && openList.by === groupBy
                   ? openList.rows.map((t) => (
                       <SubRow
                         key={t.id}
-                        label={`${Number(t.date.slice(5, 7))}/${Number(t.date.slice(8))}・${t.accountName}${t.note ? `・${t.note}` : ''}`}
+                        label={`${Number(t.date.slice(5, 7))}/${Number(t.date.slice(8))}・${groupBy === 'category' ? t.accountName : t.categoryName}${t.note ? `・${t.note}` : ''}`}
                         amount={t.amount}
                         onPress={tap(() => router.push({ pathname: '/entry', params: { id: String(t.id) } }))}
                       />

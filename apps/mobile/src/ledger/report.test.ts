@@ -162,3 +162,36 @@ test('明細已結月份使用凍結歸屬，後續版本不能改變舊月顏�
   assert.deepEqual((await ledger.getMonthBreakdown('2026-10', 'expense')).categories[0].budgetCategory, { id: 'food', name: '餐食' });
   await ledger.close();
 });
+
+test('依成員與帳戶彙總：合計與分類視角相同、轉帳不算、停用的照樣列、可展開交易', async () => {
+  const { ledger, cat, add } = await newLedger();
+  const mom = await ledger.addMember({ name: '媽媽', icon: '👩' });
+  const accounts = await ledger.listAccounts();
+  const acc = (name: string) => accounts.find((a) => a.name === name)!.id;
+  await ledger.addTransaction({ date: '2026-10-02', flow: 'expense', categoryId: cat('飲食'), accountId: acc('銀行'), amount: 600, memberId: mom.id });
+  await add('2026-10-03', 'expense', '交通', 300);
+  await add('2026-10-04', 'expense', '飲食', 100, '', '信用卡');
+  await add('2026-10-05', 'income', '薪資', 40000, '', '銀行');
+  await ledger.addTransfer({ date: '2026-10-06', fromAccountId: acc('銀行'), toAccountId: acc('現金'), amount: 5000, note: '' });
+  await ledger.setMemberActive(mom.id, false);
+  await ledger.updateAccount(acc('信用卡'), { active: false });
+
+  const byCategory = await ledger.getMonthBreakdown('2026-10', 'expense');
+  const byMember = await ledger.getMonthGroupBreakdown('2026-10', 'expense', 'member');
+  const byAccount = await ledger.getMonthGroupBreakdown('2026-10', 'expense', 'account');
+  assert.equal(byMember.total, byCategory.total);
+  assert.equal(byAccount.total, byCategory.total);
+  assert.equal(byAccount.otherFlowTotal, 40000);
+  assert.deepEqual(byMember.groups.map((g) => [g.name, g.icon, g.active, g.amount, g.count, g.permille]), [
+    ['媽媽', '👩', false, 600, 1, 600], ['自己', '🙂', true, 400, 2, 400],
+  ]);
+  assert.deepEqual(byAccount.groups.map((g) => [g.name, g.icon, g.active, g.amount]), [
+    ['銀行', '🏦', true, 600], ['現金', '💵', true, 300], ['信用卡', '💳', false, 100],
+  ]);
+  assert.equal(sum(byAccount.groups.map((g) => g.permille)), 1000);
+  const income = await ledger.getMonthGroupBreakdown('2026-10', 'income', 'account');
+  assert.deepEqual(income.groups.map((g) => [g.name, g.amount]), [['銀行', 40000]]); // 轉帳 5000 不算
+  const rows = await ledger.getGroupMonthTransactions('2026-10', 'expense', 'account', acc('銀行'));
+  assert.deepEqual(rows.map((r) => [r.date, r.amount]), [['2026-10-02', 600]]);
+  await rejects('invalid_grouping', ledger.getMonthGroupBreakdown('2026-10', 'expense', 'note' as 'member'));
+});

@@ -39,7 +39,7 @@ import {
   type BudgetMonthView,
   type BudgetStatus,
 } from './budgetViews.ts';
-import { categoryMonthTransactions, monthBreakdown, type MonthBreakdown } from './report.ts';
+import { categoryMonthTransactions, groupMonthTransactions, monthBreakdown, monthGroupBreakdown, type MonthBreakdown, type MonthGroupBreakdown, type ReportGrouping } from './report.ts';
 import type { Flow } from './defaults.ts';
 import { accountCommands, type AccountsLedger } from './accounts.ts';
 import { investmentCommands, type InvestmentsLedger } from './investment.ts';
@@ -85,7 +85,7 @@ export type {
   BudgetAdjustmentView, BudgetMonthSummary, BudgetMonthView, BudgetReserveView, BudgetStatus,
 } from './budgetViews.ts';
 
-export type { CategoryShare, MonthBreakdown } from './report.ts';
+export type { CategoryShare, GroupShare, MonthBreakdown, MonthGroupBreakdown, ReportGrouping } from './report.ts';
 export type { CompleteMonthlyCloseRequest, MonthlyCloseDraft, MonthlyClosePreview, MonthlyCloseRequest, MonthlyCloseRow, MonthlyCloseSnapshot } from './monthlyClose.ts';
 
 export interface Category { id: number; name: string; flow: Flow; icon: string | null }
@@ -186,6 +186,10 @@ export interface Ledger extends AccountsLedger, TransfersLedger, InvestmentsLedg
   getMonthBreakdown(month: string, flow: Flow): Promise<MonthBreakdown>;
   /** 某分類在該月的交易，日期新的在前。 */
   getCategoryMonthTransactions(month: string, categoryId: number): Promise<DayTransaction[]>;
+  /** 依成員或帳戶彙總（明細的「成員」「帳戶」標籤）；合計與分類視角相同、轉帳不計入。 */
+  getMonthGroupBreakdown(month: string, flow: Flow, by: ReportGrouping): Promise<MonthGroupBreakdown>;
+  /** 某成員或帳戶在該月該收支別的交易，日期新的在前。 */
+  getGroupMonthTransactions(month: string, flow: Flow, by: ReportGrouping, id: number): Promise<DayTransaction[]>;
 
   // ---- 預算與月結（票 03）----
   /**
@@ -335,6 +339,8 @@ export async function openLedger(rawDb: Database, options: LedgerOptions = {}): 
 
     getMonthBreakdown: (month, flow) => serial(() => monthBreakdown(db, month, flow)),
     getCategoryMonthTransactions: (month, categoryId) => serial(() => categoryMonthTransactions(db, month, categoryId)),
+    getMonthGroupBreakdown: (month, flow, by) => serial(() => monthGroupBreakdown(db, month, flow, by)),
+    getGroupMonthTransactions: (month, flow, by, id) => serial(() => groupMonthTransactions(db, month, flow, by, id)),
 
     getOpeningDate: () =>
       serial(async () => (await db.get<{ value: string }>("SELECT value FROM settings WHERE key = 'opening_date'"))?.value ?? null),
