@@ -17,6 +17,12 @@ Blocked by: 05-competitors-pricing
 - Q3 同意：直接支援天天記帳 12 欄 CSV（沿用舊網站解析規則），分類須先存在；其他 App 用通用 CSV（類別、金額必填）。
 - Q4 首發功能清單：同意建議（見 Answer）。
 
+2026-11-24 marketing-pricing 重新查競品（天天記帳、Moze 等）：「會累積的預算」Moze 已有，真正空缺是月結核對＋儲備罐子；天天記帳也是本機優先、CSV 匯出免費、股票功能更完整；建議副標改以月結為主、載具列 1.1 第一順位、AI 首版不做；待翰陞回 Q1–Q4，詳見 [research/24-competitive-edge.md](../research/24-competitive-edge.md)。
+
+2026-11-25 翰陞回研究 24 的 Q1–Q6：Q1 同意（主標不變，描述第二行加「每月對帳，差額歸零才結帳，沒花完的預算留著用（進階版）」，對外不說獨家／唯一）；Q2 **要加載具與自動分類**（推翻原「首版不做載具」，可行性另查 research/25-einvoice-carrier.md）；Q3 同意守住資料只存手機、不為 AI 自建伺服器；Q4 希望使用者手機上的 ChatGPT（dots）或 Muse 能直接讀帳本、幫忙記帳與分析（另查 research/25-chatgpt-dots-integration.md）；Q5 同意付費開通開發者帳號時一起申請 Small Business Program；Q6 dot＝OpenAI ChatGPT 的 dots。
+
+2026-11-26 翰陞：載具先不做（研究 25-einvoice-carrier.md 保留供日後參考）；ChatGPT／Muse 讀取帳本的研究另開討論串重查。
+
 ## Answer
 
 一句話定位（翰陞）：**主動規劃預算，不要當月光族。** 記帳像天天記帳一樣快，差異化是會累積的預算儲備與月結核對。
