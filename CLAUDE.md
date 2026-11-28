@@ -50,6 +50,10 @@ CSV 匯入的流程與數量式去重只在 `Services/Import/ImportRun.cs` 寫�
 
 ## Agent skills
 
+### UI/UX Pro Max 與 Archify（專案內建）
+
+`ui-ux-pro-max`（MIT，設計資料庫：風格、配色、字體、UX 準則）與 `archify`（Apache-2.0，產生架構／流程／資料表圖的互動 HTML）已複製到 `.claude/skills/`，所有討論串開在此 repo 即可用。畫面與 UX 改動（ui-polish、預算頁、記帳頁）可先查 `ui-ux-pro-max`；畫圖說明架構用 `archify`。來源、授權、使用方式與更新方式見 `.claude/skills/README-uiux-archify.md`。與既有 agent 分派表並行，不取代。
+
 ### Issue tracker
 
 Issues live as markdown files under `.scratch/<feature>/` in this repo — not on GitHub. See `docs/agents/issue-tracker.md`.
